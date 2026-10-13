@@ -33,12 +33,19 @@ class NutrientCalculationResponse(BaseModel):
     selected_rule_id: Optional[str] = None
     selected_method: Optional[str] = None
     n_req_kg_per_ha: Optional[float] = Field(None, description="Nitrogen requirement in kg/ha")
+    net_n_kg_per_ha: Optional[float] = Field(None, description="Nitrogen requirement in kg/ha (alias)")
     p2o5_req_kg_per_ha: Optional[float] = Field(None, description="Phosphorus requirement as P2O5 in kg/ha")
+    net_p2o5_kg_per_ha: Optional[float] = Field(None, description="Phosphorus requirement as P2O5 in kg/ha (alias)")
     k2o_req_kg_per_ha: Optional[float] = Field(None, description="Potassium requirement as K2O in kg/ha")
+    net_k2o_kg_per_ha: Optional[float] = Field(None, description="Potassium requirement as K2O in kg/ha (alias)")
     farm_area_hectares: Optional[float] = Field(None, description="Farm area in hectares")
     total_n_req_kg: Optional[float] = Field(None, description="Total N requirement for farm area in kg")
+    total_farm_n_kg: Optional[float] = Field(None, description="Total N requirement for farm area in kg (alias)")
     total_p2o5_req_kg: Optional[float] = Field(None, description="Total P2O5 requirement for farm area in kg")
+    total_farm_p2o5_kg: Optional[float] = Field(None, description="Total P2O5 requirement for farm area in kg (alias)")
     total_k2o_req_kg: Optional[float] = Field(None, description="Total K2O requirement for farm area in kg")
+    total_farm_k2o_kg: Optional[float] = Field(None, description="Total K2O requirement for farm area in kg (alias)")
+    calculation_method: Optional[str] = Field(None, description="Method name alias")
     calculation_details: Dict[str, Any] = Field(default_factory=dict)
     units: Dict[str, str] = Field(default_factory=lambda: {"per_ha": "kg/ha", "total": "kg", "area": "hectare"})
     source_title: Optional[str] = None

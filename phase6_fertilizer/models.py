@@ -20,6 +20,7 @@ class FertilizerOptimizationRequest(BaseModel):
 class FertilizerProductRecommendation(BaseModel):
     product_id: str
     product_name: str
+    name: Optional[str] = None
     category: str
     quantity_kg: float
     bags: int
@@ -48,6 +49,7 @@ class FertilizerOptimizationResponse(BaseModel):
     crop: Optional[str] = None
     farm_area_hectares: float = 1.0
     total_cost_inr: float = 0.0
+    optimization_method: str = "Continuous LP (SciPy HiGHS) with Ceiling Bag Rounding"
     recommended_products: List[FertilizerProductRecommendation] = Field(default_factory=list)
     nutrient_balance: Dict[str, NutrientBalanceDetail] = Field(default_factory=dict)
     split_application_schedule: List[SplitApplicationStage] = Field(default_factory=list)

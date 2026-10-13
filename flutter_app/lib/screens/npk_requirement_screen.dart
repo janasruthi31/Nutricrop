@@ -135,14 +135,14 @@ class _NpkRequirementScreenState extends State<NpkRequirementScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final p5 = _recommendationResponse?['nutrient_requirements'] ?? {};
-    final netN = (p5['net_n_kg_per_ha'] as num?)?.toDouble() ?? 0.0;
-    final netP = (p5['net_p2o5_kg_per_ha'] as num?)?.toDouble() ?? 0.0;
-    final netK = (p5['net_k2o_kg_per_ha'] as num?)?.toDouble() ?? 0.0;
-    final totN = (p5['total_farm_n_kg'] as num?)?.toDouble() ?? 0.0;
-    final totP = (p5['total_farm_p2o5_kg'] as num?)?.toDouble() ?? 0.0;
-    final totK = (p5['total_farm_k2o_kg'] as num?)?.toDouble() ?? 0.0;
+    final netN = (p5['n_req_kg_per_ha'] as num?)?.toDouble() ?? (p5['net_n_kg_per_ha'] as num?)?.toDouble() ?? 0.0;
+    final netP = (p5['p2o5_req_kg_per_ha'] as num?)?.toDouble() ?? (p5['net_p2o5_kg_per_ha'] as num?)?.toDouble() ?? 0.0;
+    final netK = (p5['k2o_req_kg_per_ha'] as num?)?.toDouble() ?? (p5['net_k2o_kg_per_ha'] as num?)?.toDouble() ?? 0.0;
+    final totN = (p5['total_n_req_kg'] as num?)?.toDouble() ?? (p5['total_farm_n_kg'] as num?)?.toDouble() ?? 0.0;
+    final totP = (p5['total_p2o5_req_kg'] as num?)?.toDouble() ?? (p5['total_farm_p2o5_kg'] as num?)?.toDouble() ?? 0.0;
+    final totK = (p5['total_k2o_req_kg'] as num?)?.toDouble() ?? (p5['total_farm_k2o_kg'] as num?)?.toDouble() ?? 0.0;
     final ruleId = p5['selected_rule_id']?.toString() ?? 'TNAU STCR-IPNS';
-    final method = p5['calculation_method']?.toString() ?? 'Deterministic STCR Linear Equation';
+    final method = p5['calculation_method']?.toString() ?? p5['selected_method']?.toString() ?? 'Deterministic STCR Linear Equation';
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.text('npk_title'))),

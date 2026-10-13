@@ -44,9 +44,22 @@ def test_02_master_pipeline_service():
     assert res["district"] == "Thanjavur"
     assert res["rule_selection"]["selected_rule_id"] == "TNAU_STCR_IPNS_RICE_001"
     assert res["nutrient_requirements"]["n_req_kg_per_ha"] > 0
-    assert len(res["fertilizer_plan"]["recommended_products"]) > 0
+    # Schema alias checks
+    assert res["nutrient_requirements"]["net_n_kg_per_ha"] == res["nutrient_requirements"]["n_req_kg_per_ha"]
+    assert res["nutrient_requirements"]["total_farm_n_kg"] == res["nutrient_requirements"]["total_n_req_kg"]
+    assert res["nutrient_requirements"]["calculation_method"] is not None
+    # Fertilizer product name checks
+    products = res["fertilizer_plan"]["recommended_products"]
+    assert len(products) > 0
+    for prod in products:
+        assert prod["product_name"]
+        assert prod["name"] == prod["product_name"]
+        assert prod["bags"] > 0
     assert res["district_yield_prediction"]["estimated_production_tonnes"] > 0
+    # Weather guidance alias checks
     assert res["weather_guidance"]["guidance_status"] is not None
+    assert res["weather_guidance"]["risk_level"] in ("LOW", "MEDIUM", "HIGH")
+    assert res["weather_guidance"]["actionable_advice"] is not None
 
 
 # 3. Master full recommendation API endpoint
@@ -71,3 +84,14 @@ def test_03_full_recommendation_api():
     assert data["status"] == "SUCCESS"
     assert data["rule_selection"]["selected_rule_id"] == "TNAU_STCR_IPNS_COTTON_001"
     assert data["fertilizer_plan"]["total_cost_inr"] > 0
+
+    # Save and test PDF report from real pipeline response
+    headers = {"Authorization": "Bearer test_farmer_e2e"}
+    save_res = client.post("/api/recommendations", headers=headers, json=data)
+    assert save_res.status_code == 200
+    rec_id = save_res.json()["recommendation_id"]
+
+    pdf_res = client.get(f"/api/recommendations/{rec_id}/pdf", headers=headers)
+    assert pdf_res.status_code == 200
+    assert pdf_res.headers["content-type"] == "application/pdf"
+    assert pdf_res.content.startswith(b"%PDF")

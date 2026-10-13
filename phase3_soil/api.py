@@ -11,10 +11,12 @@ from .service import SoilError
 soil_router = APIRouter(prefix="/api/soil", tags=["phase3-soil"])
 
 
-def _guard(x_farmer_id, x_api_key):
-    """Placeholder auth: replace with the app's real authentication when it exists."""
+def _guard(x_farmer_id: Optional[str], x_api_key: Optional[str], authorization: Optional[str] = None):
+    """Checks API key and extracts farmer identity from X-Farmer-Id or Authorization header."""
     if config.API_KEY and not (x_api_key and hmac.compare_digest(x_api_key, config.API_KEY)):
         raise SoilError("UNAUTHORIZED", "Invalid or missing API key.", 401)
+    if not x_farmer_id and authorization and authorization.startswith("Bearer "):
+        x_farmer_id = authorization.split("Bearer ", 1)[1].strip()
     return service.check_farmer(x_farmer_id)
 
 
@@ -23,9 +25,14 @@ def _err(e: SoilError):
 
 
 @soil_router.post("/upload")
-def upload_report(file: UploadFile = File(...), x_farmer_id: str = Header(None), x_api_key: Optional[str] = Header(None)):
+def upload_report(
+    file: UploadFile = File(...),
+    x_farmer_id: Optional[str] = Header(None),
+    x_api_key: Optional[str] = Header(None),
+    authorization: Optional[str] = Header(None)
+):
     try:
-        farmer = _guard(x_farmer_id, x_api_key)
+        farmer = _guard(x_farmer_id, x_api_key, authorization)
         data = file.file.read(config.MAX_UPLOAD_BYTES + 1)  # bounded read: never loads an unbounded body
         return service.upload(farmer, data)
     except SoilError as e:
@@ -35,9 +42,14 @@ def upload_report(file: UploadFile = File(...), x_farmer_id: str = Header(None),
 
 
 @soil_router.post("/ocr")
-def ocr_report(body: dict = Body(...), x_farmer_id: str = Header(None), x_api_key: Optional[str] = Header(None)):
+def ocr_report(
+    body: dict = Body(...),
+    x_farmer_id: Optional[str] = Header(None),
+    x_api_key: Optional[str] = Header(None),
+    authorization: Optional[str] = Header(None)
+):
     try:
-        farmer = _guard(x_farmer_id, x_api_key)
+        farmer = _guard(x_farmer_id, x_api_key, authorization)
         return service.run_ocr(farmer, str(body.get("document_id", "")))
     except SoilError as e:
         return _err(e)
@@ -46,9 +58,14 @@ def ocr_report(body: dict = Body(...), x_farmer_id: str = Header(None), x_api_ke
 
 
 @soil_router.post("/validate")
-def validate_values(body: dict = Body(...), x_farmer_id: str = Header(None), x_api_key: Optional[str] = Header(None)):
+def validate_values(
+    body: dict = Body(...),
+    x_farmer_id: Optional[str] = Header(None),
+    x_api_key: Optional[str] = Header(None),
+    authorization: Optional[str] = Header(None)
+):
     try:
-        _guard(x_farmer_id, x_api_key)
+        _guard(x_farmer_id, x_api_key, authorization)
         return service.validate(body)
     except SoilError as e:
         return _err(e)
@@ -57,9 +74,14 @@ def validate_values(body: dict = Body(...), x_farmer_id: str = Header(None), x_a
 
 
 @soil_router.post("/confirm")
-def confirm_values(body: dict = Body(...), x_farmer_id: str = Header(None), x_api_key: Optional[str] = Header(None)):
+def confirm_values(
+    body: dict = Body(...),
+    x_farmer_id: Optional[str] = Header(None),
+    x_api_key: Optional[str] = Header(None),
+    authorization: Optional[str] = Header(None)
+):
     try:
-        farmer = _guard(x_farmer_id, x_api_key)
+        farmer = _guard(x_farmer_id, x_api_key, authorization)
         return service.confirm(farmer, body)
     except SoilError as e:
         return _err(e)
@@ -68,9 +90,14 @@ def confirm_values(body: dict = Body(...), x_farmer_id: str = Header(None), x_ap
 
 
 @soil_router.get("/{soil_profile_id}")
-def get_soil_profile(soil_profile_id: str, x_farmer_id: str = Header(None), x_api_key: Optional[str] = Header(None)):
+def get_soil_profile(
+    soil_profile_id: str,
+    x_farmer_id: Optional[str] = Header(None),
+    x_api_key: Optional[str] = Header(None),
+    authorization: Optional[str] = Header(None)
+):
     try:
-        farmer = _guard(x_farmer_id, x_api_key)
+        farmer = _guard(x_farmer_id, x_api_key, authorization)
         return service.get_profile(farmer, soil_profile_id)
     except SoilError as e:
         return _err(e)

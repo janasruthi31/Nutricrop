@@ -137,6 +137,20 @@ class AppLocalizations {
       // Help & About
       'help_title': 'Farmer Guidance & FAQs',
       'about_title': 'About the Project (SIH1639)',
+
+      // Domain Error Messages (Phase 6 Requirements)
+      'upload_failure': 'Unable to upload the soil report. Please try again.',
+      'ocr_failure': 'Unable to extract soil values. Please review the report.',
+      'missing_values': 'Some required soil values are missing.',
+      'unsupported_crop': 'A verified fertilizer recommendation rule is not available for this crop.',
+      'optimization_failure': 'Unable to calculate a valid fertilizer combination with the available product data and constraints.',
+      'weather_failure': 'Weather information is currently unavailable. You can continue with the soil-based workflow.',
+      'yield_failure': 'Unable to generate the yield estimate. Please check the inputs and try again.',
+
+      // Password Recovery
+      'forgot_password': 'Forgot Password?',
+      'forgot_password_desc': 'Enter your registered email or phone to reset your password.',
+      'reset_instruction': 'Password reset instructions have been sent to your registered contact.',
     },
     'ta': {
       // General & Navigation
@@ -261,6 +275,20 @@ class AppLocalizations {
       // Help & About
       'help_title': 'விவசாயிகளுக்கான வழிகாட்டி & கேள்விகள்',
       'about_title': 'திட்டம் பற்றிய தகவல் (SIH1639)',
+
+      // Domain Error Messages (Phase 6 Requirements)
+      'upload_failure': 'மண் அறிக்கையை பதிவேற்ற முடியவில்லை. மீண்டும் முயற்சிக்கவும்.',
+      'ocr_failure': 'மண் அளவுகளை பிரித்தெடுக்க முடியவில்லை. அறிக்கையை சரிபார்க்கவும்.',
+      'missing_values': 'சில தேவையான மண் பரிசோதனை அளவுகள் விடுபட்டுள்ளன.',
+      'unsupported_crop': 'இப்பயிருக்கு சரிபார்க்கப்பட்ட உர பரிந்துரை விதி கிடைக்கவில்லை.',
+      'optimization_failure': 'கிடைக்கக்கூடிய உர தயாரிப்புகள் மற்றும் நிபந்தனைகளுடன் சரியான உர கலவையை கணக்கிட முடியவில்லை.',
+      'weather_failure': 'வானிலை தகவல் தற்போது கிடைக்கவில்லை. மண் அடிப்படையிலான செயல்முறையை தொடரலாம்.',
+      'yield_failure': 'மகசூல் மதிப்பீட்டை உருவாக்க முடியவில்லை. உள்ளீடுகளை சரிபார்த்து மீண்டும் முயற்சிக்கவும்.',
+
+      // Password Recovery
+      'forgot_password': 'கடவுச்சொல் மறந்துவிட்டதா?',
+      'forgot_password_desc': 'கடவுச்சொல்லை மீட்டமைக்க உங்கள் பதிவு செய்யப்பட்ட மின்னஞ்சல் அல்லது கைபேசி எண்ணை உள்ளிடவும்.',
+      'reset_instruction': 'கடவுச்சொல் மீட்டமைப்பு வழிமுறைகள் உங்கள் பதிவு செய்யப்பட்ட தொடர்புக்கு அனுப்பப்பட்டுள்ளன.',
     },
     'hi': {
       // General & Navigation
@@ -385,6 +413,20 @@ class AppLocalizations {
       // Help & About
       'help_title': 'किसान गाइड व प्रश्नोत्तरी',
       'about_title': 'परियोजना के बारे में (SIH1639)',
+
+      // Domain Error Messages (Phase 6 Requirements)
+      'upload_failure': 'मृदा रिपोर्ट अपलोड करने में असमर्थ। कृपया पुनः प्रयास करें।',
+      'ocr_failure': 'मृदा मान निकालने में असमर्थ। कृपया रिपोर्ट की समीक्षा करें।',
+      'missing_values': 'कुछ आवश्यक मृदा परीक्षण मान अनुपलब्ध हैं।',
+      'unsupported_crop': 'इस फसल के लिए सत्यापित उर्वरक सिफारिश नियम उपलब्ध नहीं है।',
+      'optimization_failure': 'उपलब्ध उत्पाद डेटा और बाधाओं के साथ एक मान्य उर्वरक संयोजन की गणना करने में असमर्थ।',
+      'weather_failure': 'मौसम की जानकारी वर्तमान में अनुपलब्ध है। आप मृदा-आधारित कार्यप्रवाह जारी रख सकते हैं।',
+      'yield_failure': 'उपज अनुमान उत्पन्न करने में असमर्थ। कृपया इनपुट की जांच करें और पुनः प्रयास करें।',
+
+      // Password Recovery
+      'forgot_password': 'पासवर्ड भूल गए?',
+      'forgot_password_desc': 'अपना पासवर्ड रीसेट करने के लिए अपना पंजीकृत ईमेल या फोन नंबर दर्ज करें।',
+      'reset_instruction': 'पासवर्ड रीसेट निर्देश आपके पंजीकृत संपर्क पर भेज दिए गए हैं।',
     }
   };
 

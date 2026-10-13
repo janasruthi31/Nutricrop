@@ -86,4 +86,33 @@ void main() {
     await tester.pumpWidget(_buildTestableWidget(const FarmDetailsScreen()));
     expect(find.text('பண்ணை மற்றும் பயிர் விவரங்கள்'), findsOneWidget);
   });
+
+  testWidgets('Dynamic Hindi Language Switching Verification', (WidgetTester tester) async {
+    globalLocaleNotifier.setLanguageCode('hi');
+    await tester.pumpWidget(_buildTestableWidget(const FarmDetailsScreen()));
+    expect(find.text('खेत और फसल विवरण'), findsOneWidget);
+  });
+
+  testWidgets('LoginScreen displays Forgot Password button and opens recovery dialog', (WidgetTester tester) async {
+    globalLocaleNotifier.setLanguageCode('en');
+    await tester.pumpWidget(_buildTestableWidget(const LoginScreen()));
+    final forgotBtn = find.text('Forgot Password?');
+    expect(forgotBtn, findsOneWidget);
+    await tester.tap(forgotBtn);
+    await tester.pumpAndSettle();
+    expect(find.text('Enter your registered email or phone to reset your password.'), findsOneWidget);
+  });
+
+  testWidgets('Localized error messages exist in all 3 languages', (WidgetTester tester) async {
+    for (final code in ['en', 'ta', 'hi']) {
+      final loc = AppLocalizations(Locale(code));
+      expect(loc.text('upload_failure').isNotEmpty, isTrue);
+      expect(loc.text('ocr_failure').isNotEmpty, isTrue);
+      expect(loc.text('missing_values').isNotEmpty, isTrue);
+      expect(loc.text('unsupported_crop').isNotEmpty, isTrue);
+      expect(loc.text('optimization_failure').isNotEmpty, isTrue);
+      expect(loc.text('weather_failure').isNotEmpty, isTrue);
+      expect(loc.text('yield_failure').isNotEmpty, isTrue);
+    }
+  });
 }

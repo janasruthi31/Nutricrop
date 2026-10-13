@@ -99,7 +99,7 @@ class _RecommendationDetailsScreenState extends State<RecommendationDetailsScree
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           const Text('Nitrogen (N):', style: TextStyle(fontWeight: FontWeight.w600)),
-                          Text('${p5['net_n_kg_per_ha'] ?? 'N/A'} kg/ha'),
+                          Text('${p5['n_req_kg_per_ha'] ?? p5['net_n_kg_per_ha'] ?? 'N/A'} kg/ha'),
                         ],
                       ),
                       const Divider(height: 18),
@@ -107,7 +107,7 @@ class _RecommendationDetailsScreenState extends State<RecommendationDetailsScree
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           const Text('Phosphorus (P₂O₅):', style: TextStyle(fontWeight: FontWeight.w600)),
-                          Text('${p5['net_p2o5_kg_per_ha'] ?? 'N/A'} kg/ha'),
+                          Text('${p5['p2o5_req_kg_per_ha'] ?? p5['net_p2o5_kg_per_ha'] ?? 'N/A'} kg/ha'),
                         ],
                       ),
                       const Divider(height: 18),
@@ -115,7 +115,7 @@ class _RecommendationDetailsScreenState extends State<RecommendationDetailsScree
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           const Text('Potassium (K₂O):', style: TextStyle(fontWeight: FontWeight.w600)),
-                          Text('${p5['net_k2o_kg_per_ha'] ?? 'N/A'} kg/ha'),
+                          Text('${p5['k2o_req_kg_per_ha'] ?? p5['net_k2o_kg_per_ha'] ?? 'N/A'} kg/ha'),
                         ],
                       ),
                     ],
@@ -126,7 +126,7 @@ class _RecommendationDetailsScreenState extends State<RecommendationDetailsScree
               const SectionHeader(title: 'Purchased Fertilizer Products', subtitle: 'Selected by Linear Programming cost solver'),
               for (final prod in products) ...[
                 FertilizerProductCard(
-                  name: prod['name'] ?? 'Fertilizer',
+                  name: prod['product_name'] ?? prod['name'] ?? 'Fertilizer',
                   quantityKg: (prod['quantity_kg'] as num?)?.toDouble() ?? 0.0,
                   bags: (prod['bags'] as num?)?.toInt() ?? 0,
                   bagSizeKg: (prod['bag_size_kg'] as num?)?.toDouble() ?? 50.0,

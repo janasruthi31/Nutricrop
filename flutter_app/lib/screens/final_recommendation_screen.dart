@@ -127,7 +127,7 @@ class _FinalRecommendationScreenState extends State<FinalRecommendationScreen> {
               else
                 for (final prod in products) ...[
                   FertilizerProductCard(
-                    name: prod['name'] ?? 'Fertilizer',
+                    name: prod['product_name'] ?? prod['name'] ?? 'Fertilizer',
                     quantityKg: (prod['quantity_kg'] as num?)?.toDouble() ?? 0.0,
                     bags: (prod['bags'] as num?)?.toInt() ?? 0,
                     bagSizeKg: (prod['bag_size_kg'] as num?)?.toDouble() ?? 50.0,

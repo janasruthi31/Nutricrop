@@ -476,11 +476,20 @@ def download_recommendation_pdf(
     # Section 1: NPK Nutrient Requirements
     elements.append(Paragraph("1. Deterministic NPK Nutrient Requirements (TNAU / STCR / IPNS Rules)", heading2_style))
     p5 = rec_data.get("nutrient_requirements", {})
+    n_ha = p5.get("n_req_kg_per_ha") if p5.get("n_req_kg_per_ha") is not None else p5.get("net_n_kg_per_ha", 0)
+    p_ha = p5.get("p2o5_req_kg_per_ha") if p5.get("p2o5_req_kg_per_ha") is not None else p5.get("net_p2o5_kg_per_ha", 0)
+    k_ha = p5.get("k2o_req_kg_per_ha") if p5.get("k2o_req_kg_per_ha") is not None else p5.get("net_k2o_kg_per_ha", 0)
+    tot_n = p5.get("total_n_req_kg") if p5.get("total_n_req_kg") is not None else p5.get("total_farm_n_kg", 0)
+    tot_p = p5.get("total_p2o5_req_kg") if p5.get("total_p2o5_req_kg") is not None else p5.get("total_farm_p2o5_kg", 0)
+    tot_k = p5.get("total_k2o_req_kg") if p5.get("total_k2o_req_kg") is not None else p5.get("total_farm_k2o_kg", 0)
+    calc_meth = p5.get("calculation_method") or p5.get("selected_method", "TNAU STCR-IPNS")
+    rule_id = p5.get("selected_rule_id", "Verified TNAU Rule")
+
     npk_data = [
         ["Nutrient", "Per Hectare (kg/ha)", "Total Farm Quantity (kg)", "Rule Attribution"],
-        ["Nitrogen (N)", f"{p5.get('net_n_kg_per_ha', 0):.1f} kg/ha", f"{p5.get('total_farm_n_kg', 0):.1f} kg", p5.get("calculation_method", "TNAU STCR-IPNS")],
-        ["Phosphorus (P2O5)", f"{p5.get('net_p2o5_kg_per_ha', 0):.1f} kg/ha", f"{p5.get('total_farm_p2o5_kg', 0):.1f} kg", p5.get("selected_rule_id", "Verified")],
-        ["Potassium (K2O)", f"{p5.get('net_k2o_kg_per_ha', 0):.1f} kg/ha", f"{p5.get('total_farm_k2o_kg', 0):.1f} kg", "TNAU Soil Chemistry Rating"]
+        ["Nitrogen (N)", f"{n_ha:.1f} kg/ha", f"{tot_n:.1f} kg", calc_meth],
+        ["Phosphorus (P2O5)", f"{p_ha:.1f} kg/ha", f"{tot_p:.1f} kg", rule_id],
+        ["Potassium (K2O)", f"{k_ha:.1f} kg/ha", f"{tot_k:.1f} kg", "TNAU Soil Chemistry Rating"]
     ]
     t_npk = Table(npk_data, colWidths=[130, 130, 130, 150])
     t_npk.setStyle(TableStyle([
@@ -500,8 +509,9 @@ def download_recommendation_pdf(
     products = p6.get("recommended_products", [])
     fert_data = [["Fertilizer Product", "Quantity (kg)", "Commercial Bags", "Bag Size", "Est. Cost (INR)"]]
     for prod in products:
+        p_name = prod.get("product_name") or prod.get("name") or "Fertilizer"
         fert_data.append([
-            prod.get("name", "Product"),
+            p_name,
             f"{prod.get('quantity_kg', 0):.1f} kg",
             f"{prod.get('bags', 0)} bags",
             f"{prod.get('bag_size_kg', 50)} kg",

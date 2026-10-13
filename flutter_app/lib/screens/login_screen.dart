@@ -77,6 +77,47 @@ class _LoginScreenState extends State<LoginScreen> {
     Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const MainNavigationShell()));
   }
 
+  Future<void> _showForgotPasswordDialog() async {
+    final l10n = AppLocalizations.of(context);
+    final resetCtrl = TextEditingController(text: _emailCtrl.text);
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.text('forgot_password')),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(l10n.text('forgot_password_desc'), style: const TextStyle(fontSize: 13, color: AppTheme.textMuted)),
+            const SizedBox(height: 16),
+            TextField(
+              controller: resetCtrl,
+              decoration: InputDecoration(
+                labelText: l10n.text('email_or_phone'),
+                prefixIcon: const Icon(Icons.contact_mail_outlined),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(l10n.text('cancel'))),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(l10n.text('reset_instruction')),
+                  backgroundColor: AppTheme.primaryGreen,
+                ),
+              );
+            },
+            child: Text(l10n.text('submit')),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -150,7 +191,15 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 26),
+              const SizedBox(height: 4),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: _showForgotPasswordDialog,
+                  child: Text(l10n.text('forgot_password'), style: const TextStyle(fontSize: 13)),
+                ),
+              ),
+              const SizedBox(height: 14),
               FilledButton(
                 onPressed: _isLoading ? null : _handleLogin,
                 child: _isLoading

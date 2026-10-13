@@ -51,12 +51,24 @@ class _WeatherScreenState extends State<WeatherScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final risk = _weather?['risk_level'] ?? 'LOW';
-    final advice = _weather?['actionable_advice'] ?? 'Weather suitable for fertilizer application and field operations.';
-    final condition = _weather?['current_condition'] ?? 'Clear';
-    final temp = _weather?['temperature_c'] ?? 31.5;
-    final humidity = _weather?['humidity_pct'] ?? 72;
-    final rainProb = _weather?['rainfall_probability_pct'] ?? 15;
+    final risk = _weather?['risk_level'] ?? _weather?['guidance_status'] ?? 'LOW';
+    final lang = globalLocaleNotifier.locale.languageCode;
+    String advice = 'Weather suitable for fertilizer application and field operations.';
+    if (lang == 'ta' && _weather?['advisory_ta'] != null) {
+      advice = _weather!['advisory_ta'].toString();
+    } else if (_weather?['actionable_advice'] != null) {
+      advice = _weather!['actionable_advice'].toString();
+    } else if (_weather?['advisory_en'] != null) {
+      advice = _weather!['advisory_en'].toString();
+    }
+
+    final condition = _weather?['current_condition'] ?? _weather?['condition'] ?? 'Clear';
+    final tempVal = _weather?['temperature_c'] ?? _weather?['temp_max_c'];
+    final temp = (tempVal as num?)?.toDouble() ?? 31.5;
+    final humidity = (_weather?['humidity_pct'] as num?)?.toInt() ?? 72;
+    final rainProbVal = _weather?['rainfall_probability_pct'];
+    final rainMmVal = _weather?['rainfall_mm_24h'];
+    final int rainProb = (rainProbVal as num?)?.toInt() ?? ((rainMmVal as num?) != null && (rainMmVal as num).toDouble() > 10 ? 80 : 20);
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.text('weather_title'))),

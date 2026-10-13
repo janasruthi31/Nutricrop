@@ -57,10 +57,28 @@ DEFAULT_ADVISORY = {
 
 
 def get_weather_guidance(district: Optional[str] = None) -> Dict[str, Any]:
-    """Returns agro-weather advisory for a Tamil Nadu district."""
-    if not district:
-        return {"district": "Statewide (Tamil Nadu)", **DEFAULT_ADVISORY}
-
-    d_norm = district.strip().title()
+    """Returns agro-weather advisory for a Tamil Nadu district with backward-compatible aliases."""
+    d_norm = district.strip().title() if district else "Statewide (Tamil Nadu)"
     advisory = DISTRICT_WEATHER_ADVISORIES.get(d_norm, DEFAULT_ADVISORY)
-    return {"district": d_norm, **advisory}
+
+    # Calculate normalized risk level from guidance status
+    status = advisory.get("guidance_status", "SUITABLE")
+    if "DELAY" in status or "WARNING" in status:
+        risk_level = "HIGH"
+    elif "CAUTION" in status:
+        risk_level = "MEDIUM"
+    else:
+        risk_level = "LOW"
+
+    rain_prob = 80 if advisory.get("rainfall_mm_24h", 0) > 20 else (45 if advisory.get("rainfall_mm_24h", 0) > 5 else 10)
+
+    res = dict(advisory)
+    res.update({
+        "district": d_norm,
+        "risk_level": risk_level,
+        "actionable_advice": advisory.get("advisory_en"),
+        "current_condition": advisory.get("condition"),
+        "temperature_c": advisory.get("temp_max_c", 32.0),
+        "rainfall_probability_pct": rain_prob,
+    })
+    return res

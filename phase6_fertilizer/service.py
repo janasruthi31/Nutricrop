@@ -151,6 +151,7 @@ class FertilizerOptimizerService:
         total_cost = 0.0
 
         supplied_n, supplied_p2o5, supplied_k2o = 0.0, 0.0, 0.0
+        bag_supplied_n, bag_supplied_p2o5, bag_supplied_k2o = 0.0, 0.0, 0.0
 
         for i, qty in enumerate(sol_x):
             if qty > 0.01:  # Filter out near-zero products
@@ -164,9 +165,15 @@ class FertilizerOptimizerService:
                 supplied_p2o5 += qty_kg * (p["p2o5_pct"] / 100.0)
                 supplied_k2o += qty_kg * (p["k2o_pct"] / 100.0)
 
+                bag_kg = bags * p["bag_size_kg"]
+                bag_supplied_n += bag_kg * (p["n_pct"] / 100.0)
+                bag_supplied_p2o5 += bag_kg * (p["p2o5_pct"] / 100.0)
+                bag_supplied_k2o += bag_kg * (p["k2o_pct"] / 100.0)
+
                 product_recs.append(FertilizerProductRecommendation(
                     product_id=p["id"],
                     product_name=p["name"],
+                    name=p["name"],
                     category=p["category"],
                     quantity_kg=qty_kg,
                     bags=bags,
@@ -174,6 +181,17 @@ class FertilizerOptimizerService:
                     price_per_bag_inr=p["price_per_bag_inr"],
                     total_cost_inr=cost
                 ))
+
+        # Rigorous post-rounding validation: ensure whole bags fulfill required nutrients
+        if (n_req > 0 and bag_supplied_n + 1e-4 < n_req) or \
+           (p2o5_req > 0 and bag_supplied_p2o5 + 1e-4 < p2o5_req) or \
+           (k2o_req > 0 and bag_supplied_k2o + 1e-4 < k2o_req):
+            return FertilizerOptimizationResponse(
+                status=INFEASIBLE,
+                crop=crop,
+                farm_area_hectares=area_ha,
+                validation_errors=["Ceiling bag rounding violated nutrient requirements. Recommendation rejected as infeasible."]
+            )
 
         supplied_n = round(supplied_n, 2)
         supplied_p2o5 = round(supplied_p2o5, 2)
