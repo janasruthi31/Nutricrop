@@ -8,6 +8,7 @@ __pycache__/
 .coverage
 htmlcov/
 *.log
+*.zip
 
 # Flutter / Dart
 .dart_tool/
