@@ -1,0 +1,194 @@
+{
+  "raw_rows": 17230,
+  "raw_years": [
+    "2020-21",
+    "2021-22",
+    "2022-23",
+    "2023-24",
+    "2024-25"
+  ],
+  "raw_districts": 38,
+  "removed_combined_columns": 3601,
+  "removed_coconut_non_mass_unit": 188,
+  "sugarcane_rows_unit_converted": 190,
+  "rows_value_missing": 0,
+  "removed_zero_yield_not_grown_or_no_estimate": 4238,
+  "rows_with_blank_rainfall_in_report": 463,
+  "rows_with_inconsistent_rainfall_in_report": 46,
+  "removed_for_missing_or_inconsistent_rainfall": 509,
+  "duplicate_rows_by_key": 0,
+  "valid_rows": 8694,
+  "rows_per_crop_year": {
+    "2020-21": 1375,
+    "2021-22": 1870,
+    "2022-23": 1828,
+    "2023-24": 1786,
+    "2024-25": 1835
+  },
+  "districts": 38,
+  "crops": 51,
+  "seasons": [
+    "Annual",
+    "Kharif",
+    "Kuruvai/Kar/Sornavari",
+    "Navarai/Kodai",
+    "Rabi",
+    "Samba/Thaladi/Pishanam"
+  ],
+  "share_equal_to_state_value": 0.5567057740970784,
+  "min_yield": 10.0,
+  "leakage": {
+    "production_used_as_feature": false,
+    "area_used_as_feature": false,
+    "target_is_published_yield_not_derived": true,
+    "features": [
+      "District",
+      "Crop",
+      "Season",
+      "Year",
+      "Rain_SWM_mm",
+      "Rain_NEM_mm",
+      "Rain_Winter_mm",
+      "Rain_HotWeather_mm",
+      "Rain_Annual_mm"
+    ]
+  },
+  "train_rows": 6955,
+  "test_rows": 1739,
+  "train_years": {
+    "2020-21": 1375,
+    "2021-22": 1870,
+    "2022-23": 1828,
+    "2023-24": 1786,
+    "2024-25": 96
+  },
+  "test_years": {
+    "2024-25": 1739
+  },
+  "best_params": {
+    "xgboost": {
+      "n_estimators": 300,
+      "max_depth": 6,
+      "learning_rate": 0.1
+    },
+    "random_forest": {
+      "n_estimators": 150,
+      "max_depth": null,
+      "min_samples_leaf": 1,
+      "max_features": 0.5
+    },
+    "gradient_boosting": {
+      "n_estimators": 150,
+      "max_depth": 5,
+      "learning_rate": 0.1
+    }
+  },
+  "cv": {
+    "xgboost": [
+      {
+        "params": {
+          "n_estimators": 300,
+          "max_depth": 6,
+          "learning_rate": 0.1
+        },
+        "cv_MAE_train_only": 1276.8911098373271
+      },
+      {
+        "params": {
+          "n_estimators": 300,
+          "max_depth": 4,
+          "learning_rate": 0.1
+        },
+        "cv_MAE_train_only": 1335.588708235016
+      },
+      {
+        "params": {
+          "n_estimators": 300,
+          "max_depth": 6,
+          "learning_rate": 0.05
+        },
+        "cv_MAE_train_only": 1388.4828695948565
+      },
+      {
+        "params": {
+          "n_estimators": 300,
+          "max_depth": 4,
+          "learning_rate": 0.05
+        },
+        "cv_MAE_train_only": 1684.3673923166084
+      }
+    ],
+    "random_forest": [
+      {
+        "params": {
+          "n_estimators": 150,
+          "max_depth": null,
+          "min_samples_leaf": 1,
+          "max_features": 0.5
+        },
+        "cv_MAE_train_only": 1225.354755811167
+      },
+      {
+        "params": {
+          "n_estimators": 150,
+          "max_depth": 20,
+          "min_samples_leaf": 1,
+          "max_features": 0.5
+        },
+        "cv_MAE_train_only": 1325.7799470492628
+      },
+      {
+        "params": {
+          "n_estimators": 150,
+          "max_depth": null,
+          "min_samples_leaf": 3,
+          "max_features": 0.5
+        },
+        "cv_MAE_train_only": 1331.0146526646001
+      },
+      {
+        "params": {
+          "n_estimators": 150,
+          "max_depth": 20,
+          "min_samples_leaf": 3,
+          "max_features": 0.5
+        },
+        "cv_MAE_train_only": 1427.3431789265835
+      }
+    ],
+    "gradient_boosting": [
+      {
+        "params": {
+          "n_estimators": 150,
+          "max_depth": 5,
+          "learning_rate": 0.1
+        },
+        "cv_MAE_train_only": 1487.7167630325337
+      },
+      {
+        "params": {
+          "n_estimators": 150,
+          "max_depth": 3,
+          "learning_rate": 0.1
+        },
+        "cv_MAE_train_only": 1963.3774517791096
+      },
+      {
+        "params": {
+          "n_estimators": 150,
+          "max_depth": 5,
+          "learning_rate": 0.05
+        },
+        "cv_MAE_train_only": 2116.1293177035436
+      },
+      {
+        "params": {
+          "n_estimators": 150,
+          "max_depth": 3,
+          "learning_rate": 0.05
+        },
+        "cv_MAE_train_only": 2879.4138415732386
+      }
+    ]
+  }
+}

@@ -1,0 +1,8 @@
+source_id,source_title,source_url,source_organization,publication_year,verification_status,notes
+SRC_TNAU_STS,TNAU Soil Testing Services,https://agritech.tnau.ac.in/agriculture/agri_soil_tnau_soiltestingservices.html,TNAU,2020,VERIFIED,Soil testing procedures and soil rating thresholds
+SRC_TNAU_RATINGS,TNAU Soil Fertility Thresholds,https://agritech.tnau.ac.in/pdf/2.pdf,TNAU,2018,VERIFIED,TNAU Tamil Nadu soil fertility ratings (Tables 1 & 2)
+SRC_TNAU_NUTRIENT,TNAU Nutrient Management,https://agritech.tnau.ac.in/agriculture/agri_nutrientmgt.html,TNAU,2020,VERIFIED,General principles of nutrient management and STCR-IPNS overview
+SRC_TNAU_CPG2020,TNAU Crop Production Guide 2020,https://tnau.ac.in/site/research/wp-content/uploads/sites/60/2020/02/Agriculture-CPG-2020.pdf,TNAU,2020,VERIFIED,Agriculture Crop Production Guide recommendations for major field crops
+SRC_TNAU_COTTON_STCR,TNAU Cotton STCR,https://agritech.tnau.ac.in/agriculture/agri_cotton_STCR_P_K_cotton.html,TNAU,2019,VERIFIED,Soil Test Crop Response (STCR) equations for cotton on specific soil series
+SRC_TNAU_STCR_IPNS,TNAU Agriculture / STCR-IPNS Reference,https://agritech.tnau.ac.in/pdf/AGRICULTURE.pdf,TNAU,2020,VERIFIED,STCR-IPNS calibration equations and soil series mapping for Tamil Nadu
+SRC_TNAU_BLACKGRAM_RF,TNAU Blackgram Rainfed,https://agritech.tnau.ac.in/agriculture/CropProduction/Pulses/BlackgramRainfed.html,TNAU,2020,VERIFIED,Rainfed production guide and fertilizer application for blackgram

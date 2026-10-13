@@ -1,0 +1,424 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+
+/// Centralized localization for Tamil (ta), English (en), and Hindi (hi).
+class AppLocalizations {
+  final Locale locale;
+  AppLocalizations(this.locale);
+
+  static AppLocalizations of(BuildContext context) {
+    return Localizations.of<AppLocalizations>(context, AppLocalizations) ??
+        AppLocalizations(const Locale('en'));
+  }
+
+  static const LocalizationsDelegate<AppLocalizations> delegate = _AppLocalizationsDelegate();
+
+  static final Map<String, Map<String, String>> _localizedValues = {
+    'en': {
+      // General & Navigation
+      'app_title': 'TN Fertilizer Optimizer',
+      'app_subtitle': 'AI-Based Soil-Specific Fertilizer Recommendation & Yield Prediction',
+      'home': 'Home',
+      'soil_reports': 'Soil Reports',
+      'fertilizer': 'Fertilizer',
+      'yield_and_weather': 'Yield & Weather',
+      'history': 'History',
+      'profile': 'Profile',
+      'settings': 'Settings',
+      'help': 'Help & Guide',
+      'about': 'About',
+      'notifications': 'Notifications',
+      'back': 'Back',
+      'continue_btn': 'Continue',
+      'cancel': 'Cancel',
+      'save': 'Save',
+      'submit': 'Submit',
+      'retry': 'Try Again',
+      'loading': 'Please wait...',
+      'success': 'Success',
+      'error': 'Error',
+      'download': 'Download',
+      'share': 'Share',
+
+      // Languages
+      'select_language': 'Select Your Language',
+      'english': 'English',
+      'tamil': 'தமிழ் (Tamil)',
+      'hindi': 'हिन्दी (Hindi)',
+      'language_desc': 'You can change this anytime from Settings.',
+
+      // Auth
+      'login_title': 'Farmer Login',
+      'login_subtitle': 'Access your soil reports and recommendations',
+      'email_or_phone': 'Email or Mobile Number',
+      'password': 'Password',
+      'login_btn': 'Log In',
+      'no_account': "Don't have an account?",
+      'register_here': 'Register as a Farmer',
+      'register_title': 'Farmer Registration',
+      'full_name': 'Full Name',
+      'district': 'District',
+      'village': 'Village / Town',
+      'preferred_language': 'Preferred Language',
+      'register_btn': 'Create Account',
+      'already_have_account': 'Already registered?',
+      'logout': 'Log Out',
+
+      // Dashboard
+      'greeting': 'Vanakkam, Farmer!',
+      'dashboard_quick_actions': 'Quick Actions',
+      'upload_card': 'Upload Soil Card',
+      'get_recommendation': 'Fertilizer Optimizer',
+      'predict_yield': 'Predict Crop Yield',
+      'weather_advisory': 'Weather Advisory',
+      'recent_recommendations': 'Recent Recommendations',
+      'no_recent_rec': 'No recommendations generated yet. Upload your soil card to start.',
+      'start_now': 'Start Now',
+
+      // Soil Upload & OCR
+      'upload_soil_title': 'Soil Health Card Upload',
+      'upload_instruction': 'Upload your Soil Health Card (PDF or Photo) to automatically extract NPK and soil parameters.',
+      'upload_pdf': 'Upload PDF Report',
+      'upload_image': 'Choose Image / Photo',
+      'take_photo': 'Take Photo with Camera',
+      'file_size_limit': 'Maximum file size: 10 MB',
+      'processing_ocr': 'Reading and extracting soil report...',
+      'ocr_success': 'Values extracted from soil report',
+      'verify_soil_title': 'Verify Soil Test Values',
+      'verify_soil_desc': 'Please check the values read from your report and correct any mistakes.',
+      'nitrogen': 'Available Nitrogen (N)',
+      'phosphorus': 'Available Phosphorus (P)',
+      'potassium': 'Available Potassium (K)',
+      'ph': 'Soil pH',
+      'ec': 'Electrical Conductivity (EC)',
+      'organic_carbon': 'Organic Carbon (OC)',
+      'p_method': 'Phosphorus Test Method (Olsen / Bray)',
+      'confirm_and_continue': 'Confirm & Continue',
+      'manual_entry': 'Enter Values Manually',
+
+      // Farm & Crop
+      'farm_details_title': 'Farm & Crop Details',
+      'farm_area': 'Farm Area',
+      'area_unit': 'Area Unit',
+      'irrigation_method': 'Irrigation Type',
+      'soil_series': 'Soil Series (TNAU Class)',
+      'select_crop': 'Target Crop',
+      'season': 'Cropping Season',
+      'target_yield': 'Target Yield (Tonnes/ha)',
+      'previous_fertilizer': 'Previous Fertilizer Record',
+      'add_fertilizer_record': 'Add Previously Applied Fertilizer',
+
+      // Recommendations & NPK
+      'npk_title': 'Nutrient Requirements (NPK)',
+      'npk_desc': 'Calculated deterministically using official TNAU STCR-IPNS regression equations.',
+      'optimal_plan_title': 'Cost-Optimized Fertilizer Plan',
+      'optimal_plan_desc': 'Calculated using Linear Programming to fulfill 100% nutrient requirements at lowest retail cost.',
+      'bags_needed': 'Bags Required',
+      'estimated_cost': 'Total Estimated Cost',
+      'application_schedule': 'Split Application Schedule',
+      'basal_stage': 'Basal Application (At Sowing/Planting)',
+      'tillering_stage': 'Tillering / Vegetative Stage',
+      'panicle_stage': 'Panicle Initiation / Flowering',
+      'save_recommendation': 'Save Recommendation',
+      'download_pdf': 'Download Official PDF Report',
+
+      // Yield Prediction
+      'yield_title': 'District Crop Yield Benchmark',
+      'yield_disclaimer': 'Statistical benchmark from official Tamil Nadu crop reports. Not a farm guarantee.',
+      'estimated_district_yield': 'Estimated District Average Yield',
+      'rainfall_features': 'Seasonal Rainfall (mm)',
+
+      // Weather & Sustainability
+      'weather_title': 'Agro-Weather Guidance',
+      'weather_advice': 'Fertilizer Application Advice',
+      'sustainability_title': 'Sustainability & Soil Health',
+      'nutrient_balance': 'Nutrient Sufficiency & Balance',
+
+      // Help & About
+      'help_title': 'Farmer Guidance & FAQs',
+      'about_title': 'About the Project (SIH1639)',
+    },
+    'ta': {
+      // General & Navigation
+      'app_title': 'தமிழ்நாடு உர பரிந்துரை',
+      'app_subtitle': 'மண் பரிசோதனை அடிப்படையிலான உகந்த உர பரிந்துரை மற்றும் விளைச்சல் கணிப்பு',
+      'home': 'முகப்பு',
+      'soil_reports': 'மண் அறிக்கை',
+      'fertilizer': 'உர பரிந்துரை',
+      'yield_and_weather': 'விளைச்சல் & வானிலை',
+      'history': 'வரலாறு',
+      'profile': 'சுயவிவரம்',
+      'settings': 'அமைப்புகள்',
+      'help': 'உதவி வழிகாட்டி',
+      'about': 'பற்றி',
+      'notifications': 'அறிவிப்புகள்',
+      'back': 'பின்செல்',
+      'continue_btn': 'தொடர்க',
+      'cancel': 'ரத்துசெய்',
+      'save': 'சேமி',
+      'submit': 'சமர்ப்பி',
+      'retry': 'மீண்டும் முயற்சி செய்க',
+      'loading': 'தயவுசெய்து காத்திருக்கவும்...',
+      'success': 'வெற்றி',
+      'error': 'பிழை',
+      'download': 'பதிவிறக்கு',
+      'share': 'பகிர்',
+
+      // Languages
+      'select_language': 'உங்கள் மொழியைத் தேர்வுசெய்யவும்',
+      'english': 'English',
+      'tamil': 'தமிழ் (Tamil)',
+      'hindi': 'हिन्दी (Hindi)',
+      'language_desc': 'இதை அமைப்புகள் பக்கத்தில் எப்போது வேண்டுமானாலும் மாற்றலாம்.',
+
+      // Auth
+      'login_title': 'விவசாயி உள்நுழைவு',
+      'login_subtitle': 'உங்கள் மண் அறிக்கைகள் மற்றும் உர பரிந்துரைகளைப் பார்க்க',
+      'email_or_phone': 'மின்னஞ்சல் அல்லது கைபேசி எண்',
+      'password': 'கடவுச்சொல்',
+      'login_btn': 'உள்நுழைக',
+      'no_account': 'கணக்கு இல்லையா?',
+      'register_here': 'விவசாயியாக பதிவு செய்யவும்',
+      'register_title': 'புதிய விவசாயி பதிவு',
+      'full_name': 'முழு பெயர்',
+      'district': 'மாவட்டம்',
+      'village': 'கிராமம் / ஊர்',
+      'preferred_language': 'விருப்ப மொழி',
+      'register_btn': 'கணக்கை உருவாக்கு',
+      'already_have_account': 'ஏற்கனவே பதிவு செய்துள்ளீர்களா?',
+      'logout': 'வெளியேறு',
+
+      // Dashboard
+      'greeting': 'வணக்கம் உழவரே!',
+      'dashboard_quick_actions': 'விரைவு சேவைகள்',
+      'upload_card': 'மண் அட்டை பதிவேற்று',
+      'get_recommendation': 'உர பரிந்துரை பெறு',
+      'predict_yield': 'விளைச்சல் கணிப்பு',
+      'weather_advisory': 'வானிலை ஆலோசனை',
+      'recent_recommendations': 'சமீபத்திய பரிந்துரைகள்',
+      'no_recent_rec': 'இன்னும் பரிந்துரைகள் உருவாக்கப்படவில்லை. மண் அட்டையை பதிவேற்றவும்.',
+      'start_now': 'தொடங்குங்கள்',
+
+      // Soil Upload & OCR
+      'upload_soil_title': 'மண் வள அட்டை பதிவேற்றம்',
+      'upload_instruction': 'மண் பரிசோதனை அறிக்கையை (PDF அல்லது புகைப்படம்) பதிவேற்றி தழை, மணி, சாம்பல் சத்துக்களை தானாக கண்டறியவும்.',
+      'upload_pdf': 'PDF அறிக்கை பதிவேற்று',
+      'upload_image': 'புகைப்படத்தை தேர்வு செய்',
+      'take_photo': 'கேமரா மூலம் படம் எடு',
+      'file_size_limit': 'அதிகபட்ச கோப்பு அளவு: 10 MB',
+      'processing_ocr': 'மண் அறிக்கை வாசிக்கப்படுகிறது...',
+      'ocr_success': 'மண் அறிக்கையிலிருந்து சத்துக்கள் கண்டறியப்பட்டன',
+      'verify_soil_title': 'மண் பரிசோதனை அளவுகளை சரிபார்க்கவும்',
+      'verify_soil_desc': 'அறிக்கையிலிருந்து பெறப்பட்ட அளவுகளை சரிபார்த்து திருத்தங்கள் இருப்பின் மாற்றவும்.',
+      'nitrogen': 'கிடைக்கும் தழைச்சத்து (N)',
+      'phosphorus': 'கிடைக்கும் மணிச்சத்து (P)',
+      'potassium': 'கிடைக்கும் சாம்பல்சத்து (K)',
+      'ph': 'மண் அமில-காரத்தன்மை (pH)',
+      'ec': 'மின் கடத்துதிறன் (EC)',
+      'organic_carbon': 'கரிம கார்பன் (OC)',
+      'p_method': 'மணிச்சத்து சோதனை முறை (Olsen / Bray)',
+      'confirm_and_continue': 'உறுதிசெய்து தொடரவும்',
+      'manual_entry': 'நேரடியாக அளவுகளை உள்ளிடுக',
+
+      // Farm & Crop
+      'farm_details_title': 'பண்ணை மற்றும் பயிர் விவரங்கள்',
+      'farm_area': 'நிலப்பரப்பு',
+      'area_unit': 'பரப்பளவு அலகு',
+      'irrigation_method': 'பாசன முறை',
+      'soil_series': 'மண் வகை (TNAU வகுப்பு)',
+      'select_crop': 'பயிர் தேர்வு',
+      'season': 'பருவம்',
+      'target_yield': 'இலக்கு மகசூல் (டன்/ஹெக்டேர்)',
+      'previous_fertilizer': 'முந்தைய உர விவரங்கள்',
+      'add_fertilizer_record': 'முன்பு பயன்படுத்திய உரத்தை சேர்க்க',
+
+      // Recommendations & NPK
+      'npk_title': 'தேவையான ஊட்டச்சத்துக்கள் (NPK)',
+      'npk_desc': 'TNAU STCR-IPNS அதிகாரப்பூர்வ கணிதச் சமன்பாடுகள் மூலம் கணக்கிடப்பட்டது.',
+      'optimal_plan_title': 'குறைந்த செலவு உகந்த உரத் திட்டம்',
+      'optimal_plan_desc': 'நேரியல் திட்டமிடல் (LP Solver) மூலம் முழு ஊட்டச்சத்தும் குறைந்த சந்தை விலையில் பெற கணக்கிடப்பட்டது.',
+      'bags_needed': 'தேவையான மூட்டைகள்',
+      'estimated_cost': 'மொத்த உத்தேச செலவு',
+      'application_schedule': 'உரமிடும் கால அட்டவணை',
+      'basal_stage': 'அடி உரம் (நடவு/விதைப்பின் போது)',
+      'tillering_stage': 'தூர்கட்டும் பருவம்',
+      'panicle_stage': 'கதிர் உருவாகும் பருவம்',
+      'save_recommendation': 'பரிந்துரையை சேமி',
+      'download_pdf': 'அதிகாரப்பூர்வ PDF அறிக்கை பதிவிறக்கு',
+
+      // Yield Prediction
+      'yield_title': 'மாவட்ட சராசரி மகசூல் மதிப்பீடு',
+      'yield_disclaimer': 'அரசுப் புள்ளிவிவரங்களின் அடிப்படையிலான மாவட்ட சராசரி. தனிப்பட்ட பண்ணைக்கான உத்தரவாதமல்ல.',
+      'estimated_district_yield': 'மதிப்பிடப்பட்ட மாவட்ட சராசரி மகசூல்',
+      'rainfall_features': 'பருவமழை அளவு (மி.மீ)',
+
+      // Weather & Sustainability
+      'weather_title': 'வானிலை & வேளாண் ஆலோசனை',
+      'weather_advice': 'உரமிடும் நேர ஆலோசனை',
+      'sustainability_title': 'மண் வளம் & நிலைத்தன்மை',
+      'nutrient_balance': 'ஊட்டச்சத்து சமநிலை ஆய்வு',
+
+      // Help & About
+      'help_title': 'விவசாயிகளுக்கான வழிகாட்டி & கேள்விகள்',
+      'about_title': 'திட்டம் பற்றிய தகவல் (SIH1639)',
+    },
+    'hi': {
+      // General & Navigation
+      'app_title': 'तमिलनाडु उर्वरक अनुकूलक',
+      'app_subtitle': 'मृदा-विशिष्ट उर्वरक सिफारिश एवं फसल उपज पूर्वानुमान',
+      'home': 'होम',
+      'soil_reports': 'मृदा रिपोर्ट',
+      'fertilizer': 'उर्वरक',
+      'yield_and_weather': 'उपज व मौसम',
+      'history': 'इतिहास',
+      'profile': 'प्रोफ़ाइल',
+      'settings': 'सेटिंग्स',
+      'help': 'मार्गदर्शिका',
+      'about': 'के बारे में',
+      'notifications': 'सूचनाएं',
+      'back': 'पीछे',
+      'continue_btn': 'आगे बढ़ें',
+      'cancel': 'रद्द करें',
+      'save': 'सहेजें',
+      'submit': 'जमा करें',
+      'retry': 'पुनः प्रयास करें',
+      'loading': 'कृपया प्रतीक्षा करें...',
+      'success': 'सफल',
+      'error': 'त्रुटि',
+      'download': 'डाउनलोड',
+      'share': 'साझा करें',
+
+      // Languages
+      'select_language': 'अपनी भाषा चुनें',
+      'english': 'English',
+      'tamil': 'தமிழ் (Tamil)',
+      'hindi': 'हिन्दी (Hindi)',
+      'language_desc': 'आप इसे बाद में सेटिंग्स से बदल सकते हैं।',
+
+      // Auth
+      'login_title': 'किसान लॉगिन',
+      'login_subtitle': 'अपनी मृदा रिपोर्ट और उर्वरक सिफारिशें देखें',
+      'email_or_phone': 'ईमेल या मोबाइल नंबर',
+      'password': 'पासवर्ड',
+      'login_btn': 'लॉगिन करें',
+      'no_account': 'खाता नहीं है?',
+      'register_here': 'किसान के रूप में पंजीकरण करें',
+      'register_title': 'किसान पंजीकरण',
+      'full_name': 'पूरा नाम',
+      'district': 'ज़िला',
+      'village': 'गाँव / कस्बा',
+      'preferred_language': 'पसंदीदा भाषा',
+      'register_btn': 'खाता बनाएँ',
+      'already_have_account': 'पहले से पंजीकृत हैं?',
+      'logout': 'लॉगआउट',
+
+      // Dashboard
+      'greeting': 'नमस्ते किसान भाई!',
+      'dashboard_quick_actions': 'त्वरित सेवाएं',
+      'upload_card': 'मृदा कार्ड अपलोड करें',
+      'get_recommendation': 'उर्वरक सिफारिश पाएं',
+      'predict_yield': 'उपज का अनुमान लगाएं',
+      'weather_advisory': 'मौसम सलाह',
+      'recent_recommendations': 'हालिया सिफारिशें',
+      'no_recent_rec': 'अभी तक कोई सिफारिश नहीं बनी है। शुरू करने के लिए मृदा कार्ड अपलोड करें।',
+      'start_now': 'शुरू करें',
+
+      // Soil Upload & OCR
+      'upload_soil_title': 'मृदा स्वास्थ्य कार्ड अपलोड',
+      'upload_instruction': 'NPK और मृदा पोषक तत्वों को स्वतः पढ़ने के लिए मृदा रिपोर्ट (PDF या फोटो) अपलोड करें।',
+      'upload_pdf': 'PDF रिपोर्ट अपलोड करें',
+      'upload_image': 'फोटो चुनें',
+      'take_photo': 'कैमरे से फोटो लें',
+      'file_size_limit': 'अधिकतम फ़ाइल आकार: 10 MB',
+      'processing_ocr': 'मृदा रिपोर्ट पढ़ी जा रही है...',
+      'ocr_success': 'रिपोर्ट से मान सफलतापूर्वक निकाले गए',
+      'verify_soil_title': 'मृदा परीक्षण मान सत्यापित करें',
+      'verify_soil_desc': 'रिपोर्ट से पढ़े गए मानों की जांच करें और त्रुटियों को सुधारें।',
+      'nitrogen': 'उपलब्ध नाइट्रोजन (N)',
+      'phosphorus': 'उपलब्ध फास्फोरस (P)',
+      'potassium': 'उपलब्ध पोटाश (K)',
+      'ph': 'मृदा pH',
+      'ec': 'विद्युत चालकता (EC)',
+      'organic_carbon': 'जैविक कार्बन (OC)',
+      'p_method': 'फास्फोरस परीक्षण विधि (Olsen / Bray)',
+      'confirm_and_continue': 'पुष्टि करें और आगे बढ़ें',
+      'manual_entry': 'मान सीधे दर्ज करें',
+
+      // Farm & Crop
+      'farm_details_title': 'खेत और फसल विवरण',
+      'farm_area': 'खेत का क्षेत्रफल',
+      'area_unit': 'क्षेत्रफल इकाई',
+      'irrigation_method': 'सिंचाई का प्रकार',
+      'soil_series': 'मृदा श्रेणी (TNAU वर्गीकरण)',
+      'select_crop': 'फसल का चयन',
+      'season': 'मौसम / ऋतु',
+      'target_yield': 'लक्षित उपज (टन/हेक्टेयर)',
+      'previous_fertilizer': 'पूर्व उर्वरक उपयोग',
+      'add_fertilizer_record': 'पहले डाले गए उर्वरक जोड़ें',
+
+      // Recommendations & NPK
+      'npk_title': 'आवश्यक पोषक तत्व (NPK)',
+      'npk_desc': 'आधिकारिक TNAU STCR-IPNS समीकरणों द्वारा गणना की गई।',
+      'optimal_plan_title': 'लागत-अनुकूलित उर्वरक योजना',
+      'optimal_plan_desc': 'न्यूनतम लागत पर 100% पोषक तत्व आपूर्ति हेतु लीनियर प्रोग्रामिंग (LP) द्वारा अनुकूलित।',
+      'bags_needed': 'आवश्यक बोरी संख्या',
+      'estimated_cost': 'कुल अनुमानित लागत',
+      'application_schedule': 'उर्वरक प्रयोग अनुसूची',
+      'basal_stage': 'बुवाई के समय (आधार खुराक)',
+      'tillering_stage': 'कल्ले फूटने के समय',
+      'panicle_stage': 'बाली निकलने के समय',
+      'save_recommendation': 'सिफारिश सहेजें',
+      'download_pdf': 'आधिकारिक PDF रिपोर्ट डाउनलोड करें',
+
+      // Yield Prediction
+      'yield_title': 'ज़िला औसत फसल उपज मानक',
+      'yield_disclaimer': 'आधिकारिक रिपोर्टों से सांख्यिकीय ज़िला बेंचमार्क। यह व्यक्तिगत खेत की गारंटी नहीं है।',
+      'estimated_district_yield': 'अनुमानित ज़िला औसत उपज',
+      'rainfall_features': 'मौसमी वर्षा (मिमी)',
+
+      // Weather & Sustainability
+      'weather_title': 'मौसम व कृषि सलाह',
+      'weather_advice': 'उर्वरक डालने का उचित समय',
+      'sustainability_title': 'मृदा स्वास्थ्य व संतुलन',
+      'nutrient_balance': 'पोषक तत्व संतुलन विश्लेषण',
+
+      // Help & About
+      'help_title': 'किसान गाइड व प्रश्नोत्तरी',
+      'about_title': 'परियोजना के बारे में (SIH1639)',
+    }
+  };
+
+  String text(String key) {
+    final lang = locale.languageCode;
+    return _localizedValues[lang]?[key] ?? _localizedValues['en']?[key] ?? key;
+  }
+}
+
+class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {
+  const _AppLocalizationsDelegate();
+  @override
+  bool isSupported(Locale locale) => ['en', 'ta', 'hi'].contains(locale.languageCode);
+  @override
+  Future<AppLocalizations> load(Locale locale) => SynchronousFuture<AppLocalizations>(AppLocalizations(locale));
+  @override
+  bool shouldReload(_AppLocalizationsDelegate old) => false;
+}
+
+/// Reactive Locale Notifier so changing language in Settings updates the entire app immediately.
+class LocaleNotifier extends ChangeNotifier {
+  Locale _locale = const Locale('ta'); // Default to Tamil for Tamil Nadu farmers
+  Locale get locale => _locale;
+
+  void setLocale(Locale newLocale) {
+    if (_locale != newLocale) {
+      _locale = newLocale;
+      notifyListeners();
+    }
+  }
+
+  void setLanguageCode(String code) {
+    setLocale(Locale(code));
+  }
+}
+
+final globalLocaleNotifier = LocaleNotifier();

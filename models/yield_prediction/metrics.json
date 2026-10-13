@@ -1,0 +1,25 @@
+{
+  "xgboost": {
+    "MAE": 1706.2775390124855,
+    "RMSE": 3945.539396982349,
+    "R2": 0.9507692548972227,
+    "MAPE": null
+  },
+  "random_forest": {
+    "MAE": 1583.6235997699828,
+    "RMSE": 3805.6017832382486,
+    "R2": 0.9541994889305011,
+    "MAPE": null
+  },
+  "gradient_boosting": {
+    "MAE": 1912.0173191034864,
+    "RMSE": 3970.8269881903293,
+    "R2": 0.9501361772370785,
+    "MAPE": null
+  },
+  "notes": {
+    "units": "kg/ha",
+    "test_rows": 1739,
+    "MAPE": "MAPE set to null: the test set contains actual yields near zero (min 10 kg/ha vs median 2645; 14 rows < 100 kg/ha), so percentage errors are dominated by a few tiny denominators. See supplementary_metrics.json (ape_diagnostics) for median APE."
+  }
+}

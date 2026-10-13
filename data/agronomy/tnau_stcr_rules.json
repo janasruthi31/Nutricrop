@@ -1,0 +1,307 @@
+[
+  {
+    "rule_id": "TNAU_STCR_IPNS_RICE_001",
+    "version": "1.0",
+    "crop": "Rice",
+    "variety": null,
+    "soil_series": ["Palavidhi", "Adanur", "Kalathur"],
+    "district": ["Thanjavur", "Tiruvarur", "Nagapattinam", "Mayiladuthurai", "Cuddalore"],
+    "season": ["Kharif", "Rabi", "Samba", "Kuruvai", "Navarai"],
+    "irrigation_method": "Irrigated",
+    "recommendation_method": "STCR-IPNS",
+    "target_yield_range": {
+      "min": 3.0,
+      "max": 8.0,
+      "unit": "t/ha"
+    },
+    "required_soil_inputs": ["nitrogen", "phosphorus", "potassium", "soil_series", "target_yield"],
+    "required_units": {
+      "nitrogen": "kg/ha",
+      "phosphorus": "kg/ha",
+      "potassium": "kg/ha"
+    },
+    "stcr_coefficients": {
+      "target_yield_unit": "t/ha",
+      "N": {"a": 22.4, "b_soil": 0.44, "c_fym": 20.0, "unit": "kg/ha"},
+      "P2O5": {"a": 11.2, "b_soil": 1.80, "c_fym": 10.0, "unit": "kg/ha"},
+      "K2O": {"a": 13.5, "b_soil": 0.32, "c_fym": 10.0, "unit": "kg/ha"}
+    },
+    "equation_or_dose_reference": "STCR-IPNS Calibration for Irrigated Rice (Palavidhi/Adanur series), TNAU STCR Cell",
+    "source_title": "TNAU Agriculture / STCR-IPNS Reference",
+    "source_url": "https://agritech.tnau.ac.in/pdf/AGRICULTURE.pdf",
+    "source_page_or_section": "STCR-IPNS Rice Calibration Tables, pp. 12-15",
+    "verification_status": "VERIFIED",
+    "verification_date": "2024-01-15",
+    "applicability_notes": "Valid for irrigated paddy in Cauvery delta soils (Palavidhi, Adanur, Kalathur series) for target yields between 3.0 and 8.0 t/ha using STCR-IPNS approach."
+  },
+  {
+    "rule_id": "TNAU_STCR_IPNS_COTTON_001",
+    "version": "1.0",
+    "crop": "Cotton (lint)",
+    "variety": "MCU 5",
+    "soil_series": ["Irugur", "Pilamedu"],
+    "district": ["Coimbatore", "Tiruppur", "Erode"],
+    "season": ["Kharif", "Winter"],
+    "irrigation_method": "Irrigated",
+    "recommendation_method": "STCR-IPNS",
+    "target_yield_range": {
+      "min": 1.5,
+      "max": 3.5,
+      "unit": "t/ha"
+    },
+    "required_soil_inputs": ["nitrogen", "phosphorus", "potassium", "soil_series", "target_yield"],
+    "required_units": {
+      "nitrogen": "kg/ha",
+      "phosphorus": "kg/ha",
+      "potassium": "kg/ha"
+    },
+    "stcr_coefficients": {
+      "target_yield_unit": "t/ha",
+      "N": {"a": 94.2, "b_soil": 0.47, "c_fym": 15.0, "unit": "kg/ha"},
+      "P2O5": {"a": 39.6, "b_soil": 1.62, "c_fym": 10.0, "unit": "kg/ha"},
+      "K2O": {"a": 77.4, "b_soil": 0.28, "c_fym": 10.0, "unit": "kg/ha"}
+    },
+    "equation_or_dose_reference": "STCR-IPNS equations for Irrigated Cotton on Irugur/Pilamedu series",
+    "source_title": "TNAU Cotton STCR",
+    "source_url": "https://agritech.tnau.ac.in/agriculture/agri_cotton_STCR_P_K_cotton.html",
+    "source_page_or_section": "Cotton STCR P & K equations section",
+    "verification_status": "VERIFIED",
+    "verification_date": "2024-01-15",
+    "applicability_notes": "Valid for MCU 5 cotton under irrigated conditions in Coimbatore/Tiruppur region on Irugur and Pilamedu soil series with target yield 1.5-3.5 t/ha."
+  },
+  {
+    "rule_id": "TNAU_STCR_IPNS_MAIZE_001",
+    "version": "1.0",
+    "crop": "Maize",
+    "variety": null,
+    "soil_series": ["Coimbatore", "Pilamedu"],
+    "district": ["Coimbatore", "Tiruppur", "Dindigul", "Erode"],
+    "season": ["Kharif", "Rabi"],
+    "irrigation_method": "Irrigated",
+    "recommendation_method": "STCR-IPNS",
+    "target_yield_range": {
+      "min": 5.0,
+      "max": 10.0,
+      "unit": "t/ha"
+    },
+    "required_soil_inputs": ["nitrogen", "phosphorus", "potassium", "soil_series", "target_yield"],
+    "required_units": {
+      "nitrogen": "kg/ha",
+      "phosphorus": "kg/ha",
+      "potassium": "kg/ha"
+    },
+    "stcr_coefficients": {
+      "target_yield_unit": "t/ha",
+      "N": {"a": 20.8, "b_soil": 0.52, "c_fym": 15.0, "unit": "kg/ha"},
+      "P2O5": {"a": 9.6, "b_soil": 1.55, "c_fym": 10.0, "unit": "kg/ha"},
+      "K2O": {"a": 12.4, "b_soil": 0.36, "c_fym": 10.0, "unit": "kg/ha"}
+    },
+    "equation_or_dose_reference": "STCR-IPNS Hybrid Maize on Red/Black soil series",
+    "source_title": "TNAU Crop Production Guide 2020",
+    "source_url": "https://tnau.ac.in/site/research/wp-content/uploads/sites/60/2020/02/Agriculture-CPG-2020.pdf",
+    "source_page_or_section": "Maize STCR-IPNS Chapter, p. 84",
+    "verification_status": "VERIFIED",
+    "verification_date": "2024-01-15",
+    "applicability_notes": "Applicable for hybrid maize under irrigation on Coimbatore/Pilamedu soil series."
+  },
+  {
+    "rule_id": "TNAU_STD_RICE_001",
+    "version": "1.0",
+    "crop": "Rice",
+    "variety": null,
+    "soil_series": null,
+    "district": null,
+    "season": ["All"],
+    "irrigation_method": "Irrigated",
+    "recommendation_method": "TNAU-SOIL-TEST",
+    "target_yield_range": null,
+    "required_soil_inputs": ["nitrogen", "phosphorus", "potassium"],
+    "required_units": {
+      "nitrogen": "kg/ha",
+      "phosphorus": "kg/ha",
+      "potassium": "kg/ha"
+    },
+    "blanket_rdf_kg_per_ha": {
+      "N": 150.0,
+      "P2O5": 50.0,
+      "K2O": 50.0
+    },
+    "rating_adjustment_factors": {
+      "low": 1.25,
+      "medium": 1.00,
+      "high": 0.75
+    },
+    "equation_or_dose_reference": "TNAU Soil Test Crop Response Rating Adjustment Table for Rice",
+    "source_title": "TNAU Soil Testing Services",
+    "source_url": "https://agritech.tnau.ac.in/agriculture/agri_soil_tnau_soiltestingservices.html",
+    "source_page_or_section": "General Rice Recommendation Table",
+    "verification_status": "VERIFIED",
+    "verification_date": "2024-01-15",
+    "applicability_notes": "Standard soil-test based rating adjustment recommendation for irrigated rice when specific STCR soil series is not applicable or available."
+  },
+  {
+    "rule_id": "TNAU_STD_BLACKGRAM_RF_001",
+    "version": "1.0",
+    "crop": "Blackgram",
+    "variety": null,
+    "soil_series": null,
+    "district": null,
+    "season": ["Rabi", "Kharif", "Rainfed"],
+    "irrigation_method": "Rainfed",
+    "recommendation_method": "TNAU-SOIL-TEST",
+    "target_yield_range": null,
+    "required_soil_inputs": ["nitrogen", "phosphorus", "potassium"],
+    "required_units": {
+      "nitrogen": "kg/ha",
+      "phosphorus": "kg/ha",
+      "potassium": "kg/ha"
+    },
+    "blanket_rdf_kg_per_ha": {
+      "N": 20.0,
+      "P2O5": 40.0,
+      "K2O": 20.0
+    },
+    "rating_adjustment_factors": {
+      "low": 1.25,
+      "medium": 1.00,
+      "high": 0.75
+    },
+    "equation_or_dose_reference": "TNAU Rainfed Pulses Production Guide (Blackgram)",
+    "source_title": "TNAU Blackgram Rainfed",
+    "source_url": "https://agritech.tnau.ac.in/agriculture/CropProduction/Pulses/BlackgramRainfed.html",
+    "source_page_or_section": "Nutrient Management for Rainfed Blackgram",
+    "verification_status": "VERIFIED",
+    "verification_date": "2024-01-15",
+    "applicability_notes": "Verified rainfed fertilizer recommendation for blackgram across Tamil Nadu rainfed tracts."
+  },
+  {
+    "rule_id": "TNAU_STD_GROUNDNUT_001",
+    "version": "1.0",
+    "crop": "Groundnut",
+    "variety": null,
+    "soil_series": null,
+    "district": null,
+    "season": ["Kharif", "Rabi", "Summer"],
+    "irrigation_method": "Both",
+    "recommendation_method": "TNAU-SOIL-TEST",
+    "target_yield_range": null,
+    "required_soil_inputs": ["nitrogen", "phosphorus", "potassium"],
+    "required_units": {
+      "nitrogen": "kg/ha",
+      "phosphorus": "kg/ha",
+      "potassium": "kg/ha"
+    },
+    "blanket_rdf_kg_per_ha": {
+      "N": 25.0,
+      "P2O5": 50.0,
+      "K2O": 75.0
+    },
+    "rating_adjustment_factors": {
+      "low": 1.25,
+      "medium": 1.00,
+      "high": 0.75
+    },
+    "equation_or_dose_reference": "TNAU CPG 2020 Oilseeds Section",
+    "source_title": "TNAU Crop Production Guide 2020",
+    "source_url": "https://tnau.ac.in/site/research/wp-content/uploads/sites/60/2020/02/Agriculture-CPG-2020.pdf",
+    "source_page_or_section": "Groundnut Soil Test Recommendation, p. 112",
+    "verification_status": "VERIFIED",
+    "verification_date": "2024-01-15",
+    "applicability_notes": "Soil test recommendation for irrigated and rainfed groundnut."
+  },
+  {
+    "rule_id": "TNAU_STD_SUGARCANE_001",
+    "version": "1.0",
+    "crop": "Sugarcane",
+    "variety": null,
+    "soil_series": null,
+    "district": null,
+    "season": ["All"],
+    "irrigation_method": "Irrigated",
+    "recommendation_method": "TNAU-SOIL-TEST",
+    "target_yield_range": null,
+    "required_soil_inputs": ["nitrogen", "phosphorus", "potassium"],
+    "required_units": {
+      "nitrogen": "kg/ha",
+      "phosphorus": "kg/ha",
+      "potassium": "kg/ha"
+    },
+    "blanket_rdf_kg_per_ha": {
+      "N": 275.0,
+      "P2O5": 62.5,
+      "K2O": 112.5
+    },
+    "rating_adjustment_factors": {
+      "low": 1.25,
+      "medium": 1.00,
+      "high": 0.75
+    },
+    "equation_or_dose_reference": "TNAU CPG 2020 Commercial Crops Section",
+    "source_title": "TNAU Crop Production Guide 2020",
+    "source_url": "https://tnau.ac.in/site/research/wp-content/uploads/sites/60/2020/02/Agriculture-CPG-2020.pdf",
+    "source_page_or_section": "Sugarcane Recommendation, p. 150",
+    "verification_status": "VERIFIED",
+    "verification_date": "2024-01-15",
+    "applicability_notes": "Soil-test based recommendation for irrigated sugarcane."
+  },
+  {
+    "rule_id": "TNAU_STCR_BANANA_001",
+    "version": "1.0",
+    "crop": "Banana",
+    "variety": "Grand Naine",
+    "soil_series": ["Thonnackal"],
+    "district": ["Theni", "Tiruchirapalli"],
+    "season": ["All"],
+    "irrigation_method": "Irrigated",
+    "recommendation_method": "STCR-IPNS",
+    "target_yield_range": {
+      "min": 40.0,
+      "max": 70.0,
+      "unit": "t/ha"
+    },
+    "required_soil_inputs": ["nitrogen", "phosphorus", "potassium", "target_yield"],
+    "required_units": {
+      "nitrogen": "kg/ha",
+      "phosphorus": "kg/ha",
+      "potassium": "kg/ha"
+    },
+    "stcr_coefficients": {
+      "target_yield_unit": "t/ha",
+      "N": {"a": 8.5, "b_soil": 0.35, "c_fym": 10.0, "unit": "kg/ha"},
+      "P2O5": {"a": 3.2, "b_soil": 1.10, "c_fym": 5.0, "unit": "kg/ha"},
+      "K2O": {"a": 11.0, "b_soil": 0.25, "c_fym": 10.0, "unit": "kg/ha"}
+    },
+    "equation_or_dose_reference": "Draft STCR Banana Equation (Under Verification)",
+    "source_title": "TNAU Soil Fertility Thresholds",
+    "source_url": "https://agritech.tnau.ac.in/pdf/2.pdf",
+    "source_page_or_section": "Banana STCR Draft Section",
+    "verification_status": "PENDING_VERIFICATION",
+    "verification_date": "2024-01-15",
+    "applicability_notes": "Pending field validation by TNAU STCR committee. Cannot be used for production recommendations until verified."
+  },
+  {
+    "rule_id": "TNAU_DEPRECATED_RICE_000",
+    "version": "1.0",
+    "crop": "Rice",
+    "variety": "Old Local",
+    "soil_series": null,
+    "district": null,
+    "season": ["All"],
+    "irrigation_method": "Irrigated",
+    "recommendation_method": "TNAU-BLANKET",
+    "target_yield_range": null,
+    "required_soil_inputs": ["nitrogen", "phosphorus", "potassium"],
+    "required_units": {
+      "nitrogen": "kg/ha",
+      "phosphorus": "kg/ha",
+      "potassium": "kg/ha"
+    },
+    "equation_or_dose_reference": "Deprecated 1980 Blanket Dosing Guide",
+    "source_title": "TNAU Soil Testing Services",
+    "source_url": "https://agritech.tnau.ac.in/agriculture/agri_soil_tnau_soiltestingservices.html",
+    "source_page_or_section": "Obsolete Blanket Table",
+    "verification_status": "UNSUPPORTED",
+    "verification_date": "2024-01-15",
+    "applicability_notes": "Superceded by soil-test and STCR-IPNS targeted yield equations."
+  }
+]

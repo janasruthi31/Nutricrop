@@ -1,0 +1,183 @@
+{
+  "model_name": "yield_model_v1",
+  "algorithm": "XGBoostRegressor",
+  "task": "regression",
+  "target": "yield",
+  "target_unit": "kg/ha (sugarcane converted from tonnes/ha)",
+  "geographic_scope": "Tamil Nadu",
+  "prediction_scope": "district-average",
+  "train_test_split": "80/20 (chronological row order, no shuffle)",
+  "training_rows": 6955,
+  "testing_rows": 1739,
+  "total_valid_rows": 8694,
+  "features": [
+    "District",
+    "Crop",
+    "Season",
+    "Year",
+    "Rain_SWM_mm",
+    "Rain_NEM_mm",
+    "Rain_Winter_mm",
+    "Rain_HotWeather_mm",
+    "Rain_Annual_mm"
+  ],
+  "categorical_features": [
+    "District",
+    "Crop",
+    "Season"
+  ],
+  "numeric_features": [
+    "Year",
+    "Rain_SWM_mm",
+    "Rain_NEM_mm",
+    "Rain_Winter_mm",
+    "Rain_HotWeather_mm",
+    "Rain_Annual_mm"
+  ],
+  "training_dataset": "data/tn_district_yield_rainfall_raw_long.csv -> cleaned data/tn_district_yield_model_dataset.csv (TN Season & Crop Reports 2020-21..2024-25, Table V-A yield + Table I-A rainfall)",
+  "data_source": "uploaded TN_Fertilizer_Combined_Pack.zip",
+  "production_used_as_feature": false,
+  "xgboost_params": {
+    "n_estimators": 300,
+    "max_depth": 6,
+    "learning_rate": 0.1
+  },
+  "categories": {
+    "District": [
+      "Ariyalur",
+      "Chengalpattu",
+      "Chennai",
+      "Coimbatore",
+      "Cuddalore",
+      "Dharmapuri",
+      "Dindigul",
+      "Erode",
+      "Kallakurichi",
+      "Kancheepuram",
+      "Kanniyakumari",
+      "Karur",
+      "Krishnagiri",
+      "Madurai",
+      "Mayiladuthurai",
+      "Nagapattinam",
+      "Namakkal",
+      "Perambalur",
+      "Pudukkottai",
+      "Ramanathapuram",
+      "Ranipet",
+      "Salem",
+      "Sivagangai",
+      "Tenkasi",
+      "Thanjavur",
+      "The Nilgiris",
+      "Theni",
+      "Thoothukudi",
+      "Tiruchirapalli",
+      "Tirunelveli",
+      "Tirupathur",
+      "Tiruppur",
+      "Tiruvallur",
+      "Tiruvannamalai",
+      "Tiruvarur",
+      "Vellore",
+      "Villupuram",
+      "Virudhunagar"
+    ],
+    "Crop": [
+      "Arecanut",
+      "Bajra",
+      "Banana",
+      "Bengal gram",
+      "Black gram",
+      "Brinjal",
+      "Cabbage",
+      "Cardamom",
+      "Cashew nut",
+      "Castor",
+      "Chillies",
+      "Cloves",
+      "Coriander",
+      "Cotton (lint)",
+      "Cowpea",
+      "Garlic",
+      "Gingelly",
+      "Ginger",
+      "Grapes",
+      "Green gram",
+      "Groundnut",
+      "Guava",
+      "Horse gram",
+      "Jack fruit",
+      "Jowar",
+      "Korra",
+      "Lady's finger",
+      "Lemon",
+      "Maize",
+      "Mango",
+      "Onion",
+      "Orange",
+      "Other cereals",
+      "Other pulses",
+      "Pepper",
+      "Pineapple",
+      "Potato",
+      "Ragi",
+      "Rapeseed & mustard",
+      "Red gram",
+      "Rice",
+      "Samai",
+      "Sugarcane",
+      "Sunflower",
+      "Sweet potato",
+      "Tamarind",
+      "Tapioca",
+      "Tobacco",
+      "Tomato",
+      "Turmeric",
+      "Varagu"
+    ],
+    "Season": [
+      "Annual",
+      "Kharif",
+      "Kuruvai/Kar/Sornavari",
+      "Navarai/Kodai",
+      "Rabi",
+      "Samba/Thaladi/Pishanam"
+    ]
+  },
+  "numeric_training_ranges": {
+    "Year": [
+      2020.0,
+      2024.0
+    ],
+    "Rain_SWM_mm": [
+      56.4,
+      1898.5
+    ],
+    "Rain_NEM_mm": [
+      139.0,
+      1360.4
+    ],
+    "Rain_Winter_mm": [
+      0.0,
+      377.4
+    ],
+    "Rain_HotWeather_mm": [
+      20.9,
+      639.0
+    ],
+    "Rain_Annual_mm": [
+      549.6,
+      2613.6
+    ]
+  },
+  "library_versions": {
+    "xgboost": "3.2.0",
+    "scikit-learn": "1.5.2",
+    "pandas": "2.2.3"
+  },
+  "random_state": 42,
+  "model_version": "v1",
+  "training_date": "2026-10-12",
+  "disclaimer": "District-average yield estimate - NOT FARM-SPECIFIC. Not a guaranteed yield."
+}

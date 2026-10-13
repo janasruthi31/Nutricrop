@@ -1,0 +1,102 @@
+Feature,Importance
+Crop_Sugarcane,0.34638816
+Crop_Cabbage,0.14063594
+Season_Annual,0.07737401
+Crop_Tapioca,0.05310131
+Crop_Banana,0.04585867
+Crop_Cashew nut,0.033647392
+Crop_Grapes,0.030701032
+Crop_Pineapple,0.02600543
+Crop_Tamarind,0.020772792
+Crop_Coriander,0.020583346
+Crop_Castor,0.019602237
+Crop_Ginger,0.019563194
+Crop_Tomato,0.0152428085
+Crop_Potato,0.013603166
+Crop_Sweet potato,0.012470243
+Crop_Chillies,0.012087939
+Crop_Jack fruit,0.008533445
+Crop_Pepper,0.008264376
+Season_Rabi,0.006869498
+Crop_Orange,0.0063912957
+Crop_Mango,0.006014191
+Crop_Onion,0.0056612515
+Crop_Maize,0.0050959224
+Crop_Korra,0.0045038615
+Crop_Arecanut,0.004498605
+Crop_Brinjal,0.0041193655
+Crop_Other cereals,0.003944175
+Crop_Cardamom,0.0031685086
+Crop_Rice,0.002555939
+Crop_Bengal gram,0.0024624309
+Crop_Cloves,0.0020904138
+District_Kancheepuram,0.0020294029
+Crop_Lady's finger,0.0019822067
+District_Pudukkottai,0.0018258214
+District_Sivagangai,0.0017723041
+Crop_Ragi,0.001719671
+Crop_Tobacco,0.0015420512
+District_Dindigul,0.0014750987
+District_Tirupathur,0.0013161508
+District_Ariyalur,0.0011191446
+District_Thanjavur,0.0010719215
+District_Theni,0.0010213152
+District_Kanniyakumari,0.00092868187
+Crop_Rapeseed & mustard,0.0008533104
+Crop_Groundnut,0.0008111558
+District_Tenkasi,0.0007976892
+Crop_Cotton (lint),0.0007666288
+District_Ranipet,0.000757109
+District_Tiruchirapalli,0.0007311601
+District_Namakkal,0.000713198
+District_Perambalur,0.00066882075
+Rain_Annual_mm,0.00063169445
+District_Tirunelveli,0.0006215993
+Crop_Guava,0.0006128215
+District_Cuddalore,0.0005982036
+Year,0.0005911762
+District_Madurai,0.00058145315
+Rain_HotWeather_mm,0.00051569496
+Rain_Winter_mm,0.0005039035
+District_Tiruppur,0.00048819723
+Crop_Bajra,0.00048788724
+District_Virudhunagar,0.00048680397
+District_Chengalpattu,0.00048353366
+Rain_NEM_mm,0.0004789271
+District_Villupuram,0.0004652944
+District_The Nilgiris,0.00045860774
+District_Tiruvannamalai,0.000454679
+Rain_SWM_mm,0.0004317201
+District_Karur,0.0004221625
+District_Salem,0.0004059089
+District_Erode,0.0003898643
+District_Kallakurichi,0.00037982815
+District_Dharmapuri,0.0003724453
+District_Nagapattinam,0.000303868
+District_Coimbatore,0.00028945648
+District_Vellore,0.00027437138
+District_Thoothukudi,0.00024643156
+Crop_Gingelly,0.00024398415
+District_Tiruvallur,0.00023592002
+Crop_Green gram,0.00021947983
+Crop_Lemon,0.00021651897
+Season_Kharif,0.00018174642
+District_Krishnagiri,0.0001582929
+District_Mayiladuthurai,0.00014479087
+Crop_Varagu,0.00013928025
+Crop_Other pulses,0.0001351546
+Crop_Cowpea,9.593443e-05
+Crop_Black gram,9.015305e-05
+Crop_Sunflower,7.069698e-05
+District_Tiruvarur,5.986846e-05
+District_Ramanathapuram,5.9376718e-05
+Crop_Turmeric,5.1584022e-05
+Crop_Horse gram,4.4992263e-05
+Season_Samba/Thaladi/Pishanam,4.417192e-05
+Crop_Garlic,4.3944947e-05
+Crop_Jowar,3.0557905e-05
+Season_Kuruvai/Kar/Sornavari,1.3693512e-05
+Crop_Samai,1.2490876e-05
+Season_Navarai/Kodai,1.1463577e-05
+Crop_Red gram,3.1047643e-06
+District_Chennai,2.5657157e-06
