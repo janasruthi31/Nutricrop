@@ -83,8 +83,12 @@ class FieldDraft {
     final key = j['field'] as String;
     final spec = specFor(key);
     String? unit = j['unit'] as String?;
-    if (unit == null && v != null && spec.units.first != null) {
-      unit = spec.units.first;
+    if (spec.units.isNotEmpty) {
+      if (unit != null && !spec.units.contains(unit)) {
+        unit = spec.units.first;
+      } else if (unit == null && spec.units.first != null) {
+        unit = spec.units.first;
+      }
     }
     return FieldDraft(
       key: key,

@@ -39,4 +39,17 @@ void main() {
     expect(x.valueText, '280');
     expect(x.ocrConfidence, isNull);
   });
+  test('draft from server json auto-defaults incompatible unit to standard accepted unit', () {
+    final n = FieldDraft.fromJson({'field': 'nitrogen', 'ocr_value': '280', 'value': 280.0, 'unit': '%', 'status': 'uncertain'});
+    expect(n.unit, 'kg/ha');
+    expect(n.check.blocksConfirm, isFalse);
+
+    final ph = FieldDraft.fromJson({'field': 'ph', 'ocr_value': '7.2', 'value': 7.2, 'unit': '%', 'status': 'uncertain'});
+    expect(ph.unit, isNull);
+    expect(ph.check.blocksConfirm, isFalse);
+
+    final b = FieldDraft.fromJson({'field': 'boron', 'ocr_value': '0.56', 'value': 0.56, 'unit': '%', 'status': 'uncertain'});
+    expect(b.unit, 'mg/kg');
+    expect(b.check.blocksConfirm, isFalse);
+  });
 }

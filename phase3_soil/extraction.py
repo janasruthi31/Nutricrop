@@ -20,7 +20,7 @@ LABELS = {
     "iron": [r"\biron\b", r"\bfe\b", r"இரும்பு"],
     "manganese": [r"\bmanganese\b", r"\bmn\b", r"மாங்கனீசு", r"மாங்கனீஸ்"],
     "copper": [r"\bcopper\b", r"\bcu\b", r"தாமிரம்", r"தாமிர"],
-    "boron": [r"\bboron\b", r"\(\s*b\s*\)", r"போரான்", r"ேபாரான்"],
+    "boron": [r"\bboron\b", r"\bavail(?:able|\.)?\s*b\b", r"போரான்", r"ேபாரான்"],
 }
 UNIT_RE = re.compile(
     r"(kg\s*/\s*ha|kg\s*ha\s*-?1|kg\s*/\s*hectare|mg\s*/\s*kg|ppm|%|g\s*/\s*kg|d\s?s\s*/\s*m|ds\s*m\s*-?1|"
@@ -97,14 +97,22 @@ def _doc_method(text):
     return hits.pop() if len(hits) == 1 else None
 
 
-def _find_header_unit(lines, idx):
+def _find_header_unit(lines, idx, key=None):
+    from .units import canonical_unit_token
+    allowed = FIELDS.get(key, {}).get("units", []) if key else None
     for back in range(1, 45):
         if idx - back < 0:
             break
         t = lines[idx - back]["text"]
         um = UNIT_RE.search(t)
         if um:
-            return re.sub(r"\s+", "", um.group(1))
+            cand = re.sub(r"\s+", "", um.group(1))
+            if allowed is not None:
+                tok = canonical_unit_token(cand)
+                if tok in allowed or cand in allowed:
+                    return cand
+            else:
+                return cand
     return None
 
 
@@ -184,7 +192,7 @@ def extract_fields(lines):
                 if um_text:
                     unit_raw = re.sub(r"\s+", "", um_text.group(1))
                 else:
-                    unit_raw = _find_header_unit(lines, idx)
+                    unit_raw = _find_header_unit(lines, idx, key)
 
             f = {"field": key, "label": FIELDS[key]["label"], "line_index": idx, "extraction_issues": []}
             if garbled:
