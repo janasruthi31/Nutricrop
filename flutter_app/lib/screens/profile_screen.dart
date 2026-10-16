@@ -123,10 +123,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     const SizedBox(height: 14),
                     DropdownButtonFormField<String>(
-                      value: _district,
+                      value: tnDistricts.contains(_district) ? _district : 'Thanjavur',
                       decoration: InputDecoration(labelText: l10n.text('district'), prefixIcon: const Icon(Icons.location_on_outlined)),
-                      items: tnDistricts.map((d) => DropdownMenuItem(value: d, child: Text(d))).toList(),
-                      onChanged: (v) => setState(() => _district = v!),
+                      items: tnDistricts.toSet().map((d) => DropdownMenuItem(value: d, child: Text(d))).toList(),
+                      onChanged: (v) => setState(() => _district = v ?? 'Thanjavur'),
                     ),
                     const SizedBox(height: 24),
                     FilledButton(

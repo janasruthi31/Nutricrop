@@ -163,6 +163,9 @@ class FertilizerProductCard extends StatelessWidget {
   final int bags;
   final double bagSizeKg;
   final double totalCostInr;
+  final double? pricePerBagInr;
+  final String? priceSource;
+  final String? priceEffectiveDate;
   final String? description;
 
   const FertilizerProductCard({
@@ -172,6 +175,9 @@ class FertilizerProductCard extends StatelessWidget {
     required this.bags,
     required this.bagSizeKg,
     required this.totalCostInr,
+    this.pricePerBagInr,
+    this.priceSource,
+    this.priceEffectiveDate,
     this.description,
   });
 
@@ -217,10 +223,30 @@ class FertilizerProductCard extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text('Total: ${quantityKg.toStringAsFixed(1)} kg', style: const TextStyle(fontWeight: FontWeight.w600)),
-                  Text('$bags bags ($bagSizeKg kg/bag)', style: const TextStyle(color: AppTheme.textMuted)),
+                  Text(
+                    pricePerBagInr != null
+                        ? '$bags bags (₹${pricePerBagInr!.toStringAsFixed(0)} / ${bagSizeKg.toStringAsFixed(0)}kg bag)'
+                        : '$bags bags (${bagSizeKg.toStringAsFixed(0)} kg/bag)',
+                    style: const TextStyle(color: AppTheme.textMuted),
+                  ),
                 ],
               ),
             ),
+            if (priceSource != null && priceSource!.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  const Icon(Icons.verified_outlined, size: 14, color: AppTheme.primaryGreen),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      'Rate source: $priceSource${priceEffectiveDate != null ? ' (Eff: $priceEffectiveDate)' : ''}',
+                      style: const TextStyle(fontSize: 11, color: AppTheme.darkGreen, fontStyle: FontStyle.italic),
+                    ),
+                  ),
+                ],
+              ),
+            ],
             if (description != null && description!.isNotEmpty) ...[
               const SizedBox(height: 8),
               Text(description!, style: const TextStyle(fontSize: 12, color: AppTheme.textMuted)),

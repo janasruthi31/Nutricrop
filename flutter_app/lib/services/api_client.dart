@@ -282,14 +282,56 @@ class ApiClient {
       });
 
   // --------------------------------------------------------------------------
-  // Weather Guidance
+  // Weather Guidance & Location
   // --------------------------------------------------------------------------
-  Future<Map<String, dynamic>> getWeatherGuidance([String? district]) => _guard(() async {
+  Future<Map<String, dynamic>> getWeatherGuidance([String? district, double? lat, double? lon]) => _guard(() async {
+        final queryParams = <String, String>{};
+        if (district != null) queryParams['district'] = district;
+        if (lat != null) queryParams['lat'] = lat.toString();
+        if (lon != null) queryParams['lon'] = lon.toString();
         final uri = Uri.parse('${AppConfig.apiBase}/api/weather/guidance').replace(
-          queryParameters: district != null ? {'district': district} : null,
+          queryParameters: queryParams.isNotEmpty ? queryParams : null,
         );
         final res = await _client.get(uri, headers: _headers);
         return _decode(res);
+      });
+
+  Future<Map<String, dynamic>> getLiveWeatherCurrent({String? district, double? lat, double? lon}) => _guard(() async {
+        final queryParams = <String, String>{};
+        if (district != null) queryParams['district'] = district;
+        if (lat != null) queryParams['lat'] = lat.toString();
+        if (lon != null) queryParams['lon'] = lon.toString();
+        final uri = Uri.parse('${AppConfig.apiBase}/api/weather/current').replace(
+          queryParameters: queryParams.isNotEmpty ? queryParams : null,
+        );
+        final res = await _client.get(uri, headers: _headers);
+        return _decode(res);
+      });
+
+  Future<Map<String, dynamic>> getLiveWeatherForecast({String? district, double? lat, double? lon}) => _guard(() async {
+        final queryParams = <String, String>{};
+        if (district != null) queryParams['district'] = district;
+        if (lat != null) queryParams['lat'] = lat.toString();
+        if (lon != null) queryParams['lon'] = lon.toString();
+        final uri = Uri.parse('${AppConfig.apiBase}/api/weather/forecast').replace(
+          queryParameters: queryParams.isNotEmpty ? queryParams : null,
+        );
+        final res = await _client.get(uri, headers: _headers);
+        return _decode(res);
+      });
+
+  Future<Map<String, dynamic>> reverseGeocode({required double lat, required double lon}) => _guard(() async {
+        final uri = Uri.parse('${AppConfig.apiBase}/api/location/reverse-geocode').replace(
+          queryParameters: {'lat': lat.toString(), 'lon': lon.toString()},
+        );
+        final res = await _client.get(uri, headers: _headers);
+        return _decode(res);
+      });
+
+  Future<List<dynamic>> getFertilizerPrices() => _guard(() async {
+        final res = await _client.get(Uri.parse('${AppConfig.apiBase}/api/fertilizer/prices'), headers: _headers);
+        final list = jsonDecode(utf8.decode(res.bodyBytes));
+        return list is List ? list : [];
       });
 
   // --------------------------------------------------------------------------

@@ -1,6 +1,7 @@
 """
 Unit conversions and validation for Phase 5 NPK calculation engine.
-Handles farm area unit conversions and soil test unit normalization.
+Handles farm area unit conversions, target yield normalization,
+and soil nutrient unit and elemental/oxide form conversions.
 """
 
 from typing import Tuple
@@ -22,9 +23,28 @@ SUPPORTED_AREA_UNITS = {
 SUPPORTED_NUTRIENT_UNITS = {
     "kg/ha": 1.0,
     "kg_per_ha": 1.0,
-    "mg/kg": 2.24,  # Standard agronomic depth conversion: 1 mg/kg (ppm) = 2.24 kg/ha
+    "kg/acre": 2.47105,       # 1 kg/acre = 2.47105 kg/ha
+    "kg_per_acre": 2.47105,
+    "mg/kg": 2.24,           # Standard agronomic depth conversion: 1 mg/kg (ppm) = 2.24 kg/ha
     "ppm": 2.24,
 }
+
+SUPPORTED_YIELD_UNITS = {
+    "t/ha": 1.0,
+    "tonnes/ha": 1.0,
+    "tonne/ha": 1.0,
+    "ton/ha": 1.0,
+    "q/ha": 0.1,             # 1 quintal = 100 kg = 0.1 tonne
+    "quintal/ha": 0.1,
+    "quintals/ha": 0.1,
+    "kg/ha": 0.001,          # 1 kg = 0.001 tonne
+}
+
+# Stoichiometric Conversion Factors between Elemental and Oxide Forms
+P_TO_P2O5 = 2.29137   # Molecular weight ratio P2O5 / 2P = 141.94 / 61.94
+P2O5_TO_P = 0.43642   # 1 / 2.29137
+K_TO_K2O = 1.2046     # Molecular weight ratio K2O / 2K = 94.20 / 78.20
+K2O_TO_K = 0.83015    # 1 / 1.2046
 
 
 def convert_area_to_hectares(area: float, unit: str) -> float:
@@ -48,6 +68,27 @@ def convert_area_to_hectares(area: float, unit: str) -> float:
     return val * SUPPORTED_AREA_UNITS[u_norm]
 
 
+def convert_target_yield_to_tonnes_per_ha(yield_val: float, unit: str = "t/ha") -> float:
+    """Converts target yield to tonnes per hectare (t/ha). Supports t/ha, q/ha, and kg/ha."""
+    if yield_val is None or isinstance(yield_val, bool):
+        raise ValueError("Target yield must be a numeric value.")
+    try:
+        val = float(yield_val)
+    except (ValueError, TypeError):
+        raise ValueError(f"Target yield '{yield_val}' is not a valid number.")
+
+    if val <= 0:
+        raise ValueError(f"Target yield must be greater than 0, got {val}.")
+
+    u_norm = (unit or "t/ha").strip().lower().replace(" ", "_")
+    if u_norm not in SUPPORTED_YIELD_UNITS:
+        raise ValueError(
+            f"Unsupported target yield unit '{unit}'. Supported units: {', '.join(sorted(set(SUPPORTED_YIELD_UNITS.keys())))}"
+        )
+
+    return val * SUPPORTED_YIELD_UNITS[u_norm]
+
+
 def normalize_soil_nutrient_value(value: float, unit: str) -> float:
     """Normalizes soil nutrient test value to kg/ha. Raises ValueError if unit is unsupported."""
     if value is None or isinstance(value, bool):
@@ -67,3 +108,24 @@ def normalize_soil_nutrient_value(value: float, unit: str) -> float:
         )
 
     return val * SUPPORTED_NUTRIENT_UNITS[u_norm]
+
+
+def convert_elemental_to_oxide(value: float, nutrient: str) -> float:
+    """Converts elemental nutrient (P or K) to its oxide form (P2O5 or K2O)."""
+    n = nutrient.strip().upper()
+    if n == "P":
+        return value * P_TO_P2O5
+    elif n == "K":
+        return value * K_TO_K2O
+    return value
+
+
+def convert_oxide_to_elemental(value: float, nutrient: str) -> float:
+    """Converts oxide nutrient (P2O5 or K2O) to its elemental form (P or K)."""
+    n = nutrient.strip().upper()
+    if n in ("P2O5", "P"):
+        return value * P2O5_TO_P
+    elif n in ("K2O", "K"):
+        return value * K2O_TO_K
+    return value
+

@@ -25,13 +25,38 @@ class FullRecommendationService:
         irrigation = req.get("irrigation_method", "Irrigated")
         target_yield = req.get("target_yield", 6.0)
 
-        soil_n = req.get("soil_nitrogen", 220.0)
-        soil_p = req.get("soil_phosphorus", 16.0)
-        soil_k = req.get("soil_potassium", 190.0)
+        # Support loading verified measurements from confirmed soil profile
+        profile_id = req.get("soil_profile_id")
+        soil_n = req.get("soil_nitrogen")
+        soil_p = req.get("soil_phosphorus")
+        soil_k = req.get("soil_potassium")
         p_method = req.get("soil_phosphorus_method", "Olsen")
+
+        if profile_id:
+            try:
+                from phase3_soil import db
+                import json
+                with db.connect() as con:
+                    row = con.execute("SELECT profile_json FROM soil_profiles WHERE soil_profile_id = ?", (profile_id,)).fetchone()
+                    if row:
+                        p_data = json.loads(row["profile_json"])
+                        if not crop and p_data.get("crop"):
+                            crop = p_data.get("crop")
+                        if not district and p_data.get("district"):
+                            district = p_data.get("district")
+                        if soil_n is None and p_data.get("nitrogen"):
+                            soil_n = p_data["nitrogen"].get("value")
+                        if soil_p is None and p_data.get("phosphorus"):
+                            soil_p = p_data["phosphorus"].get("value")
+                            p_method = p_data["phosphorus"].get("method", p_method)
+                        if soil_k is None and p_data.get("potassium"):
+                            soil_k = p_data["potassium"].get("value")
+            except Exception:
+                pass
 
         farm_area = req.get("farm_area", 1.0)
         farm_area_unit = req.get("farm_area_unit", "hectare")
+        target_yield_unit = req.get("target_yield_unit", "t/ha")
 
         # Step 1: Rule Selection (Phase 4)
         p4_req = RuleSelectionRequest(
@@ -46,7 +71,7 @@ class FullRecommendationService:
                 "phosphorus": soil_p,
                 "potassium": soil_k,
                 "phosphorus_method": p_method
-            }
+            } if soil_n is not None or soil_p is not None or soil_k is not None else None
         )
         p4_res = self.rule_service.select_rule(p4_req)
 
@@ -55,6 +80,7 @@ class FullRecommendationService:
             crop=crop,
             selected_rule_id=p4_res.selected_rule_id,
             target_yield=target_yield,
+            target_yield_unit=target_yield_unit,
             soil_nitrogen=soil_n,
             soil_phosphorus=soil_p,
             soil_potassium=soil_k,
@@ -89,7 +115,9 @@ class FullRecommendationService:
             yield_pred = {"error": f"Yield prediction model error: {str(e)}"}
 
         # Step 5: Agro-Weather Guidance (Phase 7)
-        weather_res = get_weather_guidance(district)
+        lat = req.get("latitude")
+        lon = req.get("longitude")
+        weather_res = get_weather_guidance(district=district, lat=lat, lon=lon)
 
         return {
             "status": "SUCCESS" if p6_res.status == "OPTIMIZATION_SUCCESS" else p6_res.status,

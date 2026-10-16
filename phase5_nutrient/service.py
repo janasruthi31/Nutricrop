@@ -9,7 +9,12 @@ from agronomy.registry import AgronomicRuleRegistry
 from agronomy.service import RuleSelectionService, RuleSelectionRequest
 from phase3_soil.classification import classify
 from .models import NutrientCalculationRequest, NutrientCalculationResponse
-from .units import convert_area_to_hectares, normalize_soil_nutrient_value
+from .units import (
+    convert_area_to_hectares,
+    normalize_soil_nutrient_value,
+    convert_target_yield_to_tonnes_per_ha,
+    convert_oxide_to_elemental,
+)
 
 CALCULATION_SUCCESS = "CALCULATION_SUCCESS"
 UNVERIFIED_RULE = "UNVERIFIED_RULE"
@@ -139,7 +144,11 @@ class NutrientCalculationService:
 
         try:
             if req.soil_phosphorus is not None:
-                sp = normalize_soil_nutrient_value(req.soil_phosphorus, req.soil_phosphorus_unit or "kg/ha")
+                p_unit = (req.soil_phosphorus_unit or "kg/ha").strip().lower()
+                is_p2o5 = "p2o5" in p_unit
+                clean_unit = p_unit.replace("_p2o5", "").replace("p2o5", "").strip() or "kg/ha"
+                sp_raw = normalize_soil_nutrient_value(req.soil_phosphorus, clean_unit)
+                sp = round(convert_oxide_to_elemental(sp_raw, "P"), 4) if is_p2o5 else sp_raw
             else:
                 missing_inputs.append("soil_phosphorus")
         except ValueError as e:
@@ -147,25 +156,36 @@ class NutrientCalculationService:
 
         try:
             if req.soil_potassium is not None:
-                sk = normalize_soil_nutrient_value(req.soil_potassium, req.soil_potassium_unit or "kg/ha")
+                k_unit = (req.soil_potassium_unit or "kg/ha").strip().lower()
+                is_k2o = "k2o" in k_unit
+                clean_unit = k_unit.replace("_k2o", "").replace("k2o", "").strip() or "kg/ha"
+                sk_raw = normalize_soil_nutrient_value(req.soil_potassium, clean_unit)
+                sk = round(convert_oxide_to_elemental(sk_raw, "K"), 4) if is_k2o else sk_raw
             else:
                 missing_inputs.append("soil_potassium")
         except ValueError as e:
             validation_errors.append(str(e))
 
         # Check STCR specific required inputs
-        target_yield = req.target_yield
+        target_yield = None
+        if req.target_yield is not None:
+            try:
+                target_yield = convert_target_yield_to_tonnes_per_ha(req.target_yield, req.target_yield_unit or "t/ha")
+            except ValueError as e:
+                validation_errors.append(str(e))
+
         target_range = rule.get("target_yield_range")
 
         if rec_method.startswith("STCR"):
             if target_yield is None:
-                missing_inputs.append("target_yield")
+                if "target_yield" not in missing_inputs:
+                    missing_inputs.append("target_yield")
             elif target_range:
                 min_y, max_y = target_range.get("min"), target_range.get("max")
                 if min_y is not None and target_yield < min_y:
-                    validation_errors.append(f"Target yield {target_yield} t/ha is below documented range ({min_y}-{max_y} t/ha).")
+                    validation_errors.append(f"Target yield {target_yield:.2f} t/ha is below documented range ({min_y}-{max_y} t/ha).")
                 if max_y is not None and target_yield > max_y:
-                    validation_errors.append(f"Target yield {target_yield} t/ha exceeds documented range ({min_y}-{max_y} t/ha).")
+                    validation_errors.append(f"Target yield {target_yield:.2f} t/ha exceeds documented range ({min_y}-{max_y} t/ha).")
 
         # Validate Farm Area if provided
         farm_area_ha = None

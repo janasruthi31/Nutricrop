@@ -71,27 +71,27 @@ class _PreviousFertilizerScreenState extends State<PreviousFertilizerScreen> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: DropdownButtonFormField<String>(
-                        value: unit,
+                        value: ['tonnes', 'kg', 'bags'].contains(unit) ? unit : 'tonnes',
                         items: const [
                           DropdownMenuItem(value: 'tonnes', child: Text('Tonnes')),
                           DropdownMenuItem(value: 'kg', child: Text('kg')),
                           DropdownMenuItem(value: 'bags', child: Text('Bags')),
                         ],
-                        onChanged: (v) => setD(() => unit = v!),
+                        onChanged: (v) => setD(() => unit = v ?? 'tonnes'),
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
-                  value: stage,
+                  value: ['Basal', 'Top Dress', 'Previous Season'].contains(stage) ? stage : 'Basal',
                   decoration: const InputDecoration(labelText: 'Application Timing'),
                   items: const [
                     DropdownMenuItem(value: 'Basal', child: Text('Basal (Before Sowing)')),
                     DropdownMenuItem(value: 'Top Dress', child: Text('Top Dressing')),
                     DropdownMenuItem(value: 'Previous Season', child: Text('Previous Season Residual')),
                   ],
-                  onChanged: (v) => setD(() => stage = v!),
+                  onChanged: (v) => setD(() => stage = v ?? 'Basal'),
                 ),
               ],
             ),

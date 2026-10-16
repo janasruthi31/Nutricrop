@@ -159,3 +159,70 @@ def test_recommendation_save_and_pdf():
     assert pdf_res.headers["content-type"] == "application/pdf"
     assert len(pdf_res.content) > 1000
     assert pdf_res.content.startswith(b"%PDF")
+
+
+def test_unauthenticated_requests_rejected():
+    # Requests without Authorization or X-Farmer-Id headers must return 401 Unauthorized
+    res = client.get("/api/recommendations")
+    assert res.status_code == 401
+    assert "authentication required" in res.json()["detail"].lower()
+
+    res_pdf = client.get("/api/recommendations/REC_TEST123/pdf")
+    assert res_pdf.status_code == 401
+
+    res_farm = client.get("/api/farmer/farm")
+    assert res_farm.status_code == 401
+
+
+def test_cross_user_data_isolation():
+    farmer_a_headers = {"Authorization": "Bearer test_farmer_alice"}
+    farmer_b_headers = {"Authorization": "Bearer test_farmer_bob"}
+
+    # Farmer A creates a saved recommendation
+    payload = {
+        "crop": "Sugarcane",
+        "district": "Coimbatore",
+        "nutrient_requirements": {"n_req_kg_per_ha": 250.0},
+        "fertilizer_plan": {"total_cost_inr": 8500.0, "recommended_products": []}
+    }
+    create_res = client.post("/api/recommendations", headers=farmer_a_headers, json=payload)
+    assert create_res.status_code == 200
+    rec_id = create_res.json()["recommendation_id"]
+
+    # Farmer A can retrieve it
+    get_a = client.get(f"/api/recommendations/{rec_id}", headers=farmer_a_headers)
+    assert get_a.status_code == 200
+
+    # Farmer B attempts to retrieve Farmer A's recommendation -> 403 Forbidden!
+    get_b = client.get(f"/api/recommendations/{rec_id}", headers=farmer_b_headers)
+    assert get_b.status_code == 403
+    assert "forbidden" in get_b.json()["detail"].lower()
+
+    # Farmer B attempts to download Farmer A's PDF -> 403 Forbidden!
+    pdf_b = client.get(f"/api/recommendations/{rec_id}/pdf", headers=farmer_b_headers)
+    assert pdf_b.status_code == 403
+    assert "forbidden" in pdf_b.json()["detail"].lower()
+
+
+def test_duplicate_registration_and_invalid_login():
+    email = "unique_farmer_999@tnsih.agri"
+    pwd = "StrongPassword456"
+
+    # Register first time
+    r1 = client.post("/api/auth/register", json={
+        "email": email, "password": pwd, "full_name": "Unique Farmer"
+    })
+    # Duplicate registration must return 400
+    r2 = client.post("/api/auth/register", json={
+        "email": email, "password": pwd, "full_name": "Duplicate Farmer"
+    })
+    assert r2.status_code == 400
+    assert "already exists" in r2.json()["detail"].lower()
+
+    # Login with wrong password must return 401
+    r_bad = client.post("/api/auth/login", json={
+        "email": email, "password": "WrongPassword999"
+    })
+    assert r_bad.status_code == 401
+    assert "invalid email or password" in r_bad.json()["detail"].lower()
+

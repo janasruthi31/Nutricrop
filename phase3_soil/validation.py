@@ -41,6 +41,15 @@ def resolve_district(name):
 def parse_iso_date(s):
     if isinstance(s, date):
         return s
+    if not s or not str(s).strip():
+        return None
+    from .extraction import parse_report_date
+    res = parse_report_date(s)
+    if res:
+        try:
+            return datetime.strptime(res, "%Y-%m-%d").date()
+        except Exception:
+            pass
     try:
         return datetime.strptime(str(s).strip(), "%Y-%m-%d").date()
     except (ValueError, TypeError):

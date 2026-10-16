@@ -178,9 +178,12 @@ class _CropSelectionScreenState extends State<CropSelectionScreen> {
                       Text('Season & Target Yield', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                       const SizedBox(height: 14),
                       DropdownButtonFormField<String>(
-                        value: _selectedSeason,
+                        value: (activeCropInfo['seasons'] as List<String>).contains(_selectedSeason)
+                            ? _selectedSeason
+                            : (activeCropInfo['seasons'] as List<String>).first,
                         decoration: InputDecoration(labelText: l10n.text('season')),
                         items: (activeCropInfo['seasons'] as List<String>)
+                            .toSet()
                             .map((s) => DropdownMenuItem(value: s, child: Text(s)))
                             .toList(),
                         onChanged: (v) => setState(() => _selectedSeason = v!),

@@ -268,3 +268,62 @@ def test_14_api_validation_endpoint():
     assert data["k2o_req_kg_per_ha"] > 0
     assert data["farm_area_hectares"] == 0.4047
     assert data["source_title"] == "TNAU Cotton STCR"
+
+
+# 15. Target yield unit conversions (quintals/ha to tonnes/ha)
+def test_15_target_yield_unit_conversions():
+    # 60.0 q/ha = 6.0 t/ha
+    req = NutrientCalculationRequest(
+        crop="Rice",
+        selected_rule_id="TNAU_STCR_IPNS_RICE_001",
+        target_yield=60.0,
+        target_yield_unit="q/ha",
+        soil_nitrogen=220.0,
+        soil_phosphorus=16.0,
+        soil_potassium=190.0,
+        soil_phosphorus_method="Olsen"
+    )
+    res = service.calculate(req)
+    assert res.status == "CALCULATION_SUCCESS"
+    assert res.n_req_kg_per_ha == 17.6
+    assert res.p2o5_req_kg_per_ha == 28.4
+    assert res.k2o_req_kg_per_ha == 10.2
+
+
+# 16. Soil test oxide form input (kg P2O5/ha normalized to elemental P)
+def test_16_elemental_and_oxide_nutrient_units():
+    # If soil P is supplied as 36.66 kg P2O5/ha, elemental P = 36.66 * 0.43642 = 16.0 kg P/ha
+    req = NutrientCalculationRequest(
+        crop="Rice",
+        selected_rule_id="TNAU_STCR_IPNS_RICE_001",
+        target_yield=6.0,
+        soil_nitrogen=220.0,
+        soil_phosphorus=36.66,
+        soil_phosphorus_unit="kg_p2o5_per_ha",
+        soil_potassium=190.0,
+        soil_phosphorus_method="Olsen"
+    )
+    res = service.calculate(req)
+    assert res.status == "CALCULATION_SUCCESS"
+    # P2O5 should calculate to ~28.4 kg/ha
+    assert abs(res.p2o5_req_kg_per_ha - 28.4) < 0.2
+
+
+# 17. Farm area conversions for acres and hectares
+def test_17_farm_area_acre_and_sqm_conversions():
+    # 2.5 acres = 2.5 * 0.404686 = 1.0117 ha
+    req = NutrientCalculationRequest(
+        crop="Rice",
+        selected_rule_id="TNAU_STCR_IPNS_RICE_001",
+        target_yield=6.0,
+        soil_nitrogen=220.0,
+        soil_phosphorus=16.0,
+        soil_potassium=190.0,
+        farm_area=2.5,
+        farm_area_unit="acre"
+    )
+    res = service.calculate(req)
+    assert res.status == "CALCULATION_SUCCESS"
+    assert res.farm_area_hectares == 1.0117
+    assert res.total_n_req_kg == round(17.6 * 1.0117, 2)
+

@@ -5,7 +5,7 @@ Contains verified nutrient compositions (% N, P2O5, K2O), bag sizes, and retail 
 
 from typing import Any, Dict, List, Optional
 
-# Verified Tamil Nadu fertilizer products catalog
+# Verified Tamil Nadu fertilizer products catalog with dated price references
 FERTILIZER_CATALOG: List[Dict[str, Any]] = [
     {
         "id": "UREA",
@@ -17,6 +17,11 @@ FERTILIZER_CATALOG: List[Dict[str, Any]] = [
         "bag_size_kg": 45.0,
         "price_per_bag_inr": 266.50,
         "price_per_kg_inr": 5.92,
+        "currency": "INR",
+        "package_unit": "bag",
+        "source": "Department of Fertilizers, Ministry of Chemicals & Fertilizers, GoI (Statutory MRP notification)",
+        "effective_date": "2024-04-01",
+        "verification_status": "VERIFIED",
         "description": "Standard Nitrogen source (46% N)"
     },
     {
@@ -29,6 +34,11 @@ FERTILIZER_CATALOG: List[Dict[str, Any]] = [
         "bag_size_kg": 50.0,
         "price_per_bag_inr": 1350.00,
         "price_per_kg_inr": 27.00,
+        "currency": "INR",
+        "package_unit": "bag",
+        "source": "Department of Fertilizers, GoI (Nutrient Based Subsidy Kharif/Rabi Notification)",
+        "effective_date": "2024-04-01",
+        "verification_status": "VERIFIED",
         "description": "High Phosphorus complex (18% N, 46% P2O5)"
     },
     {
@@ -41,6 +51,11 @@ FERTILIZER_CATALOG: List[Dict[str, Any]] = [
         "bag_size_kg": 50.0,
         "price_per_bag_inr": 1700.00,
         "price_per_kg_inr": 34.00,
+        "currency": "INR",
+        "package_unit": "bag",
+        "source": "Department of Fertilizers, GoI (NBS Subsidy Schedule for Potassic Fertilizers)",
+        "effective_date": "2024-04-01",
+        "verification_status": "VERIFIED",
         "description": "Potassium source (60% K2O)"
     },
     {
@@ -53,6 +68,11 @@ FERTILIZER_CATALOG: List[Dict[str, Any]] = [
         "bag_size_kg": 50.0,
         "price_per_bag_inr": 600.00,
         "price_per_kg_inr": 12.00,
+        "currency": "INR",
+        "package_unit": "bag",
+        "source": "Tamil Nadu Cooperative Marketing Federation (TANFED) / NBS Price Schedule",
+        "effective_date": "2024-04-01",
+        "verification_status": "VERIFIED",
         "description": "Phosphorus source with Sulphur (16% P2O5)"
     },
     {
@@ -65,6 +85,11 @@ FERTILIZER_CATALOG: List[Dict[str, Any]] = [
         "bag_size_kg": 50.0,
         "price_per_bag_inr": 1250.00,
         "price_per_kg_inr": 25.00,
+        "currency": "INR",
+        "package_unit": "bag",
+        "source": "TANFED Commercial Price Schedule 2024",
+        "effective_date": "2024-04-01",
+        "verification_status": "VERIFIED",
         "description": "Balanced NP complex (20% N, 20% P2O5)"
     },
     {
@@ -77,6 +102,11 @@ FERTILIZER_CATALOG: List[Dict[str, Any]] = [
         "bag_size_kg": 50.0,
         "price_per_bag_inr": 1450.00,
         "price_per_kg_inr": 29.00,
+        "currency": "INR",
+        "package_unit": "bag",
+        "source": "TANFED Commercial Price Schedule 2024",
+        "effective_date": "2024-04-01",
+        "verification_status": "VERIFIED",
         "description": "Equal ratio NPK complex (17-17-17)"
     }
 ]

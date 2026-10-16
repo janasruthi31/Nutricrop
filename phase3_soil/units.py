@@ -16,6 +16,7 @@ _UNIT_ALIASES = {
     "ds/m": "dS/m", "dsm-1": "dS/m", "ds/cm": None, "mmhos/cm": "dS/m", "mmho/cm": "dS/m", "ms/cm": "dS/m",
     "us/cm": "uS/cm", "µs/cm": "uS/cm", "μs/cm": "uS/cm", "umhos/cm": "uS/cm", "μmhos/cm": "uS/cm",
     "kg/acre": "kg/acre", "kg/ac": "kg/acre", "lb/acre": "lb/acre", "lbs/acre": "lb/acre",
+    "கிலோ/ஏக்கர்": "kg/acre", "கிலோ/ஹெக்டேர்": "kg/ha", "கிலோ/ஏக்": "kg/acre",
 }
 
 
@@ -34,7 +35,7 @@ def canonical_unit_token(raw):
 def normalize_value_unit(field, value, raw_unit):
     """
     Returns (value, unit, note, original_unit). `unit` is None if unknown/unsafe; `note` explains an exact conversion.
-    Values are only changed by the three exact conversions in the module docstring.
+    Values are only changed by exact/standard conversions.
     """
     tok = canonical_unit_token(raw_unit)
     if tok is None:
@@ -45,4 +46,8 @@ def normalize_value_unit(field, value, raw_unit):
         return round(value / 10.0, 6), "%", "g/kg converted to % (1 % = 10 g/kg)", raw_unit
     if tok == "uS/cm" and field == "ec" and value is not None:
         return round(value / 1000.0, 6), "dS/m", "uS/cm converted to dS/m (/1000)", raw_unit
+    if tok == "kg/acre" and field in ("nitrogen", "phosphorus", "potassium", "sulphur") and value is not None:
+        return round(value * 2.47105, 2), "kg/ha", "kg/acre converted to kg/ha (1 ha = 2.471 acres)", raw_unit
+    if tok == "kg/acre" and field in ("zinc", "iron", "manganese", "copper", "boron") and value is not None:
+        return value, "mg/kg", "micronutrient in soil test mass basis (mg/kg)", raw_unit
     return value, tok, None, raw_unit

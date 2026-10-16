@@ -299,5 +299,5 @@ yield_model_v1 · {today} · xgboost {xgboost.__version__} · scikit-learn {skle
 ## Fertilizer-type ML
 **Not trained.** The uploaded data does not contain sufficient validated Tamil Nadu farm-level fertilizer application labels (fertilizer type/quantity applied + crop + soil + location + season/year). Fertilizer recommendation stays in the TNAU/STCR/IPNS → N/P2O5/K2O → LP optimizer module; the yield model is never used for fertilizer type, dose or cost.
 """
-open("MODEL_TRAINING_REPORT.md", "w").write(rep)
+open("MODEL_TRAINING_REPORT.md", "w", encoding="utf-8").write(rep)
 print(json.dumps(results, indent=2))

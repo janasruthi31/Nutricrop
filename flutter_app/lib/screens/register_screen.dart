@@ -138,19 +138,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
-                value: _district,
+                value: tnDistricts.contains(_district) ? _district : 'Thanjavur',
                 decoration: InputDecoration(
                   labelText: l10n.text('district'),
                   prefixIcon: const Icon(Icons.location_on_outlined),
                 ),
-                items: tnDistricts.map((d) => DropdownMenuItem(value: d, child: Text(d))).toList(),
+                items: tnDistricts.toSet().map((d) => DropdownMenuItem(value: d, child: Text(d))).toList(),
                 onChanged: (v) {
                   if (v != null) setState(() => _district = v);
                 },
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
-                value: _language,
+                value: ['ta', 'en', 'hi'].contains(_language) ? _language : 'ta',
                 decoration: InputDecoration(
                   labelText: l10n.text('preferred_language'),
                   prefixIcon: const Icon(Icons.language_rounded),

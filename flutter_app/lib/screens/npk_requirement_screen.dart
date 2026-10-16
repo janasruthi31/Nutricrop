@@ -44,18 +44,47 @@ class _NpkRequirementScreenState extends State<NpkRequirementScreen> {
       String pMethod = 'Olsen';
 
       if (widget.soilProfile != null) {
-        final fields = widget.soilProfile!['fields'] as List? ?? [];
-        for (final f in fields) {
-          final k = f['field']?.toString() ?? '';
-          final val = (f['confirmed_value'] ?? f['ocr_value']);
-          final numVal = double.tryParse(val?.toString() ?? '');
-          if (numVal != null) {
-            if (k == 'nitrogen') soilN = numVal;
-            if (k == 'phosphorus') {
-              soilP = numVal;
-              if (f['test_method'] != null) pMethod = f['test_method'];
+        final p = widget.soilProfile!;
+        // 1. Direct map format from /api/soil/confirm: {nitrogen: {value: 96.37, ...}, ...}
+        if (p['nitrogen'] is Map && p['nitrogen']['value'] != null) {
+          final val = double.tryParse(p['nitrogen']['value'].toString());
+          if (val != null) soilN = val;
+        } else if (p['nitrogen'] is num) {
+          soilN = (p['nitrogen'] as num).toDouble();
+        }
+
+        if (p['phosphorus'] is Map && p['phosphorus']['value'] != null) {
+          final val = double.tryParse(p['phosphorus']['value'].toString());
+          if (val != null) soilP = val;
+          if (p['phosphorus']['method'] != null) pMethod = p['phosphorus']['method'].toString();
+        } else if (p['phosphorus'] is num) {
+          soilP = (p['phosphorus'] as num).toDouble();
+        }
+
+        if (p['potassium'] is Map && p['potassium']['value'] != null) {
+          final val = double.tryParse(p['potassium']['value'].toString());
+          if (val != null) soilK = val;
+        } else if (p['potassium'] is num) {
+          soilK = (p['potassium'] as num).toDouble();
+        }
+
+        // 2. Or list format if passed from OCR preview: {fields: [...]}
+        if (p['fields'] is List) {
+          final fields = p['fields'] as List;
+          for (final f in fields) {
+            if (f is Map) {
+              final k = f['field']?.toString() ?? '';
+              final val = (f['confirmed_value'] ?? f['value'] ?? f['ocr_value']);
+              final numVal = double.tryParse(val?.toString() ?? '');
+              if (numVal != null) {
+                if (k == 'nitrogen') soilN = numVal;
+                if (k == 'phosphorus') {
+                  soilP = numVal;
+                  if (f['test_method'] != null) pMethod = f['test_method'].toString();
+                }
+                if (k == 'potassium') soilK = numVal;
+              }
             }
-            if (k == 'potassium') soilK = numVal;
           }
         }
       }

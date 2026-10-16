@@ -47,3 +47,35 @@ def test_04_predict_yield_does_not_mutate_npk_requirements():
     assert res1.n_req_kg_per_ha == res2.n_req_kg_per_ha
     assert res1.p2o5_req_kg_per_ha == res2.p2o5_req_kg_per_ha
     assert res1.k2o_req_kg_per_ha == res2.k2o_req_kg_per_ha
+
+
+def test_05_unsupported_district_rejected():
+    with pytest.raises(ValueError) as exc:
+        predict_district_yield(district="NonExistentDistrict", crop="Rice")
+    assert "not supported by the district yield benchmark model" in str(exc.value)
+
+
+def test_06_unsupported_crop_rejected():
+    with pytest.raises(ValueError) as exc:
+        predict_district_yield(district="Thanjavur", crop="DragonFruit")
+    assert "not supported by the district yield benchmark model" in str(exc.value)
+
+
+def test_07_negative_rainfall_rejected():
+    with pytest.raises(ValueError) as exc:
+        predict_district_yield(district="Thanjavur", crop="Rice", rain_swm=-50.0)
+    assert "cannot be negative" in str(exc.value)
+
+
+def test_08_nine_feature_schema_consistency():
+    import json
+    meta = json.load(open(META, "r", encoding="utf-8"))
+    features = meta["features"]
+    assert len(features) == 9, f"Expected 9 features, got {len(features)}: {features}"
+    expected_features = [
+        "District", "Crop", "Season", "Year",
+        "Rain_SWM_mm", "Rain_NEM_mm", "Rain_Winter_mm",
+        "Rain_HotWeather_mm", "Rain_Annual_mm"
+    ]
+    assert features == expected_features, "Feature order or naming mismatch"
+

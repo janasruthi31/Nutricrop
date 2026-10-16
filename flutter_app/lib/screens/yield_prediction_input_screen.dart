@@ -29,6 +29,7 @@ class _YieldPredictionInputScreenState extends State<YieldPredictionInputScreen>
   List<String> _districts = ['Thanjavur', 'Tiruvarur', 'Nagapattinam', 'Madurai', 'Coimbatore'];
   List<String> _crops = ['Rice', 'Sugarcane', 'Cotton', 'Maize', 'Groundnut'];
   List<String> _seasons = ['Samba/Thaladi/Pishanam', 'Kharif', 'Rabi', 'Kuruvai', 'Annual'];
+  Map<String, dynamic> _districtNormals = {};
 
   @override
   void initState() {
@@ -39,17 +40,32 @@ class _YieldPredictionInputScreenState extends State<YieldPredictionInputScreen>
   Future<void> _loadMeta() async {
     try {
       final meta = await ApiClient.instance.getYieldMeta();
-      if (meta['districts'] != null && mounted) {
+      if (mounted) {
         setState(() {
-          _districts = (meta['districts'] as List).cast<String>();
-          _crops = (meta['crops'] as List).cast<String>();
-          _seasons = (meta['seasons'] as List).cast<String>();
+          if (meta['districts'] != null) _districts = (meta['districts'] as List).cast<String>();
+          if (meta['crops'] != null) _crops = (meta['crops'] as List).cast<String>();
+          if (meta['seasons'] != null) _seasons = (meta['seasons'] as List).cast<String>();
+          if (meta['district_rainfall_normals'] != null) {
+            _districtNormals = (meta['district_rainfall_normals'] as Map).cast<String, dynamic>();
+          }
           if (!_districts.contains(_district)) _district = _districts.first;
           if (!_crops.contains(_crop)) _crop = _crops.first;
           if (!_seasons.contains(_season)) _season = _seasons.first;
+          _applyDistrictNormals(_district);
         });
       }
     } catch (_) {}
+  }
+
+  void _applyDistrictNormals(String district) {
+    final normal = _districtNormals[district] as Map?;
+    if (normal != null) {
+      if (normal['rain_swm'] != null) _swmCtrl.text = normal['rain_swm'].toString();
+      if (normal['rain_nem'] != null) _nemCtrl.text = normal['rain_nem'].toString();
+      if (normal['rain_winter'] != null) _winterCtrl.text = normal['rain_winter'].toString();
+      if (normal['rain_hot'] != null) _hotCtrl.text = normal['rain_hot'].toString();
+      if (normal['rain_annual'] != null) _annualCtrl.text = normal['rain_annual'].toString();
+    }
   }
 
   void _recalcAnnual() {
@@ -128,36 +144,51 @@ class _YieldPredictionInputScreenState extends State<YieldPredictionInputScreen>
                 const SizedBox(height: 12),
               ],
               DropdownButtonFormField<String>(
-                value: _district,
+                value: _districts.contains(_district) ? _district : (_districts.isNotEmpty ? _districts.first : 'Thanjavur'),
                 decoration: InputDecoration(
                   labelText: l10n.text('district'),
                   prefixIcon: const Icon(Icons.location_on_outlined),
                 ),
-                items: _districts.map((d) => DropdownMenuItem(value: d, child: Text(d))).toList(),
-                onChanged: (v) => setState(() => _district = v!),
+                items: _districts.toSet().map((d) => DropdownMenuItem(value: d, child: Text(d))).toList(),
+                onChanged: (v) {
+                  if (v != null) {
+                    setState(() {
+                      _district = v;
+                      _applyDistrictNormals(v);
+                    });
+                  }
+                },
               ),
               const SizedBox(height: 14),
               DropdownButtonFormField<String>(
-                value: _crop,
+                value: _crops.contains(_crop) ? _crop : (_crops.isNotEmpty ? _crops.first : 'Rice'),
                 decoration: InputDecoration(
                   labelText: l10n.text('select_crop'),
                   prefixIcon: const Icon(Icons.eco_outlined),
                 ),
-                items: _crops.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
+                items: _crops.toSet().map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
                 onChanged: (v) => setState(() => _crop = v!),
               ),
               const SizedBox(height: 14),
               DropdownButtonFormField<String>(
-                value: _season,
+                value: _seasons.contains(_season) ? _season : (_seasons.isNotEmpty ? _seasons.first : 'Samba/Thaladi/Pishanam'),
                 decoration: InputDecoration(
                   labelText: l10n.text('season'),
                   prefixIcon: const Icon(Icons.calendar_today_outlined),
                 ),
-                items: _seasons.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+                items: _seasons.toSet().map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
                 onChanged: (v) => setState(() => _season = v!),
               ),
               const SizedBox(height: 18),
-              const Text('District Rainfall Inputs (mm)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+              Text(
+                'Seasonal Rainfall Normals for $_district (mm)',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppTheme.textDark),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Auto-loaded from official Tamil Nadu Season & Crop Reports (2020-2025). Edit as needed for local variance.',
+                style: TextStyle(fontSize: 12, color: AppTheme.textMuted),
+              ),
               const SizedBox(height: 10),
               Row(
                 children: [

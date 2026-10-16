@@ -87,6 +87,34 @@ CREATE TABLE IF NOT EXISTS user_notifications (
   is_read INTEGER DEFAULT 0,
   created_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS weather_cache (
+  cache_key TEXT PRIMARY KEY,
+  latitude REAL NOT NULL,
+  longitude REAL NOT NULL,
+  district TEXT,
+  current_json TEXT NOT NULL,
+  forecast_json TEXT NOT NULL,
+  observation_time TEXT NOT NULL,
+  source TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS fertilizer_prices (
+  product_id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  category TEXT NOT NULL,
+  n_pct REAL NOT NULL,
+  p2o5_pct REAL NOT NULL,
+  k2o_pct REAL NOT NULL,
+  bag_size_kg REAL NOT NULL,
+  price_per_bag_inr REAL NOT NULL,
+  price_per_kg_inr REAL NOT NULL,
+  source TEXT NOT NULL,
+  effective_date TEXT NOT NULL,
+  last_updated_at TEXT NOT NULL
+);
 """
 
 
@@ -108,3 +136,41 @@ def connect(path=None):
 def init_db(path=None):
     with connect(path) as con:
         con.executescript(SCHEMA)
+
+        # Migrations for existing databases: ensure farmer_farms has latitude, longitude, taluk, state
+        cursor = con.execute("PRAGMA table_info(farmer_farms)")
+        existing_cols = {row["name"] for row in cursor.fetchall()}
+        if "latitude" not in existing_cols:
+            con.execute("ALTER TABLE farmer_farms ADD COLUMN latitude REAL")
+        if "longitude" not in existing_cols:
+            con.execute("ALTER TABLE farmer_farms ADD COLUMN longitude REAL")
+        if "taluk" not in existing_cols:
+            con.execute("ALTER TABLE farmer_farms ADD COLUMN taluk TEXT")
+        if "state" not in existing_cols:
+            con.execute("ALTER TABLE farmer_farms ADD COLUMN state TEXT DEFAULT 'Tamil Nadu'")
+
+        # Seed fertilizer_prices from catalog if table is empty
+        row = con.execute("SELECT COUNT(*) as cnt FROM fertilizer_prices").fetchone()
+        if row and row["cnt"] == 0:
+            from phase6_fertilizer.catalog import FERTILIZER_CATALOG
+            for item in FERTILIZER_CATALOG:
+                con.execute(
+                    """INSERT OR IGNORE INTO fertilizer_prices 
+                       (product_id, name, category, n_pct, p2o5_pct, k2o_pct, bag_size_kg, price_per_bag_inr, price_per_kg_inr, source, effective_date, last_updated_at)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        item["id"],
+                        item["name"],
+                        item["category"],
+                        item["n_pct"],
+                        item["p2o5_pct"],
+                        item["k2o_pct"],
+                        item["bag_size_kg"],
+                        item["price_per_bag_inr"],
+                        item["price_per_kg_inr"],
+                        item.get("source", "Department of Fertilizers, GoI (NBS Subsidy Schedule 2024-25)"),
+                        item.get("effective_date", "2024-04-01"),
+                        "2026-10-14T00:00:00Z"
+                    )
+                )
+

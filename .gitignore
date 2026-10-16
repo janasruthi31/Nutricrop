@@ -28,6 +28,15 @@ flutter_app/.pub/
 *.pem
 *.key
 
+# Virtual environments
+venv/
+env/
+ENV/
+
+# Databases
+*.sqlite3
+*.sqlite3-journal
+
 # Editor and OS files
 .vscode/
 .idea/

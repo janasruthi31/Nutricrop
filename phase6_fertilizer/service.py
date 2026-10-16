@@ -6,7 +6,12 @@ Uses scipy.optimize.linprog to formulate cost-minimization optimization.
 import math
 from typing import Any, Dict, List, Optional
 import numpy as np
-from scipy.optimize import linprog
+try:
+    from scipy.optimize import milp, LinearConstraint, Bounds
+    HAS_MILP = True
+except ImportError:
+    from scipy.optimize import linprog
+    HAS_MILP = False
 
 from .catalog import get_fertilizer_catalog
 from .models import (
@@ -24,8 +29,37 @@ VALIDATION_ERROR = "VALIDATION_ERROR"
 
 
 class FertilizerOptimizerService:
-    def __init__(self):
-        self.catalog = get_fertilizer_catalog()
+    def __init__(self, catalog: Optional[List[Dict[str, Any]]] = None):
+        if catalog is not None:
+            self.catalog = catalog
+        else:
+            self.catalog = self._load_catalog_from_db()
+
+    def _load_catalog_from_db(self) -> List[Dict[str, Any]]:
+        try:
+            from phase3_soil import db
+            with db.connect() as con:
+                rows = con.execute("SELECT * FROM fertilizer_prices").fetchall()
+                if rows:
+                    return [
+                        {
+                            "id": r["product_id"],
+                            "name": r["name"],
+                            "category": r["category"],
+                            "n_pct": float(r["n_pct"]),
+                            "p2o5_pct": float(r["p2o5_pct"]),
+                            "k2o_pct": float(r["k2o_pct"]),
+                            "bag_size_kg": float(r["bag_size_kg"]),
+                            "price_per_bag_inr": float(r["price_per_bag_inr"]),
+                            "price_per_kg_inr": float(r["price_per_kg_inr"]),
+                            "source": r["source"],
+                            "effective_date": r["effective_date"],
+                        }
+                        for r in rows
+                    ]
+        except Exception:
+            pass
+        return get_fertilizer_catalog()
 
     def optimize(self, req: FertilizerOptimizationRequest) -> FertilizerOptimizationResponse:
         warnings: List[str] = []
@@ -95,31 +129,27 @@ class FertilizerOptimizerService:
             )
 
         num_vars = len(candidates)
-        # Objective vector c: price per kg in INR
-        c = np.array([p["price_per_kg_inr"] for p in candidates])
+        # Objective vector c: price per commercial bag in INR
+        c_bags = np.array([float(p["price_per_bag_inr"]) for p in candidates])
 
-        # Inequality constraints: A_ub * x <= b_ub
-        # We need:
-        #  sum(n_pct/100 * x_i) >= n_req   => sum(-n_pct/100 * x_i) <= -n_req
-        #  sum(p_pct/100 * x_i) >= p2o5_req => sum(-p_pct/100 * x_i) <= -p2o5_req
-        #  sum(k_pct/100 * x_i) >= k2o_req  => sum(-k_pct/100 * x_i) <= -k2o_req
-        A_ub = []
-        b_ub = []
+        # Matrix for nutrient delivery per commercial bag:
+        # A_row_N: [bag_size * (n_pct / 100)]
+        # A_row_P2O5: [bag_size * (p2o5_pct / 100)]
+        # A_row_K2O: [bag_size * (k2o_pct / 100)]
+        A_rows = []
+        lhs_bounds = []
 
         if n_req > 0:
-            A_ub.append([-p["n_pct"] / 100.0 for p in candidates])
-            b_ub.append(-n_req)
+            A_rows.append([float(p["bag_size_kg"]) * (float(p["n_pct"]) / 100.0) for p in candidates])
+            lhs_bounds.append(n_req)
         if p2o5_req > 0:
-            A_ub.append([-p["p2o5_pct"] / 100.0 for p in candidates])
-            b_ub.append(-p2o5_req)
+            A_rows.append([float(p["bag_size_kg"]) * (float(p["p2o5_pct"]) / 100.0) for p in candidates])
+            lhs_bounds.append(p2o5_req)
         if k2o_req > 0:
-            A_ub.append([-p["k2o_pct"] / 100.0 for p in candidates])
-            b_ub.append(-k2o_req)
+            A_rows.append([float(p["bag_size_kg"]) * (float(p["k2o_pct"]) / 100.0) for p in candidates])
+            lhs_bounds.append(k2o_req)
 
-        # Bounds: x_i >= 0
-        bounds = [(0, None) for _ in range(num_vars)]
-
-        if not A_ub:
+        if not A_rows:
             # Zero nutrient requirement requested
             return FertilizerOptimizationResponse(
                 status=OPTIMIZATION_SUCCESS,
@@ -135,40 +165,67 @@ class FertilizerOptimizerService:
                 warnings=["Nutrient requirement is 0 kg. No fertilizer application required."]
             )
 
-        # Run Linear Programming solver
-        res = linprog(c, A_ub=np.array(A_ub), b_ub=np.array(b_ub), bounds=bounds, method="highs")
+        # Solve using Mixed-Integer Linear Programming (MILP)
+        bag_counts = None
+        solver_status_msg = ""
+        is_globally_optimal = False
 
-        if not res.success:
+        if HAS_MILP:
+            integrality = np.ones(num_vars)  # 1 indicates integer constraint (whole commercial bags)
+            constraints = LinearConstraint(A_rows, lb=lhs_bounds, ub=[np.inf] * len(lhs_bounds))
+            bounds = Bounds(lb=0, ub=np.inf)
+            res = milp(c=c_bags, integrality=integrality, constraints=constraints, bounds=bounds)
+
+            if res.success and res.x is not None:
+                bag_counts = [int(round(v)) for v in res.x]
+                is_globally_optimal = True
+                solver_status_msg = "Solved to global optimality via SciPy Mixed-Integer Linear Programming (HiGHS MILP)."
+            else:
+                solver_status_msg = f"MILP solver status: {res.status} ({getattr(res, 'message', 'Infeasible')})"
+        else:
+            # Fallback continuous LP with ceiling
+            c_kg = np.array([float(p["price_per_kg_inr"]) for p in candidates])
+            A_ub = [[-float(p["n_pct"]) / 100.0 for p in candidates]] if n_req > 0 else []
+            b_ub = [-n_req] if n_req > 0 else []
+            if p2o5_req > 0:
+                A_ub.append([-float(p["p2o5_pct"]) / 100.0 for p in candidates])
+                b_ub.append(-p2o5_req)
+            if k2o_req > 0:
+                A_ub.append([-float(p["k2o_pct"]) / 100.0 for p in candidates])
+                b_ub.append(-k2o_req)
+            bounds = [(0, None) for _ in range(num_vars)]
+            res = linprog(c_kg, A_ub=np.array(A_ub), b_ub=np.array(b_ub), bounds=bounds, method="highs")
+            if res.success and res.x is not None:
+                bag_counts = [math.ceil(round(float(qty), 2) / p["bag_size_kg"]) for qty, p in zip(res.x, candidates)]
+                solver_status_msg = "Solved via continuous LP with integer bag ceiling."
+
+        if bag_counts is None:
             return FertilizerOptimizationResponse(
                 status=INFEASIBLE,
                 crop=crop,
                 farm_area_hectares=area_ha,
-                validation_errors=["Optimization failed to find a feasible fertilizer combination satisfying nutrient constraints."]
+                validation_errors=[f"Optimization failed to find a feasible commercial fertilizer combination satisfying nutrient constraints. {solver_status_msg}"]
             )
 
-        sol_x = res.x
         product_recs: List[FertilizerProductRecommendation] = []
         total_cost = 0.0
 
         supplied_n, supplied_p2o5, supplied_k2o = 0.0, 0.0, 0.0
-        bag_supplied_n, bag_supplied_p2o5, bag_supplied_k2o = 0.0, 0.0, 0.0
 
-        for i, qty in enumerate(sol_x):
-            if qty > 0.01:  # Filter out near-zero products
+        for i, bags in enumerate(bag_counts):
+            if bags > 0:
                 p = candidates[i]
-                qty_kg = round(float(qty), 2)
-                bags = math.ceil(qty_kg / p["bag_size_kg"])
-                cost = round(bags * p["price_per_bag_inr"], 2)
+                qty_kg = round(bags * float(p["bag_size_kg"]), 2)
+                cost = round(bags * float(p["price_per_bag_inr"]), 2)
                 total_cost += cost
 
-                supplied_n += qty_kg * (p["n_pct"] / 100.0)
-                supplied_p2o5 += qty_kg * (p["p2o5_pct"] / 100.0)
-                supplied_k2o += qty_kg * (p["k2o_pct"] / 100.0)
+                p_n = round(qty_kg * (float(p["n_pct"]) / 100.0), 2)
+                p_p2o5 = round(qty_kg * (float(p["p2o5_pct"]) / 100.0), 2)
+                p_k2o = round(qty_kg * (float(p["k2o_pct"]) / 100.0), 2)
 
-                bag_kg = bags * p["bag_size_kg"]
-                bag_supplied_n += bag_kg * (p["n_pct"] / 100.0)
-                bag_supplied_p2o5 += bag_kg * (p["p2o5_pct"] / 100.0)
-                bag_supplied_k2o += bag_kg * (p["k2o_pct"] / 100.0)
+                supplied_n += p_n
+                supplied_p2o5 += p_p2o5
+                supplied_k2o += p_k2o
 
                 product_recs.append(FertilizerProductRecommendation(
                     product_id=p["id"],
@@ -177,20 +234,22 @@ class FertilizerOptimizerService:
                     category=p["category"],
                     quantity_kg=qty_kg,
                     bags=bags,
-                    bag_size_kg=p["bag_size_kg"],
-                    price_per_bag_inr=p["price_per_bag_inr"],
-                    total_cost_inr=cost
+                    bag_size_kg=float(p["bag_size_kg"]),
+                    price_per_bag_inr=float(p["price_per_bag_inr"]),
+                    total_cost_inr=cost,
+                    price_source=p.get("source", "Department of Fertilizers, GoI (NBS Subsidy Schedule)"),
+                    price_effective_date=p.get("effective_date", "2024-04-01")
                 ))
 
-        # Rigorous post-rounding validation: ensure whole bags fulfill required nutrients
-        if (n_req > 0 and bag_supplied_n + 1e-4 < n_req) or \
-           (p2o5_req > 0 and bag_supplied_p2o5 + 1e-4 < p2o5_req) or \
-           (k2o_req > 0 and bag_supplied_k2o + 1e-4 < k2o_req):
+        # Re-validate that whole-bag combination completely satisfies target nutrients
+        if (n_req > 0 and supplied_n + 1e-4 < n_req) or \
+           (p2o5_req > 0 and supplied_p2o5 + 1e-4 < p2o5_req) or \
+           (k2o_req > 0 and supplied_k2o + 1e-4 < k2o_req):
             return FertilizerOptimizationResponse(
                 status=INFEASIBLE,
                 crop=crop,
                 farm_area_hectares=area_ha,
-                validation_errors=["Ceiling bag rounding violated nutrient requirements. Recommendation rejected as infeasible."]
+                validation_errors=["Whole-bag fertilizer package combination failed to satisfy nutrient requirements. Recommendation rejected as infeasible."]
             )
 
         supplied_n = round(supplied_n, 2)
@@ -215,8 +274,11 @@ class FertilizerOptimizerService:
             )
         }
 
-        # Generate split application schedule
+        # Generate crop-specific phenological split application schedule
         split_schedule = self._generate_split_schedule(crop or "General", product_recs)
+
+        if is_globally_optimal:
+            warnings.append("Cost minimization solved to global optimality for discrete commercial bags.")
 
         return FertilizerOptimizationResponse(
             status=OPTIMIZATION_SUCCESS,
@@ -232,12 +294,11 @@ class FertilizerOptimizerService:
     def _generate_split_schedule(
         self, crop_name: str, products: List[FertilizerProductRecommendation]
     ) -> List[SplitApplicationStage]:
-        """Generates standard TNAU crop split application schedules."""
-        c_norm = crop_name.lower()
-        stages: List[SplitApplicationStage] = []
+        """Generates crop-specific split application schedules calibrated to TNAU Crop Production Guide 2020."""
+        c_norm = crop_name.lower().strip()
 
         if "rice" in c_norm or "paddy" in c_norm:
-            stages = [
+            return [
                 SplitApplicationStage(
                     stage_name="Basal Application",
                     timing="At Sowing / Transplanting",
@@ -258,7 +319,7 @@ class FertilizerOptimizerService:
                 )
             ]
         elif "cotton" in c_norm:
-            stages = [
+            return [
                 SplitApplicationStage(
                     stage_name="Basal Application",
                     timing="At Sowing",
@@ -267,20 +328,72 @@ class FertilizerOptimizerService:
                 ),
                 SplitApplicationStage(
                     stage_name="Square Formation",
-                    timing="45 days after sowing (DAS)",
+                    timing="40-45 days after sowing (DAS)",
                     n_pct=25.0, p2o5_pct=0.0, k2o_pct=25.0,
                     products=self._allocate_split(products, n_factor=0.25, p_factor=0.00, k_factor=0.25)
                 ),
                 SplitApplicationStage(
                     stage_name="Boll Formation",
-                    timing="75 days after sowing (DAS)",
+                    timing="70-75 days after sowing (DAS)",
                     n_pct=25.0, p2o5_pct=0.0, k2o_pct=25.0,
                     products=self._allocate_split(products, n_factor=0.25, p_factor=0.00, k_factor=0.25)
                 )
             ]
+        elif "maize" in c_norm:
+            return [
+                SplitApplicationStage(
+                    stage_name="Basal Application",
+                    timing="At Sowing",
+                    n_pct=50.0, p2o5_pct=100.0, k2o_pct=50.0,
+                    products=self._allocate_split(products, n_factor=0.50, p_factor=1.00, k_factor=0.50)
+                ),
+                SplitApplicationStage(
+                    stage_name="Knee-High Stage",
+                    timing="25-30 days after sowing (DAS)",
+                    n_pct=25.0, p2o5_pct=0.0, k2o_pct=25.0,
+                    products=self._allocate_split(products, n_factor=0.25, p_factor=0.00, k_factor=0.25)
+                ),
+                SplitApplicationStage(
+                    stage_name="Tasseling / Silking Stage",
+                    timing="45-50 days after sowing (DAS)",
+                    n_pct=25.0, p2o5_pct=0.0, k2o_pct=25.0,
+                    products=self._allocate_split(products, n_factor=0.25, p_factor=0.00, k_factor=0.25)
+                )
+            ]
+        elif "sugarcane" in c_norm:
+            return [
+                SplitApplicationStage(
+                    stage_name="Basal Application",
+                    timing="At Planting",
+                    n_pct=25.0, p2o5_pct=100.0, k2o_pct=0.0,
+                    products=self._allocate_split(products, n_factor=0.25, p_factor=1.00, k_factor=0.00)
+                ),
+                SplitApplicationStage(
+                    stage_name="Tillering Phase",
+                    timing="30-45 days after planting (DAP)",
+                    n_pct=50.0, p2o5_pct=0.0, k2o_pct=50.0,
+                    products=self._allocate_split(products, n_factor=0.50, p_factor=0.00, k_factor=0.50)
+                ),
+                SplitApplicationStage(
+                    stage_name="Grand Growth Stage",
+                    timing="90-100 days after planting (DAP)",
+                    n_pct=25.0, p2o5_pct=0.0, k2o_pct=50.0,
+                    products=self._allocate_split(products, n_factor=0.25, p_factor=0.00, k_factor=0.50)
+                )
+            ]
+        elif any(p in c_norm for p in ("blackgram", "greengram", "pulse", "pulses", "gram")):
+            # TNAU CPG 2020 specifies 100% basal application for short-duration pulses
+            return [
+                SplitApplicationStage(
+                    stage_name="Basal Application (100% at Sowing)",
+                    timing="At Sowing / Seed Placement",
+                    n_pct=100.0, p2o5_pct=100.0, k2o_pct=100.0,
+                    products=self._allocate_split(products, n_factor=1.00, p_factor=1.00, k_factor=1.00)
+                )
+            ]
         else:
-            # Default 2-split schedule for pulses / general crops
-            stages = [
+            # General crops: standard 2-split schedule with explanatory timing
+            return [
                 SplitApplicationStage(
                     stage_name="Basal Application",
                     timing="At Sowing / Planting",
@@ -289,13 +402,11 @@ class FertilizerOptimizerService:
                 ),
                 SplitApplicationStage(
                     stage_name="Top Dressing",
-                    timing="30-35 days after sowing",
+                    timing="30-35 days after sowing (DAS)",
                     n_pct=50.0, p2o5_pct=0.0, k2o_pct=50.0,
                     products=self._allocate_split(products, n_factor=0.50, p_factor=0.00, k_factor=0.50)
                 )
             ]
-
-        return stages
 
     def _allocate_split(
         self, products: List[FertilizerProductRecommendation], n_factor: float, p_factor: float, k_factor: float

@@ -27,6 +27,8 @@ class FertilizerProductRecommendation(BaseModel):
     bag_size_kg: float
     price_per_bag_inr: float
     total_cost_inr: float
+    price_source: Optional[str] = None
+    price_effective_date: Optional[str] = None
 
 
 class NutrientBalanceDetail(BaseModel):

@@ -58,14 +58,14 @@ class _VerifyScreenState extends State<VerifyScreen> {
                 decoration: InputDecoration(labelText: 'Value', errorText: chk.status == FieldStatus.invalid ? chk.message : null)),
             if (spec.units.length > 1 || spec.units.first != null)
               DropdownButtonFormField<String?>(
-                value: unit,
+                value: spec.units.contains(unit) ? unit : spec.units.first,
                 decoration: const InputDecoration(labelText: 'Unit'),
-                items: spec.units.map((u) => DropdownMenuItem(value: u, child: Text(u ?? '-'))).toList(),
+                items: spec.units.toSet().map((u) => DropdownMenuItem(value: u, child: Text(u ?? '-'))).toList(),
                 onChanged: (v) => setS(() => unit = v),
               ),
             if (d.key == 'phosphorus')
               DropdownButtonFormField<String?>(
-                value: method,
+                value: (method == 'Olsen' || method == 'Bray') ? method : null,
                 decoration: const InputDecoration(labelText: 'Test method'),
                 items: const [
                   DropdownMenuItem(value: null, child: Text('Not known')),
@@ -105,6 +105,17 @@ class _VerifyScreenState extends State<VerifyScreen> {
       final j = d.toConfirmJson();
       if (j != null) fields[d.key] = j;
     }
+    String? testDate = _date.text.trim().isEmpty ? null : _date.text.trim();
+    if (testDate != null) {
+      final parts = testDate.split(RegExp(r'[/.-]'));
+      if (parts.length == 3) {
+        if (parts[0].length == 4) {
+          testDate = '${parts[0]}-${parts[1].padLeft(2, '0')}-${parts[2].padLeft(2, '0')}';
+        } else if (parts[2].length == 4) {
+          testDate = '${parts[2]}-${parts[1].padLeft(2, '0')}-${parts[0].padLeft(2, '0')}';
+        }
+      }
+    }
     try {
       final res = await _api.confirm({
         if (!_manual) 'document_id': widget.ocr!['document_id'],
@@ -112,7 +123,7 @@ class _VerifyScreenState extends State<VerifyScreen> {
         'district': _district.text.trim().isEmpty ? null : _district.text.trim(),
         'village': _village.text.trim().isEmpty ? null : _village.text.trim(),
         'sample_id': _sample.text.trim().isEmpty ? null : _sample.text.trim(),
-        'test_date': _date.text.trim().isEmpty ? null : _date.text.trim(),
+        'test_date': testDate,
         'farmer_confirmed': true,
       });
       if (!mounted) return;
@@ -155,6 +166,7 @@ class _VerifyScreenState extends State<VerifyScreen> {
   @override
   Widget build(BuildContext context) {
     final warnings = ((widget.ocr?['warnings'] as List?) ?? []).map((w) => (w as Map)['message'].toString()).toList();
+    final invalidFields = _drafts.where((d) => !d.isRejected && d.check.blocksConfirm).toList();
     final ok = canConfirm(_drafts) && (_manual || _ack) && !_busy;
     return Scaffold(
       appBar: AppBar(title: const Text('Review Extracted Soil Information')),
@@ -174,6 +186,39 @@ class _VerifyScreenState extends State<VerifyScreen> {
         TextField(controller: _date, decoration: const InputDecoration(labelText: 'Test date (YYYY-MM-DD)')),
         if (!_manual) CheckboxListTile(value: _ack, onChanged: (v) => setState(() => _ack = v ?? false), controlAffinity: ListTileControlAffinity.leading,
             title: const Text('I have checked these values against my soil report')),
+        if (invalidFields.isNotEmpty)
+          Container(
+            margin: const EdgeInsets.only(top: 8, bottom: 6),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.red.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.red.shade300),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(children: [
+                  Icon(Icons.error_outline, color: Colors.red, size: 18),
+                  SizedBox(width: 8),
+                  Text('Please fix the following to confirm:', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
+                ]),
+                const SizedBox(height: 4),
+                for (final d in invalidFields)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4, bottom: 2),
+                    child: Text('• ${specFor(d.key).label}: ${d.check.message ?? "Invalid value or unit"}',
+                        style: const TextStyle(color: Colors.red, fontSize: 13)),
+                  ),
+              ],
+            ),
+          ),
+        if (!_ack && !_manual && invalidFields.isEmpty)
+          const Padding(
+            padding: EdgeInsets.only(top: 6, bottom: 4),
+            child: Text('ℹ️ Please tick the checkbox above to confirm you verified these values.',
+                style: TextStyle(color: Colors.grey, fontSize: 13, fontStyle: FontStyle.italic)),
+          ),
         if (_error != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(_error!, style: const TextStyle(color: Colors.red))),
         const SizedBox(height: 12),
         FilledButton(onPressed: ok ? _confirm : null, child: _busy ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Confirm & Validate')),

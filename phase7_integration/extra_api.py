@@ -16,7 +16,7 @@ from fastapi import APIRouter, Body, Header, HTTPException, Query, Response
 from pydantic import BaseModel, EmailStr, Field
 
 from phase3_soil import db
-from predict_yield import predict_district_yield, META
+from predict_yield import predict_district_yield, META, DISTRICT_RAINFALL_NORMALS
 
 extra_router = APIRouter(tags=["app-services"])
 
@@ -44,15 +44,30 @@ def _get_current_user_id(
     authorization: Optional[str] = Header(None),
     x_farmer_id: Optional[str] = Header(None)
 ) -> str:
-    """Extract authenticated user ID from Authorization or X-Farmer-Id header."""
+    """Extract and verify authenticated user identity from Authorization or X-Farmer-Id header."""
+    user_id = None
     if authorization and authorization.startswith("Bearer "):
         token = authorization.split("Bearer ", 1)[1].strip()
-        # Simple bearer token format: user_<uuid> or verified user_id
         if token:
-            return token
-    if x_farmer_id and x_farmer_id.strip():
-        return x_farmer_id.strip()
-    return "farmer_001"  # Default fallback for testing/demo
+            user_id = token
+
+    if not user_id and x_farmer_id and x_farmer_id.strip():
+        user_id = x_farmer_id.strip()
+
+    if not user_id:
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication required. Please provide a valid Authorization Bearer token or farmer credentials."
+        )
+
+    # Validate ID format
+    from phase3_soil.service import check_farmer, SoilError
+    try:
+        check_farmer(user_id)
+    except SoilError:
+        raise HTTPException(status_code=400, detail=f"Invalid farmer user ID format: '{user_id}'.")
+
+    return user_id
 
 
 # ---------------------------------------------------------
@@ -83,6 +98,10 @@ class ProfileUpdateRequest(BaseModel):
 class FarmDetailsModel(BaseModel):
     district: str
     village: Optional[str] = None
+    taluk: Optional[str] = None
+    state: Optional[str] = "Tamil Nadu"
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     area: float
     area_unit: str = "hectare"
     irrigation: Optional[str] = "Irrigated"
@@ -257,9 +276,9 @@ def save_farm_details(
     now = time.strftime("%Y-%m-%dT%H:%M:%SZ")
     with db.connect() as con:
         con.execute(
-            """INSERT INTO farmer_farms (farm_id, user_id, district, village, area, area_unit, irrigation, soil_series, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (farm_id, user_id, req.district, req.village, req.area, req.area_unit, req.irrigation, req.soil_series, now)
+            """INSERT INTO farmer_farms (farm_id, user_id, district, village, taluk, state, latitude, longitude, area, area_unit, irrigation, soil_series, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (farm_id, user_id, req.district, req.village, req.taluk, req.state, req.latitude, req.longitude, req.area, req.area_unit, req.irrigation, req.soil_series, now)
         )
     return {"status": "SUCCESS", "farm_id": farm_id, "message": "Farm details saved successfully."}
 
@@ -301,6 +320,11 @@ def delete_fertilizer_history(
 ):
     user_id = _get_current_user_id(authorization, x_farmer_id)
     with db.connect() as con:
+        row = con.execute("SELECT user_id FROM farmer_fertilizer_history WHERE id = ?", (entry_id,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Fertilizer history record not found.")
+        if row["user_id"] != user_id:
+            raise HTTPException(status_code=403, detail="Access forbidden: You cannot delete another farmer's fertilizer record.")
         con.execute("DELETE FROM farmer_fertilizer_history WHERE id = ? AND user_id = ?", (entry_id, user_id))
     return {"status": "SUCCESS", "message": "Record deleted."}
 
@@ -311,18 +335,24 @@ def delete_fertilizer_history(
 
 @extra_router.get("/api/yield/meta")
 def get_yield_meta():
-    """Return categories and features supported by the trained ML model."""
+    """Return categories, features, and meteorological rainfall normals supported by the trained ML model."""
     if os.path.exists(META):
         meta = json.load(open(META))
         return {
             "districts": meta["categories"]["District"],
             "crops": meta["categories"]["Crop"],
             "seasons": meta["categories"]["Season"],
+            "district_rainfall_normals": DISTRICT_RAINFALL_NORMALS,
             "numeric_training_ranges": meta.get("numeric_training_ranges", {}),
             "target_unit": meta.get("target_unit", "kg/ha"),
             "scope": "District-level benchmark"
         }
-    return {"districts": ["Thanjavur", "Tiruvarur", "Madurai"], "crops": ["Rice", "Sugarcane", "Cotton"], "seasons": ["Kharif", "Rabi"]}
+    return {
+        "districts": ["Thanjavur", "Tiruvarur", "Madurai"],
+        "crops": ["Rice", "Sugarcane", "Cotton"],
+        "seasons": ["Kharif", "Rabi"],
+        "district_rainfall_normals": DISTRICT_RAINFALL_NORMALS
+    }
 
 
 @extra_router.post("/api/yield/predict")
@@ -411,9 +441,11 @@ def get_recommendation_details(
 ):
     user_id = _get_current_user_id(authorization, x_farmer_id)
     with db.connect() as con:
-        row = con.execute("SELECT * FROM saved_recommendations WHERE recommendation_id = ? AND user_id = ?", (rec_id, user_id)).fetchone()
+        row = con.execute("SELECT * FROM saved_recommendations WHERE recommendation_id = ?", (rec_id,)).fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="Recommendation record not found.")
+        if row["user_id"] != user_id:
+            raise HTTPException(status_code=403, detail="Access forbidden: This recommendation record belongs to another farmer.")
         data = dict(row)
         data["response_json"] = json.loads(data["response_json"])
         return data
@@ -428,9 +460,11 @@ def download_recommendation_pdf(
     """Generate and return an official downloadable PDF report using ReportLab."""
     user_id = _get_current_user_id(authorization, x_farmer_id)
     with db.connect() as con:
-        row = con.execute("SELECT * FROM saved_recommendations WHERE recommendation_id = ? AND user_id = ?", (rec_id, user_id)).fetchone()
+        row = con.execute("SELECT * FROM saved_recommendations WHERE recommendation_id = ?", (rec_id,)).fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="Recommendation record not found.")
+        if row["user_id"] != user_id:
+            raise HTTPException(status_code=403, detail="Access forbidden: This advisory report belongs to another farmer.")
         rec_data = json.loads(row["response_json"])
 
     import io
@@ -581,5 +615,10 @@ def mark_notification_read(
 ):
     user_id = _get_current_user_id(authorization, x_farmer_id)
     with db.connect() as con:
-        con.execute("UPDATE user_notifications SET is_read = 1 WHERE id = ? AND user_id = ?", (notif_id, user_id))
+        row = con.execute("SELECT user_id FROM user_notifications WHERE id = ?", (notif_id,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Notification not found.")
+        if row["user_id"] != user_id:
+            raise HTTPException(status_code=403, detail="Access forbidden: You cannot modify another farmer's notification.")
+        con.execute("UPDATE user_notifications SET is_read = 1 WHERE id = ?", (notif_id,))
     return {"status": "SUCCESS"}

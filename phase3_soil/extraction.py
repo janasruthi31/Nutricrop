@@ -9,22 +9,23 @@ from datetime import datetime
 from .tnau_reference import FIELDS
 
 LABELS = {
-    "nitrogen": [r"\bnitrogen\b", r"\bavail(?:able|\.)?\s*n\b", r"^\W*n\s*[:|\-(]"],
-    "phosphorus": [r"\bphosph[oa]rus\b", r"\bavail(?:able|\.)?\s*p\b", r"^\W*p\s*[:|\-(]"],
-    "potassium": [r"\bpotassium\b", r"\bavail(?:able|\.)?\s*k\b", r"^\W*k\s*[:|\-(]"],
-    "ph": [r"\bp\s?h\b", r"\bsoil\s+reaction\b"],
-    "organic_carbon": [r"\borganic\s+carbon\b", r"\bo\.?c\b"],
-    "ec": [r"\belectrical\s+conductivity\b", r"\be\.?c\b"],
-    "sulphur": [r"\bsul(?:ph|f)ur\b", r"\bavail(?:able|\.)?\s*s\b"],
-    "zinc": [r"\bzinc\b", r"\bzn\b"],
-    "iron": [r"\biron\b", r"\bfe\b"],
-    "manganese": [r"\bmanganese\b", r"\bmn\b"],
-    "copper": [r"\bcopper\b", r"\bcu\b"],
-    "boron": [r"\bboron\b", r"\(\s*b\s*\)"],
+    "nitrogen": [r"\bnitrogen\b", r"\bavail(?:able|\.)?\s*n\b", r"^\W*n\s*[:|\-(]", r"தழை", r"தைழ"],
+    "phosphorus": [r"\bphosph[oa]rus\b", r"\bavail(?:able|\.)?\s*p\b", r"^\W*p\s*[:|\-(]", r"மணி"],
+    "potassium": [r"\bpotassium\b", r"\bavail(?:able|\.)?\s*k\b", r"^\W*k\s*[:|\-(]", r"சாம்பல்", r"பொட்டாஷ்"],
+    "ph": [r"\bp\s?h\b", r"\bsoil\s+reaction\b", r"கார\s*அமில", r"களர்\s*-\s*அமில", r"அமில\s*நிலை"],
+    "organic_carbon": [r"\borganic\s+carbon\b", r"\bo\.?c\b", r"அங்கக\s*கரிமம்", r"அங்ககக்கரிமம்"],
+    "ec": [r"\belectrical\s+conductivity\b", r"\be\.?c\b", r"மின்\s*கடத்து", r"உப்பின்\s*நிலை"],
+    "sulphur": [r"\bsul(?:ph|f)ur\b", r"\bavail(?:able|\.)?\s*s\b", r"கந்தகம்"],
+    "zinc": [r"\bzinc\b", r"\bzn\b", r"துத்தநாகம்", r"துத்தநாக"],
+    "iron": [r"\biron\b", r"\bfe\b", r"இரும்பு"],
+    "manganese": [r"\bmanganese\b", r"\bmn\b", r"மாங்கனீசு", r"மாங்கனீஸ்"],
+    "copper": [r"\bcopper\b", r"\bcu\b", r"தாமிரம்", r"தாமிர"],
+    "boron": [r"\bboron\b", r"\(\s*b\s*\)", r"போரான்", r"ேபாரான்"],
 }
 UNIT_RE = re.compile(
     r"(kg\s*/\s*ha|kg\s*ha\s*-?1|kg\s*/\s*hectare|mg\s*/\s*kg|ppm|%|g\s*/\s*kg|d\s?s\s*/\s*m|ds\s*m\s*-?1|"
-    r"mmhos?\s*/\s*cm|[µμu]s\s*/\s*cm|ms\s*/\s*cm|kg\s*/\s*ac(?:re)?|lbs?\s*/\s*acre)", re.I)
+    r"mmhos?\s*/\s*cm|[µμu]s\s*/\s*cm|ms\s*/\s*cm|kg\s*/\s*ac(?:re)?|lbs?\s*/\s*acre|"
+    r"கிலோ\s*/\s*ஏக்கர்|கிலோ\s*/\s*ஹெக்டேர்)", re.I)
 NUM_RE = re.compile(r"(?<![\w.])(\d+(?:[.,]\d+)?)(?![\w])")
 GARBLED_RE = re.compile(r"(?<![\w])(?=[0-9OoIl|SB.,]*\d)[0-9OoIl|SB.,]{2,}(?![\w])")
 RATIO_RE = re.compile(r"\(\s*\d+\s*:\s*\d+(?:\.\d+)?[^)]*\)|\b1\s*:\s*\d(?:\.\d+)?\b")
@@ -35,12 +36,12 @@ METHOD_PATTERNS = {
     "Walkley-Black": r"walkley", "Ammonium acetate": r"ammonium\s+acetate", "DTPA": r"\bdtpa\b",
 }
 META_PATTERNS = {
-    "farmer_name": r"(?:name\s+of\s+(?:the\s+)?farmer|farmer(?:'s|s)?\s*name|farmer)\s*[:\-–—|]+\s*(.+)",
-    "sample_id": r"(?:soil\s+)?sample\s*(?:no\.?|number|id|code)\s*[:\-–—|#]*\s*([A-Za-z0-9/\-_.]+)",
-    "district": r"\bdistrict\s*[:\-–—|]+\s*([A-Za-z .]+)",
-    "village": r"\bvillage\s*(?:name)?\s*[:\-–—|]+\s*([A-Za-z .]+)",
-    "survey_number": r"survey\s*(?:no\.?|number)(?:\s*/\s*sub[- ]?division)?\s*[:\-–—|]+\s*([A-Za-z0-9/\-. ]+)",
-    "test_date_raw": r"(?:date\s+of\s+(?:testing|analysis|test|report)|test(?:ing)?\s+date|analysis\s+date|report\s+date)\s*[:\-–—|]+\s*(.+)",
+    "farmer_name": r"(?:name\s+of\s+(?:the\s+)?farmer|farmer(?:'s|s)?\s*name|farmer|பெயர்)\s*[:\-–—|]*\s*(.*)",
+    "sample_id": r"(?:(?:soil\s+)?sample\s*(?:no\.?|number|id|code)|மாதிரி\s*எண்)\s*[:\-–—|#]*\s*([A-Za-z0-9/\-_.]*)",
+    "district": r"(?:\bdistrict\b|மாவட்டம்)\s*[:\-–—|]*\s*([A-Za-z .\u0B80-\u0BFF]*)",
+    "village": r"(?:\bvillage\s*(?:name)?|வருவாய்\s*கிராமம்|கிராமம்)\s*[:\-–—|]*\s*([A-Za-z .\u0B80-\u0BFF]*)",
+    "survey_number": r"(?:survey\s*(?:no\.?|number)(?:\s*/\s*sub[- ]?division)?|புல\s*எண்(?:/உட்ப்பிரிவு\s*எண்)?|சர்வே\s*எண்)\s*[:\-–—|]*\s*([A-Za-z0-9/\-. ]*)",
+    "test_date_raw": r"(?:date\s+of\s+(?:testing|analysis|test|report)|test(?:ing)?\s+date|analysis\s+date|report\s+date|பரிசோதனை\s*நாள்|ஆய்வு\s*நாள்)\s*[:\-–—|]*\s*(.*)",
 }
 DATE_FORMATS = ["%d/%m/%Y", "%d-%m-%Y", "%d.%m.%Y", "%Y-%m-%d", "%d %b %Y", "%d %B %Y", "%b %d, %Y", "%B %d, %Y", "%d-%b-%Y"]
 PII_LINE_RE = re.compile(r"(farmer|aadhaar|aadhar|mobile|phone|contact|ph\.?\s*no)", re.I)
@@ -96,11 +97,32 @@ def _doc_method(text):
     return hits.pop() if len(hits) == 1 else None
 
 
+def _find_header_unit(lines, idx):
+    for back in range(1, 45):
+        if idx - back < 0:
+            break
+        t = lines[idx - back]["text"]
+        um = UNIT_RE.search(t)
+        if um:
+            return re.sub(r"\s+", "", um.group(1))
+    return None
+
+
 def extract_fields(lines):
     full_text = "\n".join(l["text"] for l in lines)
     doc_p_method = _doc_method(full_text)
     fields, used = {}, set()
-    for idx, line in enumerate(lines):
+
+    # Prioritize test results section if present
+    test_results_start = 0
+    for i, line in enumerate(lines):
+        if "வேதியியல் பண்புகள்" in line["text"]:
+            test_results_start = i
+            break
+    search_indices = list(range(test_results_start, len(lines))) + list(range(0, test_results_start))
+
+    for idx in search_indices:
+        line = lines[idx]
         text = line["text"]
         for key in FIELDS:
             if key in fields:
@@ -108,31 +130,71 @@ def extract_fields(lines):
             m = _first_label(key, text)
             if not m:
                 continue
+            # Avoid fertilizer dosage lines (e.g. Urea, DAP, Ammonium Sulfate, Potash, fertilizer mixes)
+            if any(f in text for f in ("யூரியா", "அம்மோனியம்", "டி ஏ பி", "சல்ேபட்", "சல்பேட்", "உரக்கலவை")):
+                continue
+
             rest = RATIO_RE.sub(" ", text[m.end():])
             oxide = bool(OXIDE_RE.search(rest))
             rest_clean = OXIDE_RE.sub(" ", rest)
             nm = NUM_RE.search(rest_clean)
             garbled = None
-            if not nm:
+            tok = None
+            val_line = line
+            unit_raw = None
+
+            if nm:
+                tok = nm.group(1)
+                um = UNIT_RE.search(rest_clean[nm.end():]) or UNIT_RE.search(text[: m.start()] + " " + text[m.start():m.end()])
+                if not um:
+                    um = UNIT_RE.search(rest_clean[: nm.start()])
+                unit_raw = re.sub(r"\s+", "", um.group(1)) if um else None
+            else:
                 gm = GARBLED_RE.search(rest_clean)
                 if gm and re.search(r"[OoIl|SB]", gm.group(0)):
                     garbled = gm.group(0)
                 else:
-                    continue  # label with no value on this line (e.g. table header) -> keep looking
+                    # Lookahead: value or unit may be on next lines (e.g. table format)
+                    for offset in range(1, 4):
+                        if idx + offset >= len(lines):
+                            break
+                        nxt_line = lines[idx + offset]
+                        nxt = nxt_line["text"].strip()
+                        nxt_um = UNIT_RE.search(nxt)
+                        if nxt_um and not unit_raw:
+                            unit_raw = re.sub(r"\s+", "", nxt_um.group(1))
+                        # Skip symbols like (N), (P), (K), Fe, Zn, Mn, Cu, B or unit tokens
+                        if re.fullmatch(r"[A-Za-z\(\)]+", nxt) or "dS/m" in nxt or "%" in nxt:
+                            continue
+                        # Skip benchmark/reference ranges (e.g. '113-180', '6.0 - 7.5', '> 2.0')
+                        if any(sym in nxt for sym in ("-", "–", "—", ">", "<", "to")):
+                            continue
+                        nxt_nm = NUM_RE.search(nxt)
+                        if nxt_nm:
+                            tok = nxt_nm.group(1)
+                            val_line = nxt_line
+                            break
+
+            if not tok and not garbled:
+                continue  # label with no value on this line or adjacent lines -> keep looking
+
+            # If unit still not found and not pH, check same line or context header unit
+            if not unit_raw and key != "ph":
+                um_text = UNIT_RE.search(text)
+                if um_text:
+                    unit_raw = re.sub(r"\s+", "", um_text.group(1))
+                else:
+                    unit_raw = _find_header_unit(lines, idx)
+
             f = {"field": key, "label": FIELDS[key]["label"], "line_index": idx, "extraction_issues": []}
             if garbled:
                 f.update(ocr_value=garbled, value=None, unit=None, ocr_confidence=_word_conf(line.get("words"), garbled))
                 f["extraction_issues"].append({"code": "ocr_parse_error", "severity": "warning",
                                                "message": f"Could not read '{garbled}' as a number. Please enter the value."})
             else:
-                tok = nm.group(1)
                 val, iss = _parse_number(tok)
-                um = UNIT_RE.search(rest_clean[nm.end():]) or UNIT_RE.search(text[: m.start()] + " " + text[m.start():m.end()])
-                if not um:  # unit printed between label and value, e.g. "Nitrogen (kg/ha) 280"
-                    um = UNIT_RE.search(rest_clean[: nm.start()])
-                unit_raw = re.sub(r"\s+", "", um.group(1)) if um else None
                 f.update(ocr_value=tok, value=val, unit=unit_raw,
-                         ocr_confidence=_word_conf(line.get("words"), tok))
+                         ocr_confidence=_word_conf(val_line.get("words"), tok))
                 f["extraction_issues"].extend(iss)
                 if unit_raw is None and key != "ph":
                     f["extraction_issues"].append({"code": "unit_not_found", "severity": "warning", "message": "No unit found next to this value."})
@@ -157,11 +219,22 @@ def extract_fields(lines):
 def extract_metadata(lines):
     meta, text = {}, "\n".join(l["text"] for l in lines)
     for k, pat in META_PATTERNS.items():
-        for l in lines:
+        for idx, l in enumerate(lines):
             m = re.search(pat, l["text"], re.I)
             if m:
-                meta[k] = m.group(1).strip(" .:|-")
-                break
+                val = m.group(1).strip(" .:|-")
+                # If label only was on line and value is on next line
+                if not val and idx + 1 < len(lines):
+                    val = lines[idx + 1]["text"].strip(" .:|-")
+                if val:
+                    # Check if farmer name contains sample ID like (TN/ERD/02488)
+                    if k == "farmer_name":
+                        sm = re.search(r"\((TN/[A-Z0-9/_\-]+)\)", val)
+                        if sm and "sample_id" not in meta:
+                            meta["sample_id"] = sm.group(1)
+                            val = val[:sm.start()].strip()
+                    meta[k] = val
+                    break
     meta["test_date"] = parse_report_date(meta.pop("test_date_raw", None))
     for l in lines:
         if re.search(r"laborator|soil\s+testing|\bstl\b", l["text"], re.I) and len(l["text"]) < 90 and not re.search(r"[:|]\s*\d", l["text"]):

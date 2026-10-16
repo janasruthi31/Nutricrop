@@ -19,15 +19,15 @@ const fieldSpecs = <FieldSpec>[
   FieldSpec('ph', 'pH', [null], 0, 14, primary: true),
   FieldSpec('organic_carbon', 'Organic Carbon (OC)', ['%'], 0, 60, primary: true),
   FieldSpec('ec', 'Electrical Conductivity (EC)', ['dS/m'], 0, 60),
-  FieldSpec('sulphur', 'Sulphur (S)', ['mg/kg'], 0, 5000),
-  FieldSpec('zinc', 'Zinc (Zn)', ['mg/kg'], 0, 1000),
-  FieldSpec('iron', 'Iron (Fe)', ['mg/kg'], 0, 5000),
-  FieldSpec('manganese', 'Manganese (Mn)', ['mg/kg'], 0, 2000),
-  FieldSpec('copper', 'Copper (Cu)', ['mg/kg'], 0, 1000),
-  FieldSpec('boron', 'Boron (B)', ['mg/kg'], 0, 200),
+  FieldSpec('sulphur', 'Sulphur (S)', ['kg/ha', 'mg/kg'], 0, 5000),
+  FieldSpec('zinc', 'Zinc (Zn)', ['mg/kg', 'ppm'], 0, 1000),
+  FieldSpec('iron', 'Iron (Fe)', ['mg/kg', 'ppm'], 0, 5000),
+  FieldSpec('manganese', 'Manganese (Mn)', ['mg/kg', 'ppm'], 0, 2000),
+  FieldSpec('copper', 'Copper (Cu)', ['mg/kg', 'ppm'], 0, 1000),
+  FieldSpec('boron', 'Boron (B)', ['mg/kg', 'ppm'], 0, 200),
 ];
 
-FieldSpec specFor(String key) => fieldSpecs.firstWhere((s) => s.key == key);
+FieldSpec specFor(String key) => fieldSpecs.firstWhere((s) => s.key == key, orElse: () => FieldSpec(key, key, [null], 0, 10000));
 
 class CheckResult {
   final FieldStatus status;
@@ -80,11 +80,17 @@ class FieldDraft {
 
   factory FieldDraft.fromJson(Map<String, dynamic> j) {
     final v = j['value'];
+    final key = j['field'] as String;
+    final spec = specFor(key);
+    String? unit = j['unit'] as String?;
+    if (unit == null && v != null && spec.units.first != null) {
+      unit = spec.units.first;
+    }
     return FieldDraft(
-      key: j['field'] as String,
+      key: key,
       ocrValue: j['ocr_value']?.toString(),
       valueText: v == null ? '' : _trimNum(v),
-      unit: j['unit'] as String?,
+      unit: unit,
       method: j['test_method'] as String?,
       ocrConfidence: (j['ocr_confidence'] as num?)?.toDouble(),
       serverStatus: statusFrom(j['status'] as String?),
@@ -106,8 +112,10 @@ class FieldDraft {
 }
 
 String _trimNum(Object v) {
-  final d = (v as num).toDouble();
-  return d == d.roundToDouble() ? d.toInt().toString() : d.toString();
+  final num? d = (v is num) ? v : double.tryParse(v.toString());
+  if (d == null) return v.toString();
+  final dVal = d.toDouble();
+  return dVal == dVal.roundToDouble() ? dVal.toInt().toString() : dVal.toString();
 }
 
 /// Confirm gate: no shown field may be invalid, and at least one value must exist.

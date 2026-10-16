@@ -95,3 +95,52 @@ def test_03_full_recommendation_api():
     assert pdf_res.status_code == 200
     assert pdf_res.headers["content-type"] == "application/pdf"
     assert pdf_res.content.startswith(b"%PDF")
+
+
+# 4. Live weather current and forecast endpoints
+def test_04_live_weather_endpoints():
+    curr_res = client.get("/api/weather/current?district=Erode&lat=11.341&lon=77.717")
+    assert curr_res.status_code == 200
+    curr_data = curr_res.json()
+    assert curr_data["district"] == "Erode"
+    assert "observation_time" in curr_data
+    assert "source" in curr_data
+    assert "current" in curr_data
+    assert "temperature_c" in curr_data["current"]
+
+    fc_res = client.get("/api/weather/forecast?district=Erode&lat=11.341&lon=77.717")
+    assert fc_res.status_code == 200
+    fc_data = fc_res.json()
+    assert "forecast" in fc_data
+    assert len(fc_data["forecast"]["days"]) > 0
+
+
+# 5. Reverse geocoding endpoint
+def test_05_reverse_geocode_endpoint():
+    res = client.get("/api/location/reverse-geocode?lat=11.341&lon=77.717")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["state"] == "Tamil Nadu"
+    assert data["district"] == "Erode"
+    assert data["is_in_tamil_nadu"] is True
+
+
+# 6. Traceable fertilizer prices endpoint
+def test_06_fertilizer_prices_endpoint():
+    res = client.get("/api/fertilizer/prices")
+    assert res.status_code == 200
+    prices = res.json()
+    assert len(prices) >= 5
+    for p in prices:
+        assert "product_id" in p
+        assert "price_per_kg_inr" in p
+        assert "source" in p
+        assert "effective_date" in p
+
+
+# 7. Coordinates validation error handling
+def test_07_invalid_coordinates_handling():
+    res = client.get("/api/location/reverse-geocode?lat=999.0&lon=77.717")
+    assert res.status_code == 400
+    assert "Invalid coordinates" in res.json()["detail"]
+
