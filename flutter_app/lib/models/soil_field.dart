@@ -13,18 +13,18 @@ class FieldSpec {
 }
 
 const fieldSpecs = <FieldSpec>[
-  FieldSpec('nitrogen', 'Nitrogen (N)', ['kg/ha', 'mg/kg'], 0, 5000, primary: true),
-  FieldSpec('phosphorus', 'Phosphorus (P)', ['kg/ha', 'mg/kg'], 0, 2000, primary: true),
-  FieldSpec('potassium', 'Potassium (K)', ['kg/ha', 'mg/kg'], 0, 5000, primary: true),
+  FieldSpec('nitrogen', 'Nitrogen (N)', ['kg/ha', 'kg/acre', 'mg/kg'], 0, 5000, primary: true),
+  FieldSpec('phosphorus', 'Phosphorus (P)', ['kg/ha', 'kg/acre', 'mg/kg'], 0, 2000, primary: true),
+  FieldSpec('potassium', 'Potassium (K)', ['kg/ha', 'kg/acre', 'mg/kg'], 0, 5000, primary: true),
   FieldSpec('ph', 'pH', [null], 0, 14, primary: true),
-  FieldSpec('organic_carbon', 'Organic Carbon (OC)', ['%'], 0, 60, primary: true),
-  FieldSpec('ec', 'Electrical Conductivity (EC)', ['dS/m'], 0, 60),
-  FieldSpec('sulphur', 'Sulphur (S)', ['kg/ha', 'mg/kg'], 0, 5000),
-  FieldSpec('zinc', 'Zinc (Zn)', ['mg/kg', 'ppm'], 0, 1000),
-  FieldSpec('iron', 'Iron (Fe)', ['mg/kg', 'ppm'], 0, 5000),
-  FieldSpec('manganese', 'Manganese (Mn)', ['mg/kg', 'ppm'], 0, 2000),
-  FieldSpec('copper', 'Copper (Cu)', ['mg/kg', 'ppm'], 0, 1000),
-  FieldSpec('boron', 'Boron (B)', ['mg/kg', 'ppm'], 0, 200),
+  FieldSpec('organic_carbon', 'Organic Carbon (OC)', ['%', 'g/kg'], 0, 60, primary: true),
+  FieldSpec('ec', 'Electrical Conductivity (EC)', ['dS/m', 'uS/cm', 'mS/cm'], 0, 60000),
+  FieldSpec('sulphur', 'Sulphur (S)', ['kg/ha', 'kg/acre', 'mg/kg'], 0, 5000),
+  FieldSpec('zinc', 'Zinc (Zn)', ['mg/kg', 'kg/acre', 'ppm'], 0, 1000),
+  FieldSpec('iron', 'Iron (Fe)', ['mg/kg', 'kg/acre', 'ppm'], 0, 5000),
+  FieldSpec('manganese', 'Manganese (Mn)', ['mg/kg', 'kg/acre', 'ppm'], 0, 2000),
+  FieldSpec('copper', 'Copper (Cu)', ['mg/kg', 'kg/acre', 'ppm'], 0, 1000),
+  FieldSpec('boron', 'Boron (B)', ['mg/kg', 'kg/acre', 'ppm'], 0, 200),
 ];
 
 FieldSpec specFor(String key) => fieldSpecs.firstWhere((s) => s.key == key, orElse: () => FieldSpec(key, key, [null], 0, 10000));

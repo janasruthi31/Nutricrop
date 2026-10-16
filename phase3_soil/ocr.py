@@ -75,6 +75,28 @@ def run_ocr(path, kind, psm=6):
     Returns {"text", "lines", "mean_confidence"(0-100|None), "pages", "quality": [metrics], "psm"}.
     Raises OcrUnavailable if Tesseract is missing and no fallback is available.
     """
+    # Stage 1 & 2: Check for digital PDF native text first
+    if kind == "pdf":
+        try:
+            import pypdf
+            reader = pypdf.PdfReader(path)
+            all_lines = []
+            for page in reader.pages:
+                text = page.extract_text() or ""
+                for line_str in text.splitlines():
+                    line_str = line_str.strip()
+                    if line_str:
+                        words = [{"text": w, "conf": 98.0} for w in line_str.split()]
+                        all_lines.append({"text": line_str, "words": words, "mean_conf": 98.0})
+            total_words = sum(len(l["words"]) for l in all_lines)
+            if total_words >= config.MIN_WORDS_FOR_TEXT:
+                return {"text": "\n".join(l["text"] for l in all_lines), "lines": all_lines,
+                        "mean_confidence": 98.0, "pages": len(reader.pages),
+                        "quality": [{"width": 800, "height": 1000, "sharpness": 100.0}],
+                        "psm": psm, "extraction_source": "pdf_native_text"}
+        except Exception:
+            pass
+
     has_tesseract = False
     try:
         pytesseract.get_tesseract_version()
@@ -112,24 +134,6 @@ def run_ocr(path, kind, psm=6):
             if all_lines:
                 return {"text": "\n".join(l["text"] for l in all_lines), "lines": all_lines,
                         "mean_confidence": 90.0, "pages": len(doc),
-                        "quality": [{"width": 800, "height": 1000, "sharpness": 100.0}], "psm": psm}
-        except Exception:
-            pass
-
-        try:
-            import pypdf
-            reader = pypdf.PdfReader(path)
-            all_lines = []
-            for page in reader.pages:
-                text = page.extract_text() or ""
-                for line_str in text.splitlines():
-                    line_str = line_str.strip()
-                    if line_str:
-                        words = [{"text": w, "conf": 90.0} for w in line_str.split()]
-                        all_lines.append({"text": line_str, "words": words, "mean_conf": 90.0})
-            if all_lines:
-                return {"text": "\n".join(l["text"] for l in all_lines), "lines": all_lines,
-                        "mean_confidence": 90.0, "pages": len(reader.pages),
                         "quality": [{"width": 800, "height": 1000, "sharpness": 100.0}], "psm": psm}
         except Exception:
             pass

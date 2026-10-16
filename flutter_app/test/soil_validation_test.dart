@@ -52,4 +52,28 @@ void main() {
     expect(b.unit, 'mg/kg');
     expect(b.check.blocksConfirm, isFalse);
   });
+
+  test('unit validation: kg/acre, ppm, mg/kg, %, dS/m and pH unitless', () {
+    // kg/acre accepted for major, secondary, and micronutrients
+    expect(SoilValidator.check('nitrogen', '39', 'kg/acre', null).status, FieldStatus.valid);
+    expect(SoilValidator.check('potassium', '259', 'kg/acre', null).status, FieldStatus.valid);
+    expect(SoilValidator.check('sulphur', '5', 'kg/acre', null).status, FieldStatus.valid);
+    expect(SoilValidator.check('zinc', '0.43', 'kg/acre', null).status, FieldStatus.valid);
+    expect(SoilValidator.check('boron', '0.56', 'kg/acre', null).status, FieldStatus.valid);
+
+    // % rejected for N, P, K, S, micronutrients
+    expect(SoilValidator.check('nitrogen', '39', '%', null).status, FieldStatus.invalid);
+    expect(SoilValidator.check('zinc', '0.43', '%', null).status, FieldStatus.invalid);
+    expect(SoilValidator.check('boron', '0.56', '%', null).status, FieldStatus.invalid);
+
+    // % accepted for organic carbon, rejected for pH
+    expect(SoilValidator.check('organic_carbon', '0.45', '%', null).status, FieldStatus.valid);
+    expect(SoilValidator.check('ph', '7.3', '%', null).status, FieldStatus.invalid);
+
+    // pH unitless (null accepted, anything else invalid)
+    expect(SoilValidator.check('ph', '7.3', null, null).status, FieldStatus.valid);
+
+    // EC in dS/m
+    expect(SoilValidator.check('ec', '0.41', 'dS/m', null).status, FieldStatus.valid);
+  });
 }
