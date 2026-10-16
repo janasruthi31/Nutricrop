@@ -43,12 +43,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Future<void> _handleRegister() async {
     final name = _nameCtrl.text.trim();
-    final email = _emailCtrl.text.trim();
-    final pwd = _passwordCtrl.text;
+    String email = _emailCtrl.text.trim();
     final phone = _phoneCtrl.text.trim();
+    final pwd = _passwordCtrl.text;
 
-    if (name.isEmpty || email.isEmpty || pwd.isEmpty) {
-      setState(() => _error = 'Please fill in name, email, and password.');
+    if (name.isEmpty) {
+      setState(() => _error = 'Please enter your full name.');
+      return;
+    }
+
+    if (email.isEmpty && phone.isEmpty) {
+      setState(() => _error = 'Please enter your mobile number or email address.');
+      return;
+    }
+
+    if (email.isEmpty && phone.isNotEmpty) {
+      final cleanDigits = phone.replaceAll(RegExp(r'\D'), '');
+      email = '$cleanDigits@farmer.tn.gov';
+    }
+
+    if (pwd.length < 6) {
+      setState(() => _error = 'Password must be at least 6 characters.');
       return;
     }
 
@@ -68,6 +83,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
       );
       globalLocaleNotifier.setLanguageCode(_language);
       if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Account created successfully! Welcome, $name.'),
+          backgroundColor: AppTheme.primaryGreen,
+        ),
+      );
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (_) => const MainNavigationShell()),
@@ -76,7 +97,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     } on ApiException catch (e) {
       setState(() => _error = e.message);
     } catch (_) {
-      setState(() => _error = 'Could not reach server. Please check connection.');
+      setState(() => _error = 'Could not reach server. Please check your connection.');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -89,10 +110,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
       appBar: AppBar(title: Text(l10n.text('register_title'))),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              Text(
+                'Create Your Farmer Profile',
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.textDark),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Enter your details below to start receiving soil-specific fertilizer advice.',
+                style: TextStyle(fontSize: 13, color: AppTheme.textMuted),
+              ),
+              const SizedBox(height: 20),
               if (_error != null) ...[
                 Container(
                   padding: const EdgeInsets.all(12),
@@ -114,17 +145,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
               TextField(
                 controller: _nameCtrl,
                 decoration: InputDecoration(
-                  labelText: l10n.text('full_name'),
+                  labelText: '${l10n.text('full_name')} *',
+                  hintText: 'e.g., K. Murugan',
                   prefixIcon: const Icon(Icons.person_outline_rounded),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _emailCtrl,
-                keyboardType: TextInputType.emailAddress,
-                decoration: InputDecoration(
-                  labelText: l10n.text('email_or_phone'),
-                  prefixIcon: const Icon(Icons.email_outlined),
                 ),
               ),
               const SizedBox(height: 16),
@@ -132,8 +155,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 controller: _phoneCtrl,
                 keyboardType: TextInputType.phone,
                 decoration: const InputDecoration(
-                  labelText: 'Mobile Number (+91)',
+                  labelText: 'Mobile Number (+91) *',
+                  hintText: 'e.g., 9876543210',
                   prefixIcon: Icon(Icons.phone_outlined),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _emailCtrl,
+                keyboardType: TextInputType.emailAddress,
+                decoration: InputDecoration(
+                  labelText: '${l10n.text('email_or_phone')} (Optional)',
+                  hintText: 'e.g., farmer@example.com',
+                  prefixIcon: const Icon(Icons.email_outlined),
                 ),
               ),
               const SizedBox(height: 16),
@@ -169,7 +203,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 controller: _passwordCtrl,
                 obscureText: _obscure,
                 decoration: InputDecoration(
-                  labelText: l10n.text('password'),
+                  labelText: '${l10n.text('password')} *',
+                  hintText: 'Choose a secure password',
                   prefixIcon: const Icon(Icons.lock_outline_rounded),
                   suffixIcon: IconButton(
                     icon: Icon(_obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined),
@@ -177,7 +212,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 28),
+              const SizedBox(height: 24),
               FilledButton(
                 onPressed: _isLoading ? null : _handleRegister,
                 child: _isLoading

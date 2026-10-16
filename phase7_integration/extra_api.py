@@ -138,10 +138,13 @@ class YieldPredictionRequest(BaseModel):
 @extra_router.post("/api/auth/register")
 def register_user(req: RegisterRequest):
     with db.connect() as con:
-        # Check duplicate
-        row = con.execute("SELECT user_id FROM users WHERE email = ?", (req.email.lower().strip(),)).fetchone()
+        # Check duplicate by email or phone
+        email_clean = req.email.lower().strip()
+        row = con.execute("SELECT user_id FROM users WHERE email = ?", (email_clean,)).fetchone()
+        if not row and req.phone and req.phone.strip():
+            row = con.execute("SELECT user_id FROM users WHERE phone = ?", (req.phone.strip(),)).fetchone()
         if row:
-            raise HTTPException(status_code=400, detail="An account with this email already exists.")
+            raise HTTPException(status_code=400, detail="An account with this mobile number/email already exists. Please log in.")
         
         user_id = f"farmer_{uuid.uuid4().hex[:12]}"
         now = time.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -174,10 +177,27 @@ def register_user(req: RegisterRequest):
 @extra_router.post("/api/auth/login")
 def login_user(req: LoginRequest):
     with db.connect() as con:
-        row = con.execute("SELECT * FROM users WHERE email = ?", (req.email.lower().strip(),)).fetchone()
+        input_term = req.email.strip()
+        # 1. Match by email
+        row = con.execute("SELECT * FROM users WHERE email = ?", (input_term.lower(),)).fetchone()
+        
+        # 2. Match by user_id
         if not row:
-            # Check if email is a farmer_id directly
-            row = con.execute("SELECT * FROM users WHERE user_id = ?", (req.email.strip(),)).fetchone()
+            row = con.execute("SELECT * FROM users WHERE user_id = ?", (input_term,)).fetchone()
+            
+        # 3. Match by phone number
+        if not row:
+            digits = "".join(c for c in input_term if c.isdigit())
+            if digits:
+                row = con.execute("SELECT * FROM users WHERE phone = ?", (input_term,)).fetchone()
+                if not row:
+                    suffix = digits[-10:] if len(digits) >= 10 else digits
+                    rows = con.execute("SELECT * FROM users WHERE phone IS NOT NULL").fetchall()
+                    for r in rows:
+                        p_digits = "".join(c for c in (r["phone"] or "") if c.isdigit())
+                        if p_digits and (p_digits == digits or p_digits.endswith(suffix)):
+                            row = r
+                            break
 
         if not row or not _verify_password(req.password, row["password_hash"]):
             raise HTTPException(status_code=401, detail="Invalid email or password.")

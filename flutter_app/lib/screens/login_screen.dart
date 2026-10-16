@@ -13,8 +13,9 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _emailCtrl = TextEditingController(text: 'farmer_001@tnsih.agri');
-  final _passwordCtrl = TextEditingController(text: 'FarmerPass123');
+  // Empty by default: farmers enter their own registered phone/email & password
+  final _emailCtrl = TextEditingController();
+  final _passwordCtrl = TextEditingController();
   bool _obscure = true;
   bool _isLoading = false;
   String? _error;
@@ -30,7 +31,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final email = _emailCtrl.text.trim();
     final pwd = _passwordCtrl.text;
     if (email.isEmpty || pwd.isEmpty) {
-      setState(() => _error = 'Please fill in both email and password.');
+      setState(() => _error = 'Please enter your registered mobile number or email and password.');
       return;
     }
 
@@ -44,24 +45,9 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
       Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const MainNavigationShell()));
     } on ApiException catch (e) {
-      // If demo account doesn't exist yet, auto-register or offer guest mode
-      if (email.contains('farmer_001')) {
-        try {
-          await ApiClient.instance.register(
-            email: email,
-            password: pwd,
-            fullName: 'Tamil Nadu Farmer',
-            district: 'Thanjavur',
-            preferredLanguage: globalLocaleNotifier.locale.languageCode,
-          );
-          if (!mounted) return;
-          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const MainNavigationShell()));
-          return;
-        } catch (_) {}
-      }
       setState(() => _error = e.message);
     } catch (_) {
-      setState(() => _error = 'Could not reach server. Please check connection.');
+      setState(() => _error = 'Could not reach server. Please check your network connection.');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -124,11 +110,11 @@ class _LoginScreenState extends State<LoginScreen> {
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
               Center(
                 child: Container(
                   padding: const EdgeInsets.all(16),
@@ -136,10 +122,10 @@ class _LoginScreenState extends State<LoginScreen> {
                     color: AppTheme.lightGreen,
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.agriculture_rounded, size: 54, color: AppTheme.primaryGreen),
+                  child: const Icon(Icons.agriculture_rounded, size: 52, color: AppTheme.primaryGreen),
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
               Text(
                 l10n.text('login_title'),
                 textAlign: TextAlign.center,
@@ -151,7 +137,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontSize: 13, color: AppTheme.textMuted),
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 28),
               if (_error != null) ...[
                 Container(
                   padding: const EdgeInsets.all(12),
@@ -175,6 +161,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 keyboardType: TextInputType.emailAddress,
                 decoration: InputDecoration(
                   labelText: l10n.text('email_or_phone'),
+                  hintText: 'e.g., 9876543210 or farmer@example.com',
                   prefixIcon: const Icon(Icons.person_outline_rounded),
                 ),
               ),
@@ -184,6 +171,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 obscureText: _obscure,
                 decoration: InputDecoration(
                   labelText: l10n.text('password'),
+                  hintText: 'Enter your password',
                   prefixIcon: const Icon(Icons.lock_outline_rounded),
                   suffixIcon: IconButton(
                     icon: Icon(_obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined),
@@ -199,28 +187,84 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: Text(l10n.text('forgot_password'), style: const TextStyle(fontSize: 13)),
                 ),
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 12),
               FilledButton(
                 onPressed: _isLoading ? null : _handleLogin,
                 child: _isLoading
                     ? const SizedBox(height: 22, width: 22, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
                     : Text(l10n.text('login_btn')),
               ),
-              const SizedBox(height: 14),
-              OutlinedButton(
-                onPressed: _isLoading ? null : _guestLogin,
-                child: const Text('Quick Demo Login (Guest Mode)'),
+              const SizedBox(height: 20),
+
+              // Distinct Card for New Farmers
+              Card(
+                color: AppTheme.lightGreen.withOpacity(0.4),
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(color: AppTheme.primaryGreen.withOpacity(0.25)),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    children: [
+                      const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.person_add_alt_1_rounded, color: AppTheme.primaryGreen, size: 20),
+                          SizedBox(width: 8),
+                          Text(
+                            'New to TN Fertilizer Optimizer?',
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppTheme.darkGreen),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'Create a free farmer account to store your soil cards, farm records, and receive custom fertilizer advice.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 12, color: AppTheme.textMuted, height: 1.3),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: AppTheme.primaryGreen, width: 1.5),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                          onPressed: () {
+                            Navigator.push(context, MaterialPageRoute(builder: (_) => const RegisterScreen()));
+                          },
+                          child: const Text(
+                            'Register as New Farmer',
+                            style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primaryGreen),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-              const SizedBox(height: 28),
+              const SizedBox(height: 16),
+
+              // Bottom links
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(l10n.text('no_account'), style: const TextStyle(color: AppTheme.textMuted)),
+                  Text(l10n.text('no_account'), style: const TextStyle(color: AppTheme.textMuted, fontSize: 13)),
                   TextButton(
                     onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RegisterScreen())),
-                    child: Text(l10n.text('register_here'), style: const TextStyle(fontWeight: FontWeight.bold)),
+                    child: Text(l10n.text('register_here'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                   ),
                 ],
+              ),
+              Center(
+                child: TextButton.icon(
+                  onPressed: _isLoading ? null : _guestLogin,
+                  icon: const Icon(Icons.explore_outlined, size: 16, color: AppTheme.textMuted),
+                  label: const Text('Quick Demo Login (Guest Mode)', style: TextStyle(fontSize: 12, color: AppTheme.textMuted)),
+                ),
               ),
             ],
           ),
