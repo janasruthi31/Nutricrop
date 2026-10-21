@@ -69,6 +69,15 @@ class ApiClient {
     }
   }
 
+  Future<Map<String, dynamic>> checkHealth() =>
+      _guard(() async {
+        final res = await _client.get(
+          Uri.parse('${AppConfig.apiBase}/health'),
+          headers: _headers,
+        );
+        return _decode(res);
+      });
+
   // --------------------------------------------------------------------------
   // Authentication
   // --------------------------------------------------------------------------

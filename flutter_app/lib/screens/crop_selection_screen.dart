@@ -67,13 +67,35 @@ class _CropSelectionScreenState extends State<CropSelectionScreen> {
       'seasons': ['Kharif', 'Rabi'],
       'defaultYield': '2.5',
       'yieldUnit': 't/ha',
-      'rule': 'TNAU STCR Irrigated Groundnut Calibration',
+      'rule': 'TNAU Blanket Schedule (Pending Agronomic Validation)',
     },
   ];
 
   @override
   void initState() {
     super.initState();
+    final recCrop = widget.soilProfile?['recommended_crop']?.toString() ??
+        widget.soilProfile?['crop']?.toString() ??
+        (widget.soilProfile?['printed_recommendation'] is Map
+            ? (widget.soilProfile!['printed_recommendation'] as Map)['crop']?.toString()
+            : null);
+    if (recCrop != null) {
+      final cLow = recCrop.toLowerCase();
+      final match = _supportedCrops.firstWhere(
+        (c) =>
+            c['name'].toString().toLowerCase() == cLow ||
+            (cLow.contains('groundnut') && c['name'] == 'Groundnut') ||
+            (cLow.contains('peanut') && c['name'] == 'Groundnut') ||
+            (cLow.contains('நிலக்கடலை') && c['name'] == 'Groundnut') ||
+            (cLow.contains('rice') && c['name'] == 'Rice') ||
+            (cLow.contains('paddy') && c['name'] == 'Rice') ||
+            (cLow.contains('நெல்') && c['name'] == 'Rice') ||
+            (cLow.contains('cane') && c['name'] == 'Sugarcane') ||
+            (cLow.contains('கரும்பு') && c['name'] == 'Sugarcane'),
+        orElse: () => _supportedCrops.first,
+      );
+      _selectedCrop = match['name'];
+    }
     _updateYieldDefault();
   }
 

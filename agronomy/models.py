@@ -29,6 +29,7 @@ class RuleSelectionRequest(BaseModel):
     irrigation_method: Optional[str] = Field(None, description="Irrigated or Rainfed")
     target_yield: Optional[float] = Field(None, description="Target yield in t/ha")
     soil_values: Optional[SoilValuesInput] = Field(None, description="Soil test values")
+    recommendation_type: Optional[str] = Field(None, description="SOIL_SPECIFIC_STCR or GENERAL_BLANKET")
 
 
 class AgronomicRule(BaseModel):
@@ -40,6 +41,7 @@ class AgronomicRule(BaseModel):
     season: Optional[List[str]] = None
     irrigation_method: str
     recommendation_method: str
+    recommendation_type: Optional[str] = None
     target_yield_range: Optional[TargetYieldRange] = None
     required_soil_inputs: List[str]
     required_units: Dict[str, str]
@@ -56,6 +58,7 @@ class RuleSelectionResponse(BaseModel):
     selected_rule_id: Optional[str] = None
     crop: Optional[str] = None
     recommendation_method: Optional[str] = None
+    recommendation_type: Optional[str] = None
     applicable_soil_series: Optional[List[str]] = None
     applicable_season: Optional[Union[List[str], str]] = None
     irrigation_method: Optional[str] = None
@@ -64,6 +67,7 @@ class RuleSelectionResponse(BaseModel):
     source_url: Optional[str] = None
     source_page_or_section: Optional[str] = None
     verification_status: Optional[str] = None
+    is_verified: bool = False
     applicability_notes: Optional[str] = None
     missing_inputs: List[str] = Field(default_factory=list)
     warnings: List[str] = Field(default_factory=list)

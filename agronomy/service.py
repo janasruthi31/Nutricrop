@@ -49,6 +49,7 @@ class RuleSelectionService:
 
         # Canonical crop display name
         canonical_crop = crop_rules[0]["crop"]
+        req_rec_type = (getattr(req, "recommendation_type", None) or "").strip().upper()
 
         # Check soil series compatibility specifically
         req_soil_series = (req.soil_series or "").strip()
@@ -61,7 +62,7 @@ class RuleSelectionService:
         # If user supplied a soil series, check if any rule for this crop supports it
         if req_soil_series and all_crop_soil_series and req_soil_series.lower() not in all_crop_soil_series:
             stcr_rules = [r for r in crop_rules if r["recommendation_method"].startswith("STCR")]
-            if stcr_rules and not any(r.get("soil_series") is None for r in crop_rules):
+            if req_rec_type == "SOIL_SPECIFIC_STCR" or (stcr_rules and not any(r.get("soil_series") is None for r in crop_rules)):
                 return RuleSelectionResponse(
                     status=UNSUPPORTED_SOIL_SERIES,
                     crop=canonical_crop,
@@ -79,6 +80,17 @@ class RuleSelectionService:
             rule_status = r.get("verification_status", "UNSUPPORTED")
 
             if rule_status == "UNSUPPORTED":
+                continue
+
+            rule_rec_type = (r.get("recommendation_type") or ("GENERAL_BLANKET" if r.get("recommendation_method") in ("TNAU-BLANKET", "TNAU-SOIL-TEST") else "SOIL_SPECIFIC_STCR")).upper()
+
+            # If user explicitly requested a specific recommendation type:
+            if req_rec_type and rule_rec_type != req_rec_type:
+                continue
+
+            # Requirement 4: "Do not silently substitute a blanket recommendation for a soil-specific recommendation."
+            # If user did not ask for GENERAL_BLANKET, and this is Groundnut general blanket, do not silently substitute it for soil-specific!
+            if not req_rec_type and r.get("rule_id") == "TNAU_BLANKET_GROUNDNUT_001":
                 continue
 
             # Irrigation check
@@ -106,7 +118,7 @@ class RuleSelectionService:
                 if req_soil_series and req_soil_series.lower() not in rule_series:
                     continue
 
-            if rule_status == "PENDING_VERIFICATION":
+            if rule_status in ("PENDING_VERIFICATION", "PENDING_AGRONOMIC_VALIDATION", "SOURCE_NOT_VERIFIED"):
                 pending_candidates.append(r)
                 continue
 
@@ -172,6 +184,7 @@ class RuleSelectionService:
                     selected_rule_id=best_rule["rule_id"],
                     crop=canonical_crop,
                     recommendation_method=best_rule["recommendation_method"],
+                    recommendation_type=best_rule.get("recommendation_type") or ("GENERAL_BLANKET" if best_rule.get("recommendation_method") in ("TNAU-BLANKET", "TNAU-SOIL-TEST") else "SOIL_SPECIFIC_STCR"),
                     applicable_soil_series=best_rule.get("soil_series"),
                     applicable_season=best_rule.get("season"),
                     irrigation_method=best_rule.get("irrigation_method"),
@@ -180,17 +193,20 @@ class RuleSelectionService:
                     source_url=best_rule.get("source_url"),
                     source_page_or_section=best_rule.get("source_page_or_section"),
                     verification_status=best_rule.get("verification_status"),
+                    is_verified=(best_rule.get("verification_status") == "VERIFIED"),
                     applicability_notes=best_rule.get("applicability_notes"),
                     missing_inputs=missing_inputs,
                     warnings=[f"Missing mandatory input(s) for selected rule {best_rule['rule_id']}: {', '.join(missing_inputs)}"]
                 )
 
             # All required inputs present and rule verified!
+            rec_type = best_rule.get("recommendation_type") or ("GENERAL_BLANKET" if best_rule.get("recommendation_method") in ("TNAU-BLANKET", "TNAU-SOIL-TEST") else "SOIL_SPECIFIC_STCR")
             return RuleSelectionResponse(
                 status=RULE_SELECTED,
                 selected_rule_id=best_rule["rule_id"],
                 crop=canonical_crop,
                 recommendation_method=best_rule["recommendation_method"],
+                recommendation_type=rec_type,
                 applicable_soil_series=best_rule.get("soil_series"),
                 applicable_season=best_rule.get("season"),
                 irrigation_method=best_rule.get("irrigation_method"),
@@ -199,6 +215,7 @@ class RuleSelectionService:
                 source_url=best_rule.get("source_url"),
                 source_page_or_section=best_rule.get("source_page_or_section"),
                 verification_status=best_rule.get("verification_status"),
+                is_verified=(best_rule.get("verification_status") == "VERIFIED"),
                 applicability_notes=best_rule.get("applicability_notes"),
                 missing_inputs=[],
                 warnings=warnings
@@ -212,6 +229,7 @@ class RuleSelectionService:
                 selected_rule_id=p_rule["rule_id"],
                 crop=canonical_crop,
                 recommendation_method=p_rule.get("recommendation_method"),
+                recommendation_type="PROVISIONAL_UNVERIFIED",
                 applicable_soil_series=p_rule.get("soil_series"),
                 applicable_season=p_rule.get("season"),
                 irrigation_method=p_rule.get("irrigation_method"),
@@ -219,9 +237,9 @@ class RuleSelectionService:
                 source_title=p_rule.get("source_title"),
                 source_url=p_rule.get("source_url"),
                 source_page_or_section=p_rule.get("source_page_or_section"),
-                verification_status="PENDING_VERIFICATION",
-                applicability_notes=p_rule.get("applicability_notes"),
-                warnings=[f"Rule '{p_rule['rule_id']}' matches inputs but is pending verification and cannot be used for production recommendations."]
+                verification_status=p_rule.get("verification_status", "PENDING_VERIFICATION"),
+                is_verified=False,
+                warnings=[f"Rule '{p_rule['rule_id']}' matches inputs but is {p_rule.get('verification_status', 'pending verification').replace('_', ' ')} and cannot be used for production recommendations."]
             )
 
         # No matching rule found

@@ -185,7 +185,7 @@ def test_10_acre_to_hectare_conversion():
     )
     res = service.calculate(req)
     assert res.status == "CALCULATION_SUCCESS"
-    assert res.farm_area_hectares == 2.0234
+    assert round(res.farm_area_hectares, 4) == 2.0234
     assert res.total_n_req_kg == round(17.6 * 2.02343, 2)
     assert res.total_p2o5_req_kg == round(28.4 * 2.02343, 2)
     assert res.total_k2o_req_kg == round(10.2 * 2.02343, 2)
@@ -266,7 +266,7 @@ def test_14_api_validation_endpoint():
     assert data["n_req_kg_per_ha"] > 0
     assert data["p2o5_req_kg_per_ha"] > 0
     assert data["k2o_req_kg_per_ha"] > 0
-    assert data["farm_area_hectares"] == 0.4047
+    assert round(data["farm_area_hectares"], 4) == 0.4047
     assert data["source_title"] == "TNAU Cotton STCR"
 
 
@@ -324,6 +324,6 @@ def test_17_farm_area_acre_and_sqm_conversions():
     )
     res = service.calculate(req)
     assert res.status == "CALCULATION_SUCCESS"
-    assert res.farm_area_hectares == 1.0117
-    assert res.total_n_req_kg == round(17.6 * 1.0117, 2)
+    assert round(res.farm_area_hectares, 4) == 1.0117
+    assert res.total_n_req_kg == round(17.6 * 1.011714, 2)
 

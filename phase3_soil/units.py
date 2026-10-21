@@ -9,17 +9,17 @@ other units. Unrecognised units are returned as None so callers flag them instea
 import re
 
 _UNIT_ALIASES = {
-    "kg/ha": "kg/ha", "kgha-1": "kg/ha", "kgha": "kg/ha", "kg/hectare": "kg/ha", "kgperha": "kg/ha", "kg/hec": "kg/ha",
+    "kg/ha": "kg/ha", "kgiha": "kg/ha", "rgihs": "kg/ha", "kgha-1": "kg/ha", "kgha": "kg/ha", "kg/hectare": "kg/ha", "kgperha": "kg/ha", "kg/hec": "kg/ha",
     "mg/kg": "mg/kg", "mgkg-1": "mg/kg", "mgkg": "mg/kg", "mg/kgsoil": "mg/kg",
     "ppm": "ppm", "%": "%", "percent": "%", "percentage": "%", "per cent": "%", "percentage(%)": "%",
     "(%)": "%", "(oc%)": "%", "oc%": "%",
     "g/kg": "g/kg", "gkg-1": "g/kg",
     "ds/m": "dS/m", "dsm-1": "dS/m", "ds/cm": None, "mmhos/cm": "dS/m", "mmho/cm": "dS/m", "ms/cm": "dS/m",
-    "(ds/m)": "dS/m",
+    "(ds/m)": "dS/m", "d5ym": "dS/m", "dsym": "dS/m",
     "us/cm": "uS/cm", "µs/cm": "uS/cm", "μs/cm": "uS/cm", "umhos/cm": "uS/cm", "μmhos/cm": "uS/cm",
     "kg/acre": "kg/acre", "kg/ac": "kg/acre", "lb/acre": "lb/acre", "lbs/acre": "lb/acre",
     "கிலோ/ஏக்கர்": "kg/acre", "கிலோ/ஹெக்டேர்": "kg/ha", "கிலோ/ஏக்": "kg/acre",
-    "(கிலோ/ஏக்கர்)": "kg/acre", "கிலோ/ஏக்கர்": "kg/acre",
+    "(கிலோ/ஏக்கர்)": "kg/acre",
 }
 
 

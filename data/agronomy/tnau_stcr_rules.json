@@ -184,6 +184,7 @@
     "season": ["Kharif", "Rabi", "Summer"],
     "irrigation_method": "Both",
     "recommendation_method": "TNAU-SOIL-TEST",
+    "recommendation_type": "SOIL_SPECIFIC_STCR",
     "target_yield_range": null,
     "required_soil_inputs": ["nitrogen", "phosphorus", "potassium"],
     "required_units": {
@@ -202,12 +203,48 @@
       "high": 0.75
     },
     "equation_or_dose_reference": "TNAU CPG 2020 Oilseeds Section",
-    "source_title": "TNAU Crop Production Guide 2020",
+    "source_title": "TNAU Crop Production Guide (Uncalibrated STCR Soil-Test Target Schedule)",
     "source_url": "https://tnau.ac.in/site/research/wp-content/uploads/sites/60/2020/02/Agriculture-CPG-2020.pdf",
     "source_page_or_section": "Groundnut Soil Test Recommendation, p. 112",
+    "verification_status": "PENDING_AGRONOMIC_VALIDATION",
+    "verification_date": null,
+    "applicability_notes": "Standard TNAU blanket fertilizer schedule (25:50:75 kg/ha) with soil-test rating adjustment. Marked as Pending Agronomic Validation because an authoritative site-specific STCR equation calibration for target yield has not been verified."
+  },
+  {
+    "rule_id": "TNAU_BLANKET_GROUNDNUT_001",
+    "version": "1.0",
+    "crop": "Groundnut",
+    "variety": null,
+    "soil_series": null,
+    "district": null,
+    "season": ["Kharif", "Rabi", "Summer"],
+    "irrigation_method": "Both",
+    "recommendation_method": "TNAU-BLANKET",
+    "recommendation_type": "GENERAL_BLANKET",
+    "target_yield_range": null,
+    "required_soil_inputs": ["nitrogen", "phosphorus", "potassium"],
+    "required_units": {
+      "nitrogen": "kg/ha",
+      "phosphorus": "kg/ha",
+      "potassium": "kg/ha"
+    },
+    "blanket_rdf_kg_per_ha": {
+      "N": 25.0,
+      "P2O5": 50.0,
+      "K2O": 75.0
+    },
+    "rating_adjustment_factors": {
+      "low": 1.25,
+      "medium": 1.00,
+      "high": 0.75
+    },
+    "equation_or_dose_reference": "TNAU Crop Production Guide 2020 Oilseeds Section (Groundnut RDF)",
+    "source_title": "TNAU Crop Production Guide (General Blanket Schedule)",
+    "source_url": "https://tnau.ac.in/site/research/wp-content/uploads/sites/60/2020/02/Agriculture-CPG-2020.pdf",
+    "source_page_or_section": "Groundnut General Blanket Schedule, p. 112",
     "verification_status": "VERIFIED",
     "verification_date": "2024-01-15",
-    "applicability_notes": "Soil test recommendation for irrigated and rainfed groundnut."
+    "applicability_notes": "Verified official TNAU general blanket recommendation (25:50:75 kg/ha) with soil-test rating adjustments for groundnut across Tamil Nadu. This is a GENERAL/BLANKET RECOMMENDATION, NOT an STCR target-yield equation."
   },
   {
     "rule_id": "TNAU_STD_SUGARCANE_001",

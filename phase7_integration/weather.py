@@ -11,12 +11,14 @@ import urllib.parse
 import urllib.request
 from typing import Any, Dict, List, Optional, Tuple
 
+import os
 from phase3_soil import db
 from .location import get_district_coordinates, is_in_tamil_nadu
 
 logger = logging.getLogger(__name__)
 
 CACHE_TTL_SECONDS = 1800  # 30 minutes cache
+DEFAULT_RAIN_THRESHOLD_MM = float(os.environ.get("FERTILIZER_RAIN_THRESHOLD_MM", "5.0"))
 
 # Open-Meteo Weather interpretation codes (WMO)
 WMO_WEATHER_CODES = {
@@ -81,6 +83,27 @@ def _get_cached_weather(cache_key: str) -> Optional[Dict[str, Any]]:
     return None
 
 
+def _get_stale_cached_weather(cache_key: str) -> Optional[Dict[str, Any]]:
+    """Retrieve any existing cached weather from SQLite even if expired (for offline fallback)."""
+    try:
+        with db.connect() as con:
+            row = con.execute(
+                "SELECT * FROM weather_cache WHERE cache_key = ? ORDER BY created_at DESC LIMIT 1",
+                (cache_key,)
+            ).fetchone()
+            if row:
+                return {
+                    "current": json.loads(row["current_json"]),
+                    "forecast": json.loads(row["forecast_json"]),
+                    "observation_time": row["observation_time"],
+                    "source": row["source"],
+                    "district": row["district"]
+                }
+    except Exception as e:
+        logger.warning(f"Failed to read stale weather cache: {e}")
+    return None
+
+
 def _save_cached_weather(cache_key: str, lat: float, lon: float, district: str, current: Dict[str, Any], forecast: Dict[str, Any], obs_time: str):
     """Save live weather to SQLite with expiration timestamp."""
     now_ts = time.time()
@@ -102,6 +125,7 @@ def get_live_weather(lat: Optional[float] = None, lon: Optional[float] = None, d
     """
     Get live weather observation and forecast.
     Uses farm coordinates if provided; otherwise resolves district centroid.
+    Resilient: Falls back to stale cache or explicit unavailable state on API/network failure.
     """
     d_norm = district.strip().title() if district else "Thanjavur"
     if lat is None or lon is None:
@@ -111,85 +135,163 @@ def get_live_weather(lat: Optional[float] = None, lon: Optional[float] = None, d
     cached = _get_cached_weather(cache_key)
     if cached:
         return {
+            "status": "SUCCESS",
             "latitude": lat,
             "longitude": lon,
             "district": d_norm,
             "is_cached": True,
+            "is_stale": False,
             "source": "Open-Meteo (Cached)",
             "observation_time": cached["observation_time"],
             "current": cached["current"],
             "forecast": cached["forecast"]
         }
 
-    # Fetch fresh from Open-Meteo
-    raw = _fetch_open_meteo(lat, lon)
-    curr = raw.get("current", {})
-    daily = raw.get("daily", {})
+    # Fetch fresh from Open-Meteo with network resilience
+    try:
+        raw = _fetch_open_meteo(lat, lon)
+        curr = raw.get("current", {})
+        daily = raw.get("daily", {})
 
-    w_code = curr.get("weather_code", 0)
-    cond_en, cond_ta = _interpret_wmo(w_code)
+        w_code = curr.get("weather_code", 0)
+        cond_en, cond_ta = _interpret_wmo(w_code)
 
-    current_data = {
-        "temperature_c": curr.get("temperature_2m"),
-        "relative_humidity_pct": curr.get("relative_humidity_2m"),
-        "precipitation_mm": curr.get("precipitation", 0.0),
-        "wind_speed_kmh": curr.get("wind_speed_10m", 0.0),
-        "weather_code": w_code,
-        "condition_en": cond_en,
-        "condition_ta": cond_ta,
-        "observation_time": curr.get("time", time.strftime("%Y-%m-%dT%H:%M"))
-    }
+        current_data = {
+            "temperature_c": curr.get("temperature_2m"),
+            "relative_humidity_pct": curr.get("relative_humidity_2m"),
+            "precipitation_mm": curr.get("precipitation", 0.0),
+            "wind_speed_kmh": curr.get("wind_speed_10m", 0.0),
+            "weather_code": w_code,
+            "condition_en": cond_en,
+            "condition_ta": cond_ta,
+            "observation_time": curr.get("time", time.strftime("%Y-%m-%dT%H:%M"))
+        }
 
-    forecast_days = []
-    times = daily.get("time", [])
-    max_temps = daily.get("temperature_2m_max", [])
-    min_temps = daily.get("temperature_2m_min", [])
-    precip_sums = daily.get("precipitation_sum", [])
-    precip_probs = daily.get("precipitation_probability_max", [])
-    codes = daily.get("weather_code", [])
+        forecast_days = []
+        times = daily.get("time", [])
+        max_temps = daily.get("temperature_2m_max", [])
+        min_temps = daily.get("temperature_2m_min", [])
+        precip_sums = daily.get("precipitation_sum", [])
+        precip_probs = daily.get("precipitation_probability_max", [])
+        codes = daily.get("weather_code", [])
 
-    for i in range(len(times)):
-        c_en, c_ta = _interpret_wmo(codes[i] if i < len(codes) else 0)
-        forecast_days.append({
-            "date": times[i],
-            "temp_max_c": max_temps[i] if i < len(max_temps) else None,
-            "temp_min_c": min_temps[i] if i < len(min_temps) else None,
-            "precipitation_mm": precip_sums[i] if i < len(precip_sums) else 0.0,
-            "precipitation_probability_pct": precip_probs[i] if i < len(precip_probs) else 0,
-            "condition_en": c_en,
-            "condition_ta": c_ta
-        })
+        for i in range(len(times)):
+            c_en, c_ta = _interpret_wmo(codes[i] if i < len(codes) else 0)
+            forecast_days.append({
+                "date": times[i],
+                "temp_max_c": max_temps[i] if i < len(max_temps) else None,
+                "temp_min_c": min_temps[i] if i < len(min_temps) else None,
+                "precipitation_mm": precip_sums[i] if i < len(precip_sums) else 0.0,
+                "precipitation_probability_pct": precip_probs[i] if i < len(precip_probs) else 0,
+                "condition_en": c_en,
+                "condition_ta": c_ta
+            })
 
-    forecast_data = {
-        "days": forecast_days,
-        "rainfall_next_24h_mm": forecast_days[0]["precipitation_mm"] if forecast_days else 0.0,
-        "rainfall_next_48h_mm": (forecast_days[0]["precipitation_mm"] + (forecast_days[1]["precipitation_mm"] if len(forecast_days) > 1 else 0.0)) if forecast_days else 0.0,
-    }
+        forecast_data = {
+            "days": forecast_days,
+            "rainfall_next_24h_mm": forecast_days[0]["precipitation_mm"] if forecast_days else 0.0,
+            "rainfall_next_48h_mm": (forecast_days[0]["precipitation_mm"] + (forecast_days[1]["precipitation_mm"] if len(forecast_days) > 1 else 0.0)) if forecast_days else 0.0,
+        }
 
-    _save_cached_weather(cache_key, lat, lon, d_norm, current_data, forecast_data, current_data["observation_time"])
+        _save_cached_weather(cache_key, lat, lon, d_norm, current_data, forecast_data, current_data["observation_time"])
 
-    return {
-        "latitude": lat,
-        "longitude": lon,
-        "district": d_norm,
-        "is_cached": False,
-        "source": "Open-Meteo API (Live)",
-        "observation_time": current_data["observation_time"],
-        "current": current_data,
-        "forecast": forecast_data
-    }
+        return {
+            "status": "SUCCESS",
+            "latitude": lat,
+            "longitude": lon,
+            "district": d_norm,
+            "is_cached": False,
+            "is_stale": False,
+            "source": "Open-Meteo API (Live)",
+            "observation_time": current_data["observation_time"],
+            "current": current_data,
+            "forecast": forecast_data
+        }
+    except Exception as e:
+        logger.warning(f"Live Open-Meteo fetch failed ({e}). Checking stale cache for {d_norm}...")
+        stale = _get_stale_cached_weather(cache_key)
+        if stale:
+            return {
+                "status": "SUCCESS",
+                "latitude": lat,
+                "longitude": lon,
+                "district": d_norm,
+                "is_cached": True,
+                "is_stale": True,
+                "source": "Open-Meteo (Stale Cache Fallback)",
+                "observation_time": stale["observation_time"],
+                "current": stale["current"],
+                "forecast": stale["forecast"]
+            }
+
+        return {
+            "status": "WEATHER_UNAVAILABLE",
+            "latitude": lat,
+            "longitude": lon,
+            "district": d_norm,
+            "is_cached": False,
+            "is_stale": False,
+            "source": "Offline Fallback",
+            "observation_time": time.strftime("%Y-%m-%dT%H:%M"),
+            "current": {
+                "temperature_c": None,
+                "relative_humidity_pct": None,
+                "precipitation_mm": None,
+                "wind_speed_kmh": None,
+                "weather_code": 0,
+                "condition_en": "Unavailable",
+                "condition_ta": "கிடைக்கவில்லை",
+                "observation_time": time.strftime("%Y-%m-%dT%H:%M")
+            },
+            "forecast": {
+                "days": [],
+                "rainfall_next_24h_mm": 0.0,
+                "rainfall_next_48h_mm": 0.0
+            },
+            "error_detail": str(e)
+        }
 
 
-def get_weather_guidance(district: Optional[str] = None, lat: Optional[float] = None, lon: Optional[float] = None) -> Dict[str, Any]:
+def get_weather_guidance(district: Optional[str] = None, lat: Optional[float] = None, lon: Optional[float] = None, rain_threshold_mm: Optional[float] = None) -> Dict[str, Any]:
     """
     Returns agro-weather advisory for fertilizer application timing.
     Combines live Open-Meteo observations and forecast with TNAU scheduling rules.
     """
     try:
         weather = get_live_weather(lat, lon, district)
+        d_norm = weather.get("district", district or "Thanjavur")
+        rain_threshold = rain_threshold_mm if rain_threshold_mm is not None else DEFAULT_RAIN_THRESHOLD_MM
+
+        if weather.get("status") == "WEATHER_UNAVAILABLE" or weather.get("current", {}).get("temperature_c") is None:
+            return {
+                "status": "WEATHER_UNAVAILABLE",
+                "district": d_norm,
+                "latitude": weather.get("latitude"),
+                "longitude": weather.get("longitude"),
+                "guidance_status": "WEATHER_UNAVAILABLE",
+                "risk_level": "UNKNOWN",
+                "advisory_en": "Live weather service is currently unreachable. Soil-based fertilizer recommendations remain fully active.",
+                "advisory_ta": "வானிலை தகவலைப் பெற முடியவில்லை. மண் சார்ந்த உரப் பரிந்துரைகள் வழக்கம் போல் செயல்படுகின்றன.",
+                "actionable_advice": "Weather service temporarily offline. Rely on soil-based recommendations.",
+                "condition": "Unavailable",
+                "current_condition": "Unavailable",
+                "condition_ta": "கிடைக்கவில்லை",
+                "temperature_c": None,
+                "temp_max_c": None,
+                "humidity_pct": None,
+                "rainfall_mm_24h": None,
+                "rainfall_probability_pct": None,
+                "wind_speed_kmh": None,
+                "observation_time": weather.get("observation_time", time.strftime("%Y-%m-%dT%H:%M")),
+                "is_cached": False,
+                "data_source": "Offline Fallback",
+                "rain_threshold_mm": rain_threshold,
+                "forecast_disclaimer": "Weather forecast guidance provides general advisory timing based on meteorological projections and is not a guaranteed micro-climate prediction.",
+                "error_detail": weather.get("error_detail", "Live weather service unreachable")
+            }
+
         curr = weather["current"]
         fc = weather["forecast"]
-        d_norm = weather["district"]
         rain_24h = fc.get("rainfall_next_24h_mm", 0.0)
         rain_48h = fc.get("rainfall_next_48h_mm", 0.0)
         wind = curr.get("wind_speed_kmh", 0.0)
@@ -204,12 +306,12 @@ def get_weather_guidance(district: Optional[str] = None, lat: Optional[float] = 
         if rain_24h >= 25.0:
             status = "DELAY_APPLICATION"
             risk_level = "HIGH"
-            adv_en = f"Heavy rain forecast ({rain_24h:.1f} mm in 24h). Delay top-dressing urea or water-soluble fertilizers to prevent leaching and surface runoff."
+            adv_en = f"Heavy rain forecast ({rain_24h:.1f} mm in 24h). Delay top-dressing urea or water-soluble fertilizers to prevent leaching and surface runoff. Note: Meteorological forecasts carry uncertainty."
             adv_ta = f"கனமழை வாய்ப்புள்ளது ({rain_24h:.1f} மிமீ). உரங்கள் நீரில் கரைந்து வீணாவதைத் தடுக்க மேலுரமிடுதலை தள்ளிப்போடவும்."
-        elif rain_24h >= 10.0:
+        elif rain_24h >= rain_threshold:
             status = "CAUTION_REQUIRED"
             risk_level = "MEDIUM"
-            adv_en = f"Moderate rainfall expected ({rain_24h:.1f} mm). Basal fertilizer application acceptable, but postpone top-dressing urea until showers subside."
+            adv_en = f"Rainfall expected ({rain_24h:.1f} mm in 24h exceeds configurable threshold of {rain_threshold:.1f} mm). General guidance: Basal fertilizer application acceptable, but postpone top-dressing urea until showers subside. Note: Meteorological forecasts carry uncertainty."
             adv_ta = f"மிதமான மழை எதிர்பார்க்கப்படுகிறது ({rain_24h:.1f} மிமீ). அடிஉரம் இடலாம்; ஆனால் யூரியா மேலுரமிடுதலை மழை நின்றபின் மேற்கொள்ளவும்."
         elif wind > 20.0:
             status = "CAUTION_REQUIRED"
@@ -253,6 +355,8 @@ def get_weather_guidance(district: Optional[str] = None, lat: Optional[float] = 
             "observation_time": weather["observation_time"],
             "is_cached": is_cached,
             "data_source": source,
+            "rain_threshold_mm": rain_threshold,
+            "forecast_disclaimer": "Weather forecast guidance provides general advisory timing based on meteorological projections and is not a guaranteed micro-climate prediction.",
             "forecast_days": fc.get("days", [])
         }
     except Exception as e:

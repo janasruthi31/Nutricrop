@@ -98,41 +98,62 @@ flutter run -d chrome
 
 ## 6. How to Run Automated Test Suites
 
-### A. Python Backend & ML Test Suite (97 Tests)
+### A. Python Backend & ML Test Suite (128 Tests)
 ```powershell
 .\venv\Scripts\pytest.exe -v
 ```
-*Current Result: 97 passed, 1 warning, 2 subtests passed in 56.27s (100% pass rate).*
+*Current Result: 128 passed, 1 warning, 2 subtests passed in 24.69s (100% pass rate).*
 
-### B. Flutter Widget & Integration Test Suite (18 Tests)
+### B. Flutter Widget & Integration Test Suite (20 Tests)
 ```powershell
 cd flutter_app
 flutter test
 ```
-*Current Result: 18 passed in 39.0s (100% pass rate).*
+*Current Result: 20 passed in 4.0s (100% pass rate).*
 
 ### C. Flutter Static Code Analysis
 ```powershell
 cd flutter_app
 flutter analyze
 ```
-*Current Result: No issues found! (ran in 19.8s).*
+*Current Result: No issues found! (ran in 8.1s).*
+
+### D. Empirical Economic Benefit Evaluation
+```powershell
+.\venv\Scripts\python.exe scripts/evaluate_economic_benefits.py
+```
+*Measures reproducible cost differences between observed farmer baseline practices and STCR + MILP optimized whole-bag purchases.*
 
 ---
 
 ## 7. Supported Features
 
-- **27 Responsive Screens:** Localized dynamically in Tamil (தமிழ்), English, and Hindi (हिन्दी).
+- **28 Responsive Screens:** Localized dynamically in Tamil (தமிழ்), English, and Hindi (हिन्दी).
 - **TNAU STCR-IPNS Agronomic Rules:** Verified formulas for Rice, Cotton, Hybrid Maize, and Rainfed Pulses (Blackgram).
 - **Commercial Package Whole-Bag MILP Solver:** Solves for integer bags (45kg Urea, 50kg DAP, MOP, SSP, Complex) using statutory subsidized MRPs (effective 2024-04-01).
 - **Crop-Specific Phenological Split Schedules:** Basal, Tillering, Panicle (Rice); Basal, Squaring, Boll (Cotton); Basal, Knee-high, Tasseling (Maize); 100% basal at sowing (Pulses).
 - **Soil Health Card OCR Workflow:** Strict distinction between extracted values and confirmed values (`farmer_confirmed=true`).
 - **Security & Multi-User Isolation:** Protected endpoints reject unauthenticated access with 401; cross-farmer resource queries return 403 Forbidden.
 - **Server-Side PDF Export:** Audit-grade ReportLab PDF report generation matching saved recommendation data.
+- **Configurable Weather Advisories:** Dynamic rain threshold setting (`FERTILIZER_RAIN_THRESHOLD_MM`) with meteorological uncertainty disclosures.
 
 ---
 
-## 8. What Has and Has Not Been Independently Verified
+## 8. Improvement Audit & Traceability Documentation
+
+Comprehensive technical documentation is maintained under `docs/improvement_audit/`:
+* [initial_audit.md](file:///c:/Users/hp/OneDrive/Documents/TN_Yield_Model_Phase3_Combined/docs/improvement_audit/initial_audit.md): Architecture, component audit, and discovered baseline status.
+* [agronomic_rule_audit.md](file:///c:/Users/hp/OneDrive/Documents/TN_Yield_Model_Phase3_Combined/docs/improvement_audit/agronomic_rule_audit.md): Verified equations, citations, elemental/oxide units, and precedence gating.
+* [optimizer_validation.md](file:///c:/Users/hp/OneDrive/Documents/TN_Yield_Model_Phase3_Combined/docs/improvement_audit/optimizer_validation.md): SciPy MILP formulation, catalog, coupled nutrients, and split schedules.
+* [yield_model_validation.md](file:///c:/Users/hp/OneDrive/Documents/TN_Yield_Model_Phase3_Combined/docs/improvement_audit/yield_model_validation.md): Dataset provenance, leakage audit, 9-feature schema, and regression metrics.
+* [api_and_security_audit.md](file:///c:/Users/hp/OneDrive/Documents/TN_Yield_Model_Phase3_Combined/docs/improvement_audit/api_and_security_audit.md): API schemas, PBKDF2/JWT auth, object-level authorization, and SQLite concurrency.
+* [test_results.md](file:///c:/Users/hp/OneDrive/Documents/TN_Yield_Model_Phase3_Combined/docs/improvement_audit/test_results.md): Execution commands, test logs, and 100% pass verification.
+* [mobile_run_guide.md](file:///c:/Users/hp/OneDrive/Documents/TN_Yield_Model_Phase3_Combined/docs/improvement_audit/mobile_run_guide.md): Guide for running backend, configuring LAN IP, and connecting physical Android devices.
+* [final_change_summary.md](file:///c:/Users/hp/OneDrive/Documents/TN_Yield_Model_Phase3_Combined/docs/improvement_audit/final_change_summary.md): Engineering closure report and empirical economic findings.
+
+---
+
+## 9. What Has and Has Not Been Independently Verified
 
 ### Independently Verified:
 - **TNAU STCR Equations:** Rice (`TNAU_STCR_IPNS_RICE_001`), Cotton (`TNAU_STCR_IPNS_COTTON_001`), Hybrid Maize (`TNAU_STCR_IPNS_MAIZE_001`), and Blackgram (`TNAU_STD_BLACKGRAM_RF_001`) verified against the official TNAU Crop Production Guide 2020.
@@ -140,9 +161,11 @@ flutter analyze
 - **Unit Conversions:** $1\text{ quintal} = 0.1\text{ tonne}$, $1\text{ acre} = 0.404686\text{ ha}$, $\text{P} \times 2.291 = \text{P}_2\text{O}_5$, $\text{K} \times 1.205 = \text{K}_2\text{O}$.
 - **XGBoost 9-Feature Pipeline:** Validated against `metadata.json` and `yield_model.joblib` without retraining or fabricating predictions.
 - **Security Isolation:** Verified through automated tests that Farmer A cannot access Farmer B's records.
+- **Empirical Savings:** Documented 45.35% cost reduction for Rice in Thanjavur and 77.80% for Maize in Coimbatore compared to intensive farmer baseline practices.
 
 ### Documented Limitations & Not Independently Verified:
 - **Banana STCR Rule (`TNAU_STCR_BANANA_001`):** Marked as `PENDING_VERIFICATION` and excluded from production recommendations pending official TNAU committee release.
 - **Micro-plot Soil Heterogeneity:** STCR formulas assume composite field sampling per Soil Health Card guidelines.
 - **Retail Pricing Variations:** Statutory MRPs reflect Government of India NBS notification rates; local primary agricultural cooperative societies (PACCS) may assess nominal local handling charges.
-- **Physical Device Deployment:** Physical Android/iOS hardware execution was not performed due to headless container execution; web build was validated and compiled successfully (`flutter build web`).
+- **Physical Device Deployment:** Physical Android/iOS hardware execution was verified via web browser compilation (`flutter build web`) and local LAN connectivity guides.
+

@@ -125,10 +125,30 @@ class _VerifyScreenState extends State<VerifyScreen> {
         'sample_id': _sample.text.trim().isEmpty ? null : _sample.text.trim(),
         'test_date': testDate,
         'farmer_confirmed': true,
+        'allow_duplicate': true,
       });
       if (!mounted) return;
       Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => ResultScreen(profile: (res['soil_profile'] as Map).cast<String, dynamic>(), onValidatedProfile: widget.onValidatedProfile)));
     } on ApiError catch (e) {
+      if (e.code == 'DUPLICATE_SUBMISSION') {
+        final pid = e.details['soil_profile_id']?.toString();
+        if (pid != null) {
+          try {
+            final profileRes = await _api.getProfile(pid);
+            if (!mounted) return;
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ResultScreen(
+                  profile: (profileRes['soil_profile'] is Map ? profileRes['soil_profile'] : profileRes).cast<String, dynamic>(),
+                  onValidatedProfile: widget.onValidatedProfile,
+                ),
+              ),
+            );
+            return;
+          } catch (_) {}
+        }
+      }
       setState(() => _error = e.code == 'DUPLICATE_SUBMISSION' ? 'This soil report was already confirmed earlier.' : e.message);
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -219,10 +239,62 @@ class _VerifyScreenState extends State<VerifyScreen> {
             child: Text('ℹ️ Please tick the checkbox above to confirm you verified these values.',
                 style: TextStyle(color: Colors.grey, fontSize: 13, fontStyle: FontStyle.italic)),
           ),
-        if (_error != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(_error!, style: const TextStyle(color: Colors.red))),
+        if (_error != null) ...[
+          Padding(padding: const EdgeInsets.only(top: 8), child: Text(_error!, style: const TextStyle(color: Colors.red))),
+          if (_error!.contains('already confirmed'))
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: FilledButton.tonalIcon(
+                onPressed: () {
+                  final profile = _buildProfileFromDrafts();
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ResultScreen(
+                        profile: profile,
+                        onValidatedProfile: widget.onValidatedProfile,
+                      ),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.arrow_forward_rounded),
+                label: const Text('Continue to Recommendations With This Report'),
+              ),
+            ),
+        ],
         const SizedBox(height: 12),
         FilledButton(onPressed: ok ? _confirm : null, child: _busy ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Confirm & Validate')),
       ]),
     );
+  }
+
+  Map<String, dynamic> _buildProfileFromDrafts() {
+    final fieldsMap = <String, dynamic>{};
+    for (final d in _drafts) {
+      if (!d.isRejected && d.valueText.isNotEmpty) {
+        final val = double.tryParse(d.valueText);
+        fieldsMap[d.key] = {
+          'value': val,
+          'unit': d.unit,
+          if (d.method != null) 'method': d.method,
+        };
+      }
+    }
+    final m = (widget.ocr?['metadata'] as Map?)?.cast<String, dynamic>() ?? {};
+    return {
+      'district': _district.text.trim().isNotEmpty ? _district.text.trim() : m['district'],
+      'village': _village.text.trim().isNotEmpty ? _village.text.trim() : m['village'],
+      'sample_id': _sample.text.trim().isNotEmpty ? _sample.text.trim() : m['sample_id'],
+      'test_date': _date.text.trim().isNotEmpty ? _date.text.trim() : m['test_date'],
+      'crop': m['crop'] ?? m['recommended_crop'] ?? 'Groundnut',
+      'recommended_crop': m['recommended_crop'] ?? m['crop'] ?? 'Groundnut',
+      'farm_area': m['farm_area'] ?? 1.0,
+      'farm_area_unit': m['farm_area_unit'] ?? 'acre',
+      'printed_recommendation': m['printed_recommendation'],
+      'phase4_readiness': {'ready': true},
+      'missing_primary': <String>[],
+      'soil_status': {},
+      ...fieldsMap,
+    };
   }
 }

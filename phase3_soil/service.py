@@ -231,16 +231,21 @@ def confirm(farmer_id, body, db_path=None):
     if body.get("farmer_confirmed") is not True:
         raise SoilError("CONFIRMATION_REQUIRED", "The farmer must explicitly confirm the values (farmer_confirmed=true).", 400)
     db.init_db(db_path)
-    document_id, ocr_by_field, source = body.get("document_id"), {}, "manual"
+    document_id, ocr_by_field, ocr_meta, source = body.get("document_id"), {}, {}, "manual"
     if document_id:
         with db.connect(db_path) as con:
             doc = con.execute("SELECT 1 FROM soil_documents WHERE document_id=? AND farmer_id=?", (document_id, farmer_id)).fetchone()
             if not doc:
                 raise SoilError("DOCUMENT_NOT_FOUND", "Document not found.", 404)
-            row = con.execute("SELECT fields_json FROM soil_ocr_results WHERE document_id=? ORDER BY created_at DESC LIMIT 1", (document_id,)).fetchone()
+            row = con.execute("SELECT fields_json, metadata_json FROM soil_ocr_results WHERE document_id=? ORDER BY created_at DESC LIMIT 1", (document_id,)).fetchone()
         if not row:
             raise SoilError("OCR_NOT_RUN", "OCR has not been run for this document.", 409)
         ocr_by_field = {f["field"]: f for f in json.loads(row["fields_json"])}  # server-side OCR record is authoritative
+        if row["metadata_json"]:
+            try:
+                ocr_meta = json.loads(row["metadata_json"])
+            except Exception:
+                pass
         source = "ocr"
 
     val_in = _payload_to_validation_input(body)
@@ -277,10 +282,15 @@ def confirm(farmer_id, body, db_path=None):
             entry["method"] = r["test_method"]
         profile[key] = entry
     ph = profile.pop("ph")
+    farm_area_val = body.get("farm_area") or meta.get("farm_area") or ocr_meta.get("farm_area")
+    farm_area_u = body.get("farm_area_unit") or meta.get("farm_area_unit") or ocr_meta.get("farm_area_unit")
+    printed_rec = body.get("printed_recommendation") or ocr_meta.get("printed_recommendation")
+
     profile_json = {
         "soil_profile_id": pid, "farmer_id": farmer_id, "district": meta.get("district"), "village": meta_in["village"],
         "sample_id": meta_in["sample_id"], "test_date": meta.get("test_date"), "laboratory": meta_in["laboratory"],
         "crop": meta.get("crop"), "source": source, **profile,
+        "farm_area": farm_area_val, "farm_area_unit": farm_area_u, "printed_recommendation": printed_rec,
         "ph": ph["value"], "ph_status": ph["status"],
         "verification_status": "farmer_confirmed",
         "soil_status": {k: profile[k]["classification"] for k in ("nitrogen", "phosphorus", "potassium", "organic_carbon")},
@@ -292,7 +302,16 @@ def confirm(farmer_id, body, db_path=None):
     with db.connect(db_path) as con:
         dup = con.execute("SELECT soil_profile_id FROM soil_profiles WHERE farmer_id=? AND fingerprint=?", (farmer_id, fp)).fetchone()
         if dup:
-            raise SoilError("DUPLICATE_SUBMISSION", "This soil report has already been confirmed.", 409, {"soil_profile_id": dup["soil_profile_id"]})
+            if not body.get("allow_duplicate", False):
+                raise SoilError("DUPLICATE_SUBMISSION", "This soil report has already been confirmed.", 409, {"soil_profile_id": dup["soil_profile_id"]})
+            existing_pid = dup["soil_profile_id"]
+            profile_json["soil_profile_id"] = existing_pid
+            con.execute("UPDATE soil_profiles SET district=?, village=?, sample_id=?, test_date=?, laboratory=?, crop=?, profile_json=?, updated_at=? WHERE soil_profile_id=?",
+                        (profile_json["district"], profile_json["village"], profile_json["sample_id"], profile_json["test_date"],
+                         profile_json["laboratory"], profile_json["crop"], json.dumps(profile_json), t, existing_pid))
+            if document_id:
+                con.execute("UPDATE soil_documents SET status='confirmed', updated_at=? WHERE document_id=?", (t, document_id))
+            return {"status": "validated", "soil_profile_id": existing_pid, "soil_profile": profile_json, "reused": True}
         con.execute("INSERT INTO soil_profiles VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     (pid, farmer_id, document_id, source, fp, profile_json["district"], profile_json["village"], profile_json["sample_id"],
                      profile_json["test_date"], profile_json["laboratory"], profile_json["crop"], "farmer_confirmed", json.dumps(profile_json), t, t))

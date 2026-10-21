@@ -28,11 +28,13 @@ def get_current_weather_endpoint(
     """Returns real-time weather observations from Open-Meteo for the farm location."""
     res = get_live_weather(lat=lat, lon=lon, district=district)
     return {
+        "status": res.get("status", "SUCCESS"),
         "latitude": res["latitude"],
         "longitude": res["longitude"],
         "district": res["district"],
         "observation_time": res["observation_time"],
-        "is_cached": res["is_cached"],
+        "is_cached": res.get("is_cached", False),
+        "is_stale": res.get("is_stale", False),
         "source": res["source"],
         "current": res["current"]
     }
@@ -47,11 +49,13 @@ def get_weather_forecast_endpoint(
     """Returns 7-day daily forecast and precipitation probabilities for the farm location."""
     res = get_live_weather(lat=lat, lon=lon, district=district)
     return {
+        "status": res.get("status", "SUCCESS"),
         "latitude": res["latitude"],
         "longitude": res["longitude"],
         "district": res["district"],
         "observation_time": res["observation_time"],
-        "is_cached": res["is_cached"],
+        "is_cached": res.get("is_cached", False),
+        "is_stale": res.get("is_stale", False),
         "source": res["source"],
         "forecast": res["forecast"]
     }
@@ -61,10 +65,11 @@ def get_weather_forecast_endpoint(
 def weather_guidance_endpoint(
     district: Optional[str] = Query(None, description="District name in Tamil Nadu"),
     lat: Optional[float] = Query(None, description="Latitude coordinate"),
-    lon: Optional[float] = Query(None, description="Longitude coordinate")
+    lon: Optional[float] = Query(None, description="Longitude coordinate"),
+    rain_threshold_mm: Optional[float] = Query(None, description="Configurable rainfall threshold in mm for spray/fertilizer advisory")
 ) -> Dict[str, Any]:
     """Returns weather advisory and fertilizer application timing guidance for a district or coordinates."""
-    return get_weather_guidance(district=district, lat=lat, lon=lon)
+    return get_weather_guidance(district=district, lat=lat, lon=lon, rain_threshold_mm=rain_threshold_mm)
 
 
 @integration_router.get("/api/location/reverse-geocode")

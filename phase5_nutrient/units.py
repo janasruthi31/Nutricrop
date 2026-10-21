@@ -6,14 +6,19 @@ and soil nutrient unit and elemental/oxide form conversions.
 
 from typing import Tuple
 
+# Canonical, authoritative area conversion constants
+HA_TO_ACRE = 2.4710538147
+ACRE_TO_HA = 0.4046856422
+CENT_TO_HA = 0.004046856422
+
 SUPPORTED_AREA_UNITS = {
     "hectare": 1.0,
     "hectares": 1.0,
     "ha": 1.0,
-    "acre": 0.404686,
-    "acres": 0.404686,
-    "cent": 0.00404686,
-    "cents": 0.00404686,
+    "acre": ACRE_TO_HA,
+    "acres": ACRE_TO_HA,
+    "cent": CENT_TO_HA,
+    "cents": CENT_TO_HA,
     "sq_meter": 0.0001,
     "sq.m": 0.0001,
     "m2": 0.0001,
@@ -23,9 +28,9 @@ SUPPORTED_AREA_UNITS = {
 SUPPORTED_NUTRIENT_UNITS = {
     "kg/ha": 1.0,
     "kg_per_ha": 1.0,
-    "kg/acre": 2.47105,       # 1 kg/acre = 2.47105 kg/ha
-    "kg_per_acre": 2.47105,
-    "mg/kg": 2.24,           # Standard agronomic depth conversion: 1 mg/kg (ppm) = 2.24 kg/ha
+    "kg/acre": HA_TO_ACRE,       # 1 kg/acre = 2.4710538147 kg/ha
+    "kg_per_acre": HA_TO_ACRE,
+    "mg/kg": 2.24,               # Standard agronomic depth conversion: 1 mg/kg (ppm) = 2.24 kg/ha
     "ppm": 2.24,
 }
 
@@ -45,6 +50,77 @@ P_TO_P2O5 = 2.29137   # Molecular weight ratio P2O5 / 2P = 141.94 / 61.94
 P2O5_TO_P = 0.43642   # 1 / 2.29137
 K_TO_K2O = 1.2046     # Molecular weight ratio K2O / 2K = 94.20 / 78.20
 K2O_TO_K = 0.83015    # 1 / 1.2046
+
+
+def convert_acre_to_hectare(acre: float) -> float:
+    """Converts acres to hectares using standard 0.4046856422 factor."""
+    if acre is None or isinstance(acre, bool):
+        raise ValueError("Acre value must be a numeric value.")
+    return float(acre) * ACRE_TO_HA
+
+
+def convert_hectare_to_acre(ha: float) -> float:
+    """Converts hectares to acres using standard 2.4710538147 factor."""
+    if ha is None or isinstance(ha, bool):
+        raise ValueError("Hectare value must be a numeric value.")
+    return float(ha) * HA_TO_ACRE
+
+
+def convert_kg_per_acre_to_kg_per_ha(kg_per_acre: float) -> float:
+    """Converts nutrient rate in kg/acre to kg/ha (kg/acre / 0.4046856422)."""
+    if kg_per_acre is None or isinstance(kg_per_acre, bool):
+        raise ValueError("Nutrient rate must be a numeric value.")
+    return float(kg_per_acre) / ACRE_TO_HA
+
+
+def convert_kg_per_ha_to_kg_per_acre(kg_per_ha: float) -> float:
+    """Converts nutrient rate in kg/ha to kg/acre (kg/ha * 0.4046856422)."""
+    if kg_per_ha is None or isinstance(kg_per_ha, bool):
+        raise ValueError("Nutrient rate must be a numeric value.")
+    return float(kg_per_ha) * ACRE_TO_HA
+
+
+def calculate_farm_total_nutrient(
+    rate: float,
+    rate_unit: str,
+    farm_area: float,
+    farm_area_unit: str
+) -> float:
+    """
+    Calculates total kg required for a given farm area without double-converting.
+    
+    If rate is in kg/acre and area is in acres:
+        farm_total = rate * farm_area
+    If rate is in kg/ha and area is in hectares:
+        farm_total = rate * farm_area
+    If rate is in kg/ha and area is in acres:
+        farm_total = rate * (farm_area * ACRE_TO_HA)
+    If rate is in kg/acre and area is in hectares:
+        farm_total = rate * (farm_area * HA_TO_ACRE)
+    """
+    if rate is None or farm_area is None:
+        raise ValueError("Rate and farm area must be numeric.")
+    r_val = float(rate)
+    a_val = float(farm_area)
+    r_u = (rate_unit or "kg/ha").strip().lower().replace(" ", "_")
+    a_u = (farm_area_unit or "hectare").strip().lower().replace(" ", "_")
+
+    is_rate_acre = "acre" in r_u
+    is_area_acre = "acre" in a_u
+
+    if is_rate_acre and is_area_acre:
+        return r_val * a_val
+    elif not is_rate_acre and not is_area_acre:
+        # rate in kg/ha, area in ha (or cents normalized to ha)
+        area_ha = a_val * SUPPORTED_AREA_UNITS.get(a_u, 1.0)
+        return r_val * area_ha
+    elif is_rate_acre and not is_area_acre:
+        area_acres = a_val * (HA_TO_ACRE if a_u in ("ha", "hectare", "hectares") else (SUPPORTED_AREA_UNITS.get(a_u, 1.0) * HA_TO_ACRE))
+        return r_val * area_acres
+    else:
+        # rate in kg/ha, area in acres
+        area_ha = a_val * ACRE_TO_HA
+        return r_val * area_ha
 
 
 def convert_area_to_hectares(area: float, unit: str) -> float:
@@ -113,9 +189,9 @@ def normalize_soil_nutrient_value(value: float, unit: str) -> float:
 def convert_elemental_to_oxide(value: float, nutrient: str) -> float:
     """Converts elemental nutrient (P or K) to its oxide form (P2O5 or K2O)."""
     n = nutrient.strip().upper()
-    if n == "P":
+    if n in ("P", "PHOSPHORUS"):
         return value * P_TO_P2O5
-    elif n == "K":
+    elif n in ("K", "POTASSIUM"):
         return value * K_TO_K2O
     return value
 
@@ -123,9 +199,8 @@ def convert_elemental_to_oxide(value: float, nutrient: str) -> float:
 def convert_oxide_to_elemental(value: float, nutrient: str) -> float:
     """Converts oxide nutrient (P2O5 or K2O) to its elemental form (P or K)."""
     n = nutrient.strip().upper()
-    if n in ("P2O5", "P"):
+    if n in ("P2O5", "P", "PHOSPHORUS"):
         return value * P2O5_TO_P
-    elif n in ("K2O", "K"):
+    elif n in ("K2O", "K", "POTASSIUM"):
         return value * K2O_TO_K
     return value
-

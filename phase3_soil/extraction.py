@@ -31,22 +31,23 @@ def normalize_tamil_text(t: str) -> str:
 
 
 LABELS = {
-    "nitrogen": [r"\bnitrogen\b", r"\bavail(?:able|\.)?\s*n\b", r"^\W*n\s*[:|\-(]", r"தழை", r"தைழ"],
-    "phosphorus": [r"\bphosph[oa]rus\b", r"\bavail(?:able|\.)?\s*p\b", r"^\W*p\s*[:|\-(]", r"மணி"],
-    "potassium": [r"\bpotassium\b", r"\bavail(?:able|\.)?\s*k\b", r"^\W*k\s*[:|\-(]", r"சாம்பல்", r"பொட்டாஷ்", r"பொட்டாஷ்"],
-    "ph": [r"\bp\s?h\b", r"\bsoil\s+reaction\b", r"கார\s*அமில", r"களர்\s*-\s*அமில", r"அமில\s*நிலை"],
-    "organic_carbon": [r"\borganic\s+carbon\b", r"\bo\.?c\b", r"அங்கக\s*கரிமம்", r"அங்ககக்கரிமம்"],
-    "ec": [r"\belectrical\s+conductivity\b", r"\be\.?c\b", r"மின்\s*கடத்து", r"உப்பின்\s*நிலை"],
-    "sulphur": [r"\bsul(?:ph|f)ur\b", r"\bavail(?:able|\.)?\s*s\b", r"கந்தகம்"],
-    "zinc": [r"\bzinc\b", r"\bzn\b", r"துத்தநாகம்", r"துத்தநாக"],
-    "iron": [r"\biron\b", r"\bfe\b", r"இரும்பு"],
-    "manganese": [r"\bmanganese\b", r"\bmn\b", r"மாங்கனீசு", r"மாங்கனீஸ்"],
-    "copper": [r"\bcopper\b", r"\bcu\b", r"தாமிரம்", r"தாமிர"],
-    "boron": [r"\bboron\b", r"\bavail(?:able|\.)?\s*b\b", r"போரான்", r"போரான்", r"ேபாரான்"],
+    "nitrogen": [r"\bnitrogen\b", r"\bavail(?:able|\.)?\s*n\b", r"^\W*n\s*[:|\-(]", r"\(\s*N\s*\)", r"தழை", r"தைழ"],
+    "phosphorus": [r"\bphosph[oa]rus\b", r"\bavail(?:able|\.)?\s*p\b", r"^\W*p\s*[:|\-(]", r"\(\s*P\s*\)", r"மணி"],
+    "potassium": [r"\bpotassium\b", r"\bavail(?:able|\.)?\s*k\b", r"^\W*k\s*[:|\-(]", r"\(\s*K\s*\)", r"சாம்பல்", r"பொட்டாஷ்", r"பொட்டாஷ்"],
+    "ph": [r"\bp\s?h\b", r"\(\s*pH\s*[\)}]", r"\bsoil\s+reaction\b", r"கார\s*அமில", r"களர்\s*-\s*அமில", r"அமில\s*நிலை"],
+    "organic_carbon": [r"\borganic\s+carbon\b", r"\bo\.?c\b", r"\(\s*[0O]c\s*[\)}]", r"அங்கக\s*கரிமம்", r"அங்ககக்கரிமம்"],
+    "ec": [r"\belectrical\s+conductivity\b", r"\be\.?c\b", r"\(\s*EC\s*[\)}]", r"மின்\s*கடத்து", r"உப்பின்\s*நிலை"],
+    "sulphur": [r"\bsul(?:ph|f)ur\b", r"\bavail(?:able|\.)?\s*s\b", r"\(\s*S\s*\)", r"கந்தகம்"],
+    "zinc": [r"\bzinc\b", r"\bzn\b", r"\(\s*Zn\s*\)", r"துத்தநாகம்", r"துத்தநாக"],
+    "iron": [r"\biron\b", r"\bfe\b", r"\(\s*Fe\s*\)", r"இரும்பு"],
+    "manganese": [r"\bmanganese\b", r"\bmn\b", r"\(\s*Mn\s*\)", r"மாங்கனீசு", r"மாங்கனீஸ்"],
+    "copper": [r"\bcopper\b", r"\bcu\b", r"\(\s*Cu\s*\)", r"தாமிரம்", r"தாமிர"],
+    "boron": [r"\bboron\b", r"\bavail(?:able|\.)?\s*b\b", r"\(\s*B\s*\)", r"போரான்", r"போரான்", r"ேபாரான்"],
 }
 
 UNIT_RE = re.compile(
-    r"(kg\s*/\s*ha|kg\s*ha\s*-?1|kg\s*/\s*hectare|mg\s*/\s*kg|ppm|%|g\s*/\s*kg|d\s?s\s*/\s*m|ds\s*m\s*-?1|"
+    r"(kg\s*/\s*ha|kgiha|kg\s*i\s*ha|rgihs|kg\s*ha\s*-?1|kg\s*/\s*hectare|mg\s*/\s*kg|ppm|%|g\s*/\s*kg|d\s?s\s*/\s*m|ds\s*m\s*-?1|"
+    r"d5ym|dsym|"
     r"mmhos?\s*/\s*cm|[µμu]s\s*/\s*cm|ms\s*/\s*cm|kg\s*/\s*ac(?:re)?|lbs?\s*/\s*acre|"
     r"கிலோ\s*/\s*ஏக்கர்|கிலோ\s*/\s*ஹெக்டேர்|\(%\)|\(OC\s*%\)|\(dS/m\))", re.I)
 
@@ -62,7 +63,7 @@ METHOD_PATTERNS = {
 
 META_PATTERNS = {
     "farmer_name": r"(?:name\s+of\s+(?:the\s+)?farmer|farmer(?:'s|s)?\s*name|farmer|பெயர்)\s*[:\-–—|]*\s*(.*)",
-    "sample_id": r"(?:(?:soil\s+)?sample\s*(?:no\.?|number|id|code)|மாதிரி\s*எண்)\s*[:\-–—|#]*\s*([A-Za-z0-9/\-_.]*)",
+    "sample_id": r"(?:(?:soil\s+)?sample\s*(?:no\.?|number|id|code)|மாதிரி\s*எண்)\s*[:\-–—|#]*\s*([A-Za-z0-9/\-_.]*)|(SHC\d{4}[A-Za-z0-9\-_]+)",
     "district": r"(?:\bdistrict\b|மாவட்டம்)\s*[:\-–—|]*\s*([A-Za-z .\u0B80-\u0BFF]*)",
     "village": r"(?:\bvillage\s*(?:name)?|வருவாய்\s*கிராமம்|கிராமம்)\s*[:\-–—|]*\s*([A-Za-z .\u0B80-\u0BFF]*)",
     "survey_number": r"(?:survey\s*(?:no\.?|number)(?:\s*/\s*sub[- ]?division)?|புல\s*எண்(?:/உட்ப்பிரிவு\s*எண்)?|சர்வே\s*எண்)\s*[:\-–—|]*\s*([A-Za-z0-9/\-. ]*)",
@@ -128,39 +129,67 @@ def _doc_method(text):
 def _find_header_unit(lines, idx, key=None):
     allowed = FIELDS.get(key, {}).get("units", []) if key else None
     for back in range(1, 45):
-        if idx - back < 0:
-            break
-        t = lines[idx - back]["text"]
-        um = UNIT_RE.search(t)
-        if um:
-            cand = re.sub(r"\s+", "", um.group(1))
-            tok = canonical_unit_token(cand) or cand
-            if allowed is not None:
-                if tok in allowed or cand in allowed:
+        if idx - back >= 0:
+            t = lines[idx - back]["text"]
+            um = UNIT_RE.search(t)
+            if um:
+                cand = re.sub(r"\s+", "", um.group(1))
+                tok = canonical_unit_token(cand) or cand
+                if allowed is not None:
+                    if tok in allowed or cand in allowed:
+                        return tok
+                else:
                     return tok
-            else:
-                return tok
     return None
 
 
-def _extract_number_from_tokens(text: str):
+def _extract_number_from_tokens(text: str, field_key: str = None):
     """
     Extracts the measured nutrient number from a line while disambiguating
     against benchmark / sufficiency ranges (e.g. '113-180', '4.5 - 9', '> 2.0', '0.0 - 1.0').
+    Also parses split decimals (e.g. '163 00' -> 163.00, '0 22' -> 0.22) and 3-digit pH/iron scale.
     """
     tokens = text.split()
     for ti, tk in enumerate(tokens):
-        # Match standalone number (e.g. '39', '0.41', '7.3')
-        m = re.match(r"^(\d+(?:[.,]\d+)?)$", tk)
+        # Strip leading/trailing non-alphanumeric punctuation (keep letters so garbled tokens like '28O' aren't stripped into numbers)
+        clean_tk = re.sub(r"^[^0-9A-Za-z]+|[^0-9A-Za-z]+$", "", tk)
+        if not clean_tk:
+            continue
+        # Match standalone or decimal number (e.g. '39', '0.41', '7.75')
+        m = re.match(r"^(\d+(?:[.,]\d+)?)$", clean_tk)
+        candidate = None
         if m:
-            # Check if this token is part of a range (e.g. '6.0 - 7.5' or '> 2.0')
             is_range = False
             if ti + 1 < len(tokens) and tokens[ti + 1] in ("-", "–", "—", "to"):
                 is_range = True
             if ti > 0 and tokens[ti - 1] in ("-", "–", "—", "to", ">", "<"):
                 is_range = True
             if not is_range:
-                return m.group(1)
+                # Check split decimal: '163' followed by '00' or '0' followed by '22' (possibly with attached unit e.g. '22d5ym')
+                if ti + 1 < len(tokens) and "." not in clean_tk and "," not in clean_tk:
+                    next_tk = tokens[ti + 1]
+                    m_next_digits = re.match(r"^(\d{2})", next_tk)
+                    if m_next_digits:
+                        if not (ti + 2 < len(tokens) and tokens[ti + 2] in ("-", "–", "—", "to")):
+                            if clean_tk == "0" or m_next_digits.group(1) == "00" or field_key in ("phosphorus", "zinc", "copper", "boron", "manganese", "ec"):
+                                candidate = f"{clean_tk}.{m_next_digits.group(1)}"
+                # Check 3-digit pH or iron scale (e.g. 775 -> 7.75, 447 -> 4.47)
+                if not candidate and clean_tk.isdigit() and len(clean_tk) == 3 and field_key in ("ph", "iron") and clean_tk[0] in "3456789":
+                    candidate = f"{clean_tk[0]}.{clean_tk[1:]}"
+                if not candidate:
+                    candidate = m.group(1)
+        elif not candidate:
+            # Check if number attached to suffix like '0.22d5ym' or '7.75(pH)'
+            m_attached = re.match(r"^(\d+[.,]\d+)", clean_tk)
+            if m_attached:
+                candidate = m_attached.group(1)
+
+        if candidate:
+            try:
+                float(candidate.replace(",", "."))
+                return candidate
+            except Exception:
+                pass
     return None
 
 
@@ -209,25 +238,60 @@ def extract_fields(lines):
         if line_info["is_fertilizer"]:
             continue
 
-        for key in FIELDS:
+        # Collect all label matches on this line to partition multi-column lines
+        line_label_hits = []
+        for k in FIELDS:
+            if k in fields:
+                continue
+            for p in LABELS[k]:
+                for lm in re.finditer(p, text, re.I):
+                    line_label_hits.append((lm.start(), lm.end(), k))
+        line_label_hits.sort()
+        
+        # Merge overlapping or same-nutrient hits (e.g. 'இரும்பு' and 'Fe' both for iron, or 'தழை' and 'N' both for nitrogen)
+        distinct_hits = []
+        for h in line_label_hits:
+            if not distinct_hits:
+                distinct_hits.append(h)
+            elif h[2] == distinct_hits[-1][2]:
+                distinct_hits[-1] = (distinct_hits[-1][0], max(distinct_hits[-1][1], h[1]), h[2])
+            elif h[0] >= distinct_hits[-1][1]:
+                distinct_hits.append(h)
+
+        target_items = []
+        if distinct_hits:
+            for di, (st, en, key) in enumerate(distinct_hits):
+                if key in fields:
+                    continue
+                next_st = distinct_hits[di + 1][0] if di + 1 < len(distinct_hits) else len(text)
+                chunk = text[en:next_st]
+                target_items.append((key, chunk, en))
+        else:
+            for key in FIELDS:
+                if key in fields:
+                    continue
+                m = _first_label(key, text)
+                if m:
+                    target_items.append((key, text[m.end():], m.end()))
+
+        for key, rest_raw, end_pos in target_items:
             if key in fields:
                 continue
 
-            m = _first_label(key, text)
-            if not m:
-                continue
-
-            # Look for unit on this line or nearby header
+            # Look for unit on this chunk (or full line if single column)
             unit_raw = None
-            um = UNIT_RE.search(text)
-            if um:
-                unit_raw = canonical_unit_token(um.group(1))
+            if key != "ph":
+                um = UNIT_RE.search(rest_raw)
+                if not um and not distinct_hits:
+                    um = UNIT_RE.search(text)
+                if um:
+                    unit_raw = canonical_unit_token(um.group(1))
 
-            rest = RATIO_RE.sub(" ", text[m.end():])
+            rest = RATIO_RE.sub(" ", rest_raw)
             oxide = bool(OXIDE_RE.search(rest))
             rest_clean = OXIDE_RE.sub(" ", rest)
 
-            tok = _extract_number_from_tokens(rest_clean)
+            tok = _extract_number_from_tokens(rest_clean, key)
             val_line = norm_lines[idx]
             garbled = None
 
@@ -244,13 +308,17 @@ def extract_fields(lines):
                         nxt_line = norm_lines[idx + offset]
                         nxt = nxt_line["text"]
 
+                        # If next line has its own explicit label for this nutrient, don't steal from next line
+                        if _first_label(key, nxt):
+                            break
+
                         if not unit_raw and key != "ph":
                             nxt_um = UNIT_RE.search(nxt)
                             if nxt_um:
                                 unit_raw = canonical_unit_token(nxt_um.group(1))
 
                         nxt_clean = OXIDE_RE.sub(" ", RATIO_RE.sub(" ", nxt))
-                        cand_num = _extract_number_from_tokens(nxt_clean)
+                        cand_num = _extract_number_from_tokens(nxt_clean, key)
                         if cand_num is not None:
                             tok = cand_num
                             val_line = nxt_line
@@ -335,12 +403,78 @@ def extract_metadata(lines):
         except ValueError:
             pass
 
+    # Printed fertilizer recommendation extraction (from "உரப்பரிந்துரைகள்" section)
+    in_fert = False
+    fert_crop = None
+    fert_unit = "kg/acre"
+    fert_n, fert_p, fert_k = None, None, None
+
+    for l in norm_lines:
+        line_t = l["text"]
+        if "உரப்பரிந்துரை" in line_t:
+            in_fert = True
+            m_fc = re.search(r"பயிர்\s*[:\-–—|]*\s*([A-Za-z .\u0B80-\u0BFF]+)", line_t)
+            if m_fc:
+                fert_crop = m_fc.group(1).strip()
+        elif any(s in line_t for s in ("வேதியியல் பண்புகள்", "ஆய்வு முடிவுகள்", "ேபரூட்டச்சத்துக்கள் ஆய்வு", "பேரூட்டச்சத்துக்கள் ஆய்வு")):
+            in_fert = False
+
+        if in_fert:
+            if "ஹெக்டேர்" in line_t or "kg/ha" in line_t.lower():
+                fert_unit = "kg/ha"
+            elif "ஏக்கர்" in line_t or "kg/acre" in line_t.lower():
+                fert_unit = "kg/acre"
+
+            # Nitrogen recommendation
+            m_n = re.search(r"தழை\s*\(?\s*N\s*\)?\s*(\d+(?:\.\d+)?)", line_t, re.I)
+            if m_n and fert_n is None:
+                fert_n = float(m_n.group(1))
+
+            # Phosphorus recommendation
+            m_p = re.search(r"மணி\s*\(?\s*P[\s_0-9O]*\)?\s*(\d+(?:\.\d+)?)", line_t, re.I)
+            if m_p and fert_p is None:
+                fert_p = float(m_p.group(1))
+
+            # Potassium recommendation
+            m_k = re.search(r"சாம்பல்\s*\(?\s*K[\s_0-9O]*\)?\s*(\d+(?:\.\d+)?)", line_t, re.I)
+            if m_k and fert_k is None:
+                fert_k = float(m_k.group(1))
+
+    if fert_n is not None or fert_p is not None or fert_k is not None:
+        rec_crop = "Groundnut" if (fert_crop and any(k in fert_crop for k in ("நிலக்கடலை", "நிலக்கடைல", "groundnut"))) else (meta.get("crop") or "Groundnut")
+        meta["printed_recommendation"] = {
+            "crop": rec_crop,
+            "unit": fert_unit,
+            "nitrogen_kg_per_acre": fert_n if fert_unit == "kg/acre" else (round(fert_n * 0.4046856422, 2) if fert_n else None),
+            "p2o5_kg_per_acre": fert_p if fert_unit == "kg/acre" else (round(fert_p * 0.4046856422, 2) if fert_p else None),
+            "k2o_kg_per_acre": fert_k if fert_unit == "kg/acre" else (round(fert_k * 0.4046856422, 2) if fert_k else None),
+            "n": fert_n,
+            "p2o5": fert_p,
+            "k2o": fert_k,
+            "source": "Uploaded Soil Health Card"
+        }
+
+    # Check standard Tamil Nadu district names across document
+    tn_districts = (
+        "Ariyalur", "Chengalpattu", "Chennai", "Coimbatore", "Cuddalore", "Dharmapuri", "Dindigul",
+        "Erode", "Kallakurichi", "Kancheepuram", "Kanniyakumari", "Karur", "Krishnagiri", "Madurai",
+        "Mayiladuthurai", "Nagapattinam", "Namakkal", "Perambalur", "Pudukkottai", "Ramanathapuram",
+        "Ranipet", "Salem", "Sivagangai", "Tenkasi", "Thanjavur", "The Nilgiris", "Theni",
+        "Thoothukudi", "Tiruchirappalli", "Tirunelveli", "Tirupathur", "Tiruppur", "Tiruvallur",
+        "Tiruvannamalai", "Tiruvarur", "Vellore", "Villupuram", "Virudhunagar"
+    )
+    for d_name in tn_districts:
+        if re.search(rf"\b{re.escape(d_name)}\b", text, re.I) and "district" not in meta:
+            meta["district"] = d_name
+            break
+
     # Standard metadata patterns
     for k, pat in META_PATTERNS.items():
         for idx, l in enumerate(norm_lines):
             m = re.search(pat, l["text"], re.I)
             if m:
-                val = m.group(1).strip(" .:|-")
+                # Group 1 or group 2 match
+                val = (m.group(1) if m.group(1) else (m.group(2) if len(m.groups()) > 1 and m.group(2) else m.group(0))).strip(" .:|-")
                 if not val and idx + 1 < len(norm_lines):
                     val = norm_lines[idx + 1]["text"].strip(" .:|-")
                 if val:

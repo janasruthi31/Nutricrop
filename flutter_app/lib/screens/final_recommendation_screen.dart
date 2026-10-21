@@ -57,6 +57,10 @@ class _FinalRecommendationScreenState extends State<FinalRecommendationScreen> {
     final yp = rec['district_yield_prediction'] ?? {};
     final estYield = yp['estimated_yield_kg_per_ha'];
 
+    final recType = rec['recommendation_type'] ?? p6['recommendation_type'] ?? p5['recommendation_type'] ?? 'SOIL_SPECIFIC_STCR';
+    final isVerified = rec['is_verified'] == true && p6['is_verified'] != false;
+    final isProvisional = rec['is_provisional'] == true || p6['is_provisional'] == true || !isVerified || recType == 'PROVISIONAL_UNVERIFIED';
+
     return Scaffold(
       appBar: AppBar(title: Text(l10n.text('optimal_plan_title'))),
       body: SafeArea(
@@ -65,15 +69,73 @@ class _FinalRecommendationScreenState extends State<FinalRecommendationScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // Provisional Disclaimer or General Blanket Banner
+              if (isProvisional) ...[
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF3E0),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.orange.shade800, width: 1.5),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.warning_amber_rounded, color: Colors.orange.shade900, size: 24),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'This rule has not yet been agronomically validated. A confirmed soil-specific recommendation is unavailable.',
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.brown.shade900),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'PROVISIONAL ONLY: The quantities and costs shown below are provisional estimates awaiting official TNAU STCR calibration. Do not present or apply as a confirmed soil-specific recommendation.',
+                              style: TextStyle(fontSize: 11, color: Colors.brown.shade800, height: 1.4),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ] else if (recType == 'GENERAL_BLANKET') ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE1F5FE),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFF0288D1), width: 1.2),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.assignment_turned_in_rounded, color: Color(0xFF0277BD), size: 22),
+                      SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'GENERAL / BLANKET RECOMMENDATION: Verified official TNAU Crop Production Guide recommendation with soil rating adjustments. This is not an STCR target-yield equation.',
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF01579B), height: 1.3),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+
               // Summary Banner
               Card(
-                color: AppTheme.darkGreen,
+                color: isProvisional ? Colors.brown.shade800 : AppTheme.darkGreen,
                 child: Padding(
                   padding: const EdgeInsets.all(20.0),
                   child: Column(
                     children: [
                       Text(
-                        l10n.text('estimated_cost'),
+                        isProvisional ? 'Provisional Estimated Cost (Unverified)' : l10n.text('estimated_cost'),
                         style: const TextStyle(color: Color(0xFFC8E6C9), fontSize: 13),
                       ),
                       const SizedBox(height: 6),
@@ -102,11 +164,22 @@ class _FinalRecommendationScreenState extends State<FinalRecommendationScreen> {
               // Optimization Status Badge
               Row(
                 children: [
-                  const Icon(Icons.check_circle_rounded, color: AppTheme.primaryGreen, size: 20),
+                  Icon(
+                    isProvisional ? Icons.warning_amber_rounded : Icons.check_circle_rounded,
+                    color: isProvisional ? Colors.amber.shade900 : AppTheme.primaryGreen,
+                    size: 20,
+                  ),
                   const SizedBox(width: 8),
-                  Text(
-                    'Optimization Status: $status',
-                    style: const TextStyle(fontWeight: FontWeight.w600, color: AppTheme.darkGreen),
+                  Expanded(
+                    child: Text(
+                      isProvisional
+                          ? 'Status: PROVISIONAL (Unverified Agronomic Rule)'
+                          : 'Optimization Status: $status ($recType)',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: isProvisional ? Colors.brown.shade900 : AppTheme.darkGreen,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -118,10 +191,14 @@ class _FinalRecommendationScreenState extends State<FinalRecommendationScreen> {
                 subtitle: 'Commercial bag sizes (45kg Neem Coated Urea / 50kg DAP & MOP)',
               ),
               if (products.isEmpty)
-                const Card(
+                Card(
                   child: Padding(
-                    padding: EdgeInsets.all(16.0),
-                    child: Text('No external fertilizer products required. Soil fertility is sufficient.'),
+                    padding: const EdgeInsets.all(16.0),
+                    child: Text(
+                      status == 'MISSING_INPUTS' || status == 'VALIDATION_ERROR'
+                          ? 'Fertilizer dose could not be calculated reliably due to missing soil test inputs or unavailable validated rules. AgroWise AI never fabricates doses.'
+                          : 'No external chemical fertilizer products required. Natural soil fertility is sufficient to meet the crop nutrient uptake target.',
+                    ),
                   ),
                 )
               else
@@ -129,6 +206,9 @@ class _FinalRecommendationScreenState extends State<FinalRecommendationScreen> {
                   FertilizerProductCard(
                     name: prod['product_name'] ?? prod['name'] ?? 'Fertilizer',
                     quantityKg: (prod['quantity_kg'] as num?)?.toDouble() ?? 0.0,
+                    quantityPerHaKg: (prod['quantity_per_ha_kg'] as num?)?.toDouble(),
+                    totalFarmQuantityKg: (prod['total_farm_quantity_kg'] as num?)?.toDouble(),
+                    applicationTiming: prod['application_timing']?.toString(),
                     bags: (prod['bags'] as num?)?.toInt() ?? 0,
                     bagSizeKg: (prod['bag_size_kg'] as num?)?.toDouble() ?? 50.0,
                     totalCostInr: (prod['total_cost_inr'] as num?)?.toDouble() ?? 0.0,
@@ -139,6 +219,74 @@ class _FinalRecommendationScreenState extends State<FinalRecommendationScreen> {
                   ),
                   const SizedBox(height: 8),
                 ],
+
+              // Derivation Explanation Card
+              if (rec['derivation_explanation'] != null || p5['derivation_explanation'] != null) ...[
+                const SizedBox(height: 12),
+                Card(
+                  elevation: 1.0,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: BorderSide(color: Colors.green.shade200)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(14.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(Icons.psychology_alt_outlined, color: AppTheme.primaryGreen, size: 20),
+                            SizedBox(width: 8),
+                            Text('How This Recommendation Was Derived', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.textDark)),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          (rec['derivation_explanation'] ?? p5['derivation_explanation']).toString(),
+                          style: const TextStyle(fontSize: 12, color: AppTheme.textDark, height: 1.4),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+
+              // Authoritative Reference Card
+              if (rec['authoritative_reference'] is Map || p5['authoritative_reference'] is Map) ...[
+                const SizedBox(height: 10),
+                Builder(
+                  builder: (_) {
+                    final auth = (rec['authoritative_reference'] ?? p5['authoritative_reference']) as Map;
+                    return Card(
+                      elevation: 1.0,
+                      color: const Color(0xFFF9FBF9),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: BorderSide(color: Colors.grey.shade300)),
+                      child: Padding(
+                        padding: const EdgeInsets.all(14.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Row(
+                              children: [
+                                Icon(Icons.menu_book_rounded, color: AppTheme.darkGreen, size: 18),
+                                SizedBox(width: 8),
+                                Text('Authoritative Reference', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.darkGreen)),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              auth['title']?.toString() ?? 'TNAU Agronomic Recommendation',
+                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppTheme.textDark),
+                            ),
+                            if (auth['section_or_page'] != null)
+                              Text('Section / Page: ${auth['section_or_page']}', style: const TextStyle(fontSize: 11, color: AppTheme.textMuted)),
+                            if (auth['url'] != null)
+                              Text('Source URL: ${auth['url']}', style: const TextStyle(fontSize: 11, color: Color(0xFF1565C0))),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ],
 
               if (estYield != null) ...[
                 const SizedBox(height: 14),

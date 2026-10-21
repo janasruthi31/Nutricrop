@@ -1,6 +1,7 @@
 """
 Nutrient Requirement Calculation Engine Service (Phase 5).
-Calculates exact N, P2O5, and K2O nutrient requirements using verified Phase 4 agronomic rules.
+Calculates exact N, P2O5, and K2O nutrient requirements using verified Phase 4 agronomic rules
+OR copies and scales printed fertilizer recommendations from uploaded Soil Health Cards.
 Does NOT calculate final fertilizer product quantities (Phase 6 responsibility).
 """
 
@@ -14,14 +15,21 @@ from .units import (
     normalize_soil_nutrient_value,
     convert_target_yield_to_tonnes_per_ha,
     convert_oxide_to_elemental,
+    convert_kg_per_acre_to_kg_per_ha,
+    convert_kg_per_ha_to_kg_per_acre,
+    calculate_farm_total_nutrient,
+    ACRE_TO_HA,
+    HA_TO_ACRE,
 )
 
 CALCULATION_SUCCESS = "CALCULATION_SUCCESS"
 UNVERIFIED_RULE = "UNVERIFIED_RULE"
+PENDING_AGRONOMIC_VALIDATION = "PENDING_AGRONOMIC_VALIDATION"
 MISSING_INPUTS = "MISSING_INPUTS"
 VALIDATION_ERROR = "VALIDATION_ERROR"
 UNSUPPORTED_CROP = "UNSUPPORTED_CROP"
 CALCULATION_FAILED = "CALCULATION_FAILED"
+INVALID_RULE_FOR_CROP = "INVALID_RULE_FOR_CROP"
 
 
 class NutrientCalculationService:
@@ -34,11 +42,143 @@ class NutrientCalculationService:
         missing_inputs: List[str] = []
         warnings: List[str] = []
 
+        # =====================================================================
+        # MODE 1: Soil Health Card Printed Recommendation
+        # =====================================================================
+        if req.recommendation_mode == "SOIL_HEALTH_CARD" or (req.printed_n_rate is not None and req.recommendation_mode != "CALCULATED_AGRONOMIC"):
+            if req.printed_n_rate is None and req.printed_p2o5_rate is None and req.printed_k2o_rate is None:
+                return NutrientCalculationResponse(
+                    status=MISSING_INPUTS,
+                    crop=req.crop or "Groundnut",
+                    selected_rule_id="SOIL_HEALTH_CARD_PRINTED",
+                    selected_method="Report Printed Recommendation",
+                    recommendation_mode="SOIL_HEALTH_CARD",
+                    recommendation_type="SOIL_HEALTH_CARD",
+                    recommendation_source=req.printed_source or "Uploaded Soil Health Card",
+                    verification_status="SOIL_HEALTH_CARD_PRINTED",
+                    is_verified_rule=False,
+                    missing_inputs=["printed_recommendation"],
+                    validation_errors=[
+                        "Uploaded Soil Health Card does not contain printed fertilizer recommendations ('உரப்பரிந்துரைகள்'). "
+                        "Please select 'Soil-Specific STCR' or 'General Blanket' mode to calculate fertilizer recommendations from soil test results."
+                    ]
+                )
+
+            n_val = float(req.printed_n_rate or 0.0)
+            p_val = float(req.printed_p2o5_rate or 0.0)
+            k_val = float(req.printed_k2o_rate or 0.0)
+            rate_unit = req.printed_rate_unit or "kg/acre"
+
+            farm_area = float(req.farm_area) if req.farm_area is not None else 1.0
+            farm_area_unit = (req.farm_area_unit or "acre").strip().lower()
+
+            if "acre" in rate_unit:
+                n_acre = n_val
+                p2o5_acre = p_val
+                k2o_acre = k_val
+                n_ha = round(convert_kg_per_acre_to_kg_per_ha(n_acre), 2)
+                p2o5_ha = round(convert_kg_per_acre_to_kg_per_ha(p2o5_acre), 2)
+                k2o_ha = round(convert_kg_per_acre_to_kg_per_ha(k2o_acre), 2)
+            else:
+                n_ha = n_val
+                p2o5_ha = p_val
+                k2o_ha = k_val
+                n_acre = round(convert_kg_per_ha_to_kg_per_acre(n_ha), 2)
+                p2o5_acre = round(convert_kg_per_ha_to_kg_per_acre(p2o5_ha), 2)
+                k2o_acre = round(convert_kg_per_ha_to_kg_per_acre(k2o_ha), 2)
+
+            farm_area_ha = convert_area_to_hectares(farm_area, farm_area_unit)
+
+            # Farm totals: deterministic, exact calculation without double conversion
+            total_n = round(calculate_farm_total_nutrient(n_val, rate_unit, farm_area, farm_area_unit), 2)
+            total_p2o5 = round(calculate_farm_total_nutrient(p_val, rate_unit, farm_area, farm_area_unit), 2)
+            total_k2o = round(calculate_farm_total_nutrient(k_val, rate_unit, farm_area, farm_area_unit), 2)
+
+            return NutrientCalculationResponse(
+                status=CALCULATION_SUCCESS,
+                crop=req.crop or "Groundnut",
+                selected_rule_id="SOIL_HEALTH_CARD_PRINTED",
+                selected_method="Report Printed Recommendation",
+                recommendation_mode="SOIL_HEALTH_CARD",
+                recommendation_type="SOIL_HEALTH_CARD",
+                recommendation_source=req.printed_source or "Uploaded Soil Health Card",
+                verification_status="SOIL_HEALTH_CARD_PRINTED",
+                is_verified_rule=True,
+                is_provisional=False,
+                n_req_kg_per_ha=n_ha,
+                net_n_kg_per_ha=n_ha,
+                p2o5_req_kg_per_ha=p2o5_ha,
+                net_p2o5_kg_per_ha=p2o5_ha,
+                k2o_req_kg_per_ha=k2o_ha,
+                net_k2o_kg_per_ha=k2o_ha,
+                n_req_kg_per_acre=n_acre,
+                p2o5_req_kg_per_acre=p2o5_acre,
+                k2o_req_kg_per_acre=k2o_acre,
+                farm_area_hectares=farm_area_ha,
+                farm_area_original=farm_area,
+                farm_area_unit_original=farm_area_unit,
+                total_n_req_kg=total_n,
+                total_farm_n_kg=total_n,
+                total_p2o5_req_kg=total_p2o5,
+                total_farm_p2o5_kg=total_p2o5,
+                total_k2o_req_kg=total_k2o,
+                total_farm_k2o_kg=total_k2o,
+                calculation_method="Copied from Official Soil Health Card",
+                calculation_details={
+                    "source": "Uploaded Soil Health Card",
+                    "printed_rates": {
+                        "N": n_acre,
+                        "P2O5": p2o5_acre,
+                        "K2O": k2o_acre,
+                        "unit": "kg/acre"
+                    },
+                    "converted_per_ha_rates": {
+                        "N": n_ha,
+                        "P2O5": p2o5_ha,
+                        "K2O": k2o_ha,
+                        "unit": "kg/ha"
+                    },
+                    "farm_area": farm_area,
+                    "farm_area_unit": farm_area_unit,
+                    "farm_totals_kg": {
+                        "N": total_n,
+                        "P2O5": total_p2o5,
+                        "K2O": total_k2o
+                    }
+                },
+                units={
+                    "per_ha": "kg/ha",
+                    "per_acre": "kg/acre",
+                    "total": "kg",
+                    "area": farm_area_unit
+                },
+                source_title=req.printed_source or "Uploaded Soil Health Card",
+                derivation_explanation=f"Copied directly from the printed fertilizer recommendation section of the farmer's uploaded Soil Health Card ({n_acre:.1f} N, {p2o5_acre:.1f} P₂O₅, {k2o_acre:.1f} K₂O {rate_unit}) and scaled accurately to your confirmed farm area ({farm_area} {farm_area_unit}).",
+                authoritative_reference={
+                    "title": req.printed_source or "Uploaded Soil Health Card",
+                    "verification_status": "SOIL_HEALTH_CARD_PRINTED",
+                    "source": "Report Printed Recommendation Table"
+                },
+                warnings=[]
+            )
+
+        # =====================================================================
+        # MODE 2: Calculated Agronomic Recommendation
+        # =====================================================================
+
         # 1. Resolve Phase 4 Rule
         rule = None
         phase4_resp = None
 
         if req.phase4_result:
+            p4_status = req.phase4_result.get("status")
+            if p4_status in ("UNSUPPORTED_CROP", "UNSUPPORTED_SOIL_SERIES", "NO_MATCHING_RULE"):
+                return NutrientCalculationResponse(
+                    status=p4_status,
+                    crop=req.crop or "",
+                    farm_area_hectares=convert_area_to_hectares(req.farm_area or 1.0, req.farm_area_unit or "hectare"),
+                    validation_errors=req.phase4_result.get("warnings") or [f"Rule selection failed with status {p4_status}."]
+                )
             rule_id = req.phase4_result.get("selected_rule_id")
             if rule_id:
                 for r in self.registry.get_all_rules():
@@ -53,7 +193,6 @@ class NutrientCalculationService:
                     break
 
         if not rule:
-            # Dynamically perform Phase 4 rule selection if not explicitly passed
             if not req.crop:
                 return NutrientCalculationResponse(
                     status=UNSUPPORTED_CROP,
@@ -68,6 +207,7 @@ class NutrientCalculationService:
                 season=req.season,
                 irrigation_method=req.irrigation_method,
                 target_yield=req.target_yield,
+                recommendation_type=req.recommendation_type,
                 soil_values={
                     "nitrogen": req.soil_nitrogen,
                     "phosphorus": req.soil_phosphorus,
@@ -93,13 +233,19 @@ class NutrientCalculationService:
                     warnings=phase4_resp.warnings
                 )
 
-            if phase4_resp.status == "PENDING_VERIFICATION":
-                return NutrientCalculationResponse(
-                    status=UNVERIFIED_RULE,
-                    crop=req.crop,
-                    selected_rule_id=phase4_resp.selected_rule_id,
-                    warnings=phase4_resp.warnings
-                )
+            if phase4_resp.status in ("PENDING_VERIFICATION", "PENDING_AGRONOMIC_VALIDATION", "SOURCE_NOT_VERIFIED"):
+                if not req.allow_unverified:
+                    return NutrientCalculationResponse(
+                        status=UNVERIFIED_RULE,
+                        crop=req.crop,
+                        selected_rule_id=phase4_resp.selected_rule_id,
+                        recommendation_type="PROVISIONAL_UNVERIFIED",
+                        verification_status=phase4_resp.verification_status,
+                        is_verified_rule=False,
+                        is_provisional=True,
+                        warnings=phase4_resp.warnings + ["This rule has not yet been agronomically validated. A confirmed soil-specific recommendation is unavailable."],
+                        validation_errors=[f"Rule '{phase4_resp.selected_rule_id}' has not yet been agronomically validated. A confirmed soil-specific recommendation is unavailable."]
+                    )
 
             rule_id = phase4_resp.selected_rule_id
             for r in self.registry.get_all_rules():
@@ -114,13 +260,36 @@ class NutrientCalculationService:
                 validation_errors=["Could not locate selected agronomic rule in registry."]
             )
 
-        # 2. Confirm VERIFIED status
-        if rule.get("verification_status") != "VERIFIED":
+        # Check Crop Compatibility with selected rule
+        if req.crop and rule.get("crop") and req.crop.strip().lower() != rule["crop"].strip().lower():
+            return NutrientCalculationResponse(
+                status=INVALID_RULE_FOR_CROP,
+                crop=req.crop,
+                selected_rule_id=rule["rule_id"],
+                validation_errors=[
+                    f"Selected rule '{rule['rule_id']}' is for crop '{rule['crop']}', but requested crop is '{req.crop}'."
+                ]
+            )
+
+        # 2. Check Rule Verification Status
+        v_status = rule.get("verification_status", "PENDING_VERIFICATION")
+        is_verified = (v_status == "VERIFIED")
+
+        if not is_verified and not req.allow_unverified:
             return NutrientCalculationResponse(
                 status=UNVERIFIED_RULE,
                 crop=rule["crop"],
                 selected_rule_id=rule["rule_id"],
-                warnings=[f"Rule '{rule['rule_id']}' is marked as '{rule.get('verification_status')}' and cannot be used for production NPK calculations."]
+                selected_method=rule.get("recommendation_method"),
+                recommendation_type="PROVISIONAL_UNVERIFIED",
+                verification_status=v_status,
+                is_verified_rule=False,
+                is_provisional=True,
+                warnings=[
+                    f"Rule '{rule['rule_id']}' is marked as '{v_status}' and cannot be used for production NPK calculations.",
+                    "This rule has not yet been agronomically validated. A confirmed soil-specific recommendation is unavailable."
+                ],
+                validation_errors=[f"Rule '{rule['rule_id']}' has not yet been agronomically validated. A confirmed soil-specific recommendation is unavailable."]
             )
 
         # 3. Extract and Validate Input Values and Units
@@ -189,9 +358,12 @@ class NutrientCalculationService:
 
         # Validate Farm Area if provided
         farm_area_ha = None
+        farm_area_val = None
+        farm_area_unit_str = req.farm_area_unit or "hectare"
         if req.farm_area is not None:
             try:
-                farm_area_ha = convert_area_to_hectares(req.farm_area, req.farm_area_unit or "hectare")
+                farm_area_val = float(req.farm_area)
+                farm_area_ha = convert_area_to_hectares(farm_area_val, farm_area_unit_str)
             except ValueError as e:
                 validation_errors.append(str(e))
 
@@ -200,7 +372,8 @@ class NutrientCalculationService:
                 status=VALIDATION_ERROR,
                 crop=crop_name,
                 selected_rule_id=rule["rule_id"],
-                selected_method=rec_method,
+                verification_status=v_status,
+                is_verified_rule=is_verified,
                 validation_errors=validation_errors
             )
 
@@ -209,54 +382,85 @@ class NutrientCalculationService:
                 status=MISSING_INPUTS,
                 crop=crop_name,
                 selected_rule_id=rule["rule_id"],
-                selected_method=rec_method,
-                missing_inputs=missing_inputs,
-                warnings=[f"Missing mandatory inputs for rule calculation: {', '.join(missing_inputs)}"]
+                verification_status=v_status,
+                is_verified_rule=is_verified,
+                missing_inputs=missing_inputs
             )
 
-        # 4. Perform Calculation
+        # 4. Perform Calculation based on Recommendation Method
         n_req, p2o5_req, k2o_req = 0.0, 0.0, 0.0
-        calc_details: Dict[str, Any] = {"method": rec_method}
+        calc_details: Dict[str, Any] = {
+            "method": rec_method,
+            "rule_id": rule["rule_id"],
+            "verification_status": v_status,
+        }
 
         if rec_method.startswith("STCR"):
             stcr_coeffs = rule.get("stcr_coefficients")
-            if not stcr_coeffs:
+            if not stcr_coeffs or not all(k in stcr_coeffs for k in ("N", "P2O5", "K2O")):
                 return NutrientCalculationResponse(
                     status=CALCULATION_FAILED,
                     crop=crop_name,
                     selected_rule_id=rule["rule_id"],
-                    validation_errors=["Rule is missing STCR equation coefficients."]
+                    validation_errors=["STCR coefficients are missing or incomplete in rule definition."]
                 )
 
-            # N calculation
+            # N, P2O5, K2O calculation with FYM scaling
+            fym_applied = float(req.fym_applied_t_per_ha) if req.fym_applied_t_per_ha is not None else 12.5
+            fym_factor = max(0.0, fym_applied / 12.5) if 12.5 > 0 else 1.0
+
             n_c = stcr_coeffs["N"]
-            raw_n = n_c["a"] * target_yield - n_c["b_soil"] * sn - n_c.get("c_fym", 0.0)
+            fym_credit_n = round(n_c.get("c_fym", 0.0) * min(1.0, fym_factor), 2)
+            raw_n = n_c["a"] * target_yield - n_c["b_soil"] * sn - fym_credit_n
             n_req = round(max(0.0, raw_n), 2)
 
-            # P2O5 calculation
             p_c = stcr_coeffs["P2O5"]
-            raw_p = p_c["a"] * target_yield - p_c["b_soil"] * sp - p_c.get("c_fym", 0.0)
+            fym_credit_p = round(p_c.get("c_fym", 0.0) * min(1.0, fym_factor), 2)
+            raw_p = p_c["a"] * target_yield - p_c["b_soil"] * sp - fym_credit_p
             p2o5_req = round(max(0.0, raw_p), 2)
 
-            # K2O calculation
             k_c = stcr_coeffs["K2O"]
-            raw_k = k_c["a"] * target_yield - k_c["b_soil"] * sk - k_c.get("c_fym", 0.0)
+            fym_credit_k = round(k_c.get("c_fym", 0.0) * min(1.0, fym_factor), 2)
+            raw_k = k_c["a"] * target_yield - k_c["b_soil"] * sk - fym_credit_k
             k2o_req = round(max(0.0, raw_k), 2)
 
+            clamping_notes: List[str] = []
+            if raw_n < 0:
+                note = f"Calculated Nitrogen requirement was negative ({raw_n:.2f} kg/ha) because initial soil Nitrogen test level or FYM contribution satisfies target yield requirement. Clamped to 0.0 kg/ha (maintenance dose / no additional chemical N needed per TNAU STCR principles)."
+                clamping_notes.append(note)
+                warnings.append(note)
+            if raw_p < 0:
+                note = f"Calculated Phosphorus requirement was negative ({raw_p:.2f} kg/ha) because initial soil Phosphorus test level or FYM contribution satisfies target yield requirement. Clamped to 0.0 kg/ha (maintenance dose / no additional chemical P2O5 needed per TNAU STCR principles)."
+                clamping_notes.append(note)
+                warnings.append(note)
+            if raw_k < 0:
+                note = f"Calculated Potassium requirement was negative ({raw_k:.2f} kg/ha) because initial soil Potassium test level or FYM contribution satisfies target yield requirement. Clamped to 0.0 kg/ha (maintenance dose / no additional chemical K2O needed per TNAU STCR principles)."
+                clamping_notes.append(note)
+                warnings.append(note)
+
             calc_details.update({
-                "formula_N": f"{n_c['a']} * T - {n_c['b_soil']} * SN - {n_c.get('c_fym', 0.0)}",
-                "formula_P2O5": f"{p_c['a']} * T - {p_c['b_soil']} * SP - {p_c.get('c_fym', 0.0)}",
-                "formula_K2O": f"{k_c['a']} * T - {k_c['b_soil']} * SK - {k_c.get('c_fym', 0.0)}",
+                "formula_N": f"{n_c['a']} * T - {n_c['b_soil']} * SN - {fym_credit_n}",
+                "formula_P2O5": f"{p_c['a']} * T - {p_c['b_soil']} * SP - {fym_credit_p}",
+                "formula_K2O": f"{k_c['a']} * T - {k_c['b_soil']} * SK - {fym_credit_k}",
+                "fym_applied_t_per_ha": fym_applied,
+                "fym_credit_kg_per_ha": {"N": fym_credit_n, "P2O5": fym_credit_p, "K2O": fym_credit_k},
+                "raw_calculated_rates_kg_per_ha": {
+                    "N": round(raw_n, 2),
+                    "P2O5": round(raw_p, 2),
+                    "K2O": round(raw_k, 2),
+                },
+                "clamping_notes": clamping_notes,
                 "inputs_used": {
                     "target_yield": target_yield,
                     "soil_N_kg_per_ha": sn,
                     "soil_P_kg_per_ha": sp,
                     "soil_K_kg_per_ha": sk,
-                    "phosphorus_method": p_method
+                    "phosphorus_method": p_method,
+                    "fym_applied_t_per_ha": fym_applied
                 }
             })
 
-        elif rec_method == "TNAU-SOIL-TEST":
+        elif rec_method in ("TNAU-SOIL-TEST", "TNAU-BLANKET"):
             blanket_rdf = rule.get("blanket_rdf_kg_per_ha", {"N": 150.0, "P2O5": 50.0, "K2O": 50.0})
             adj_factors = rule.get("rating_adjustment_factors", {"low": 1.25, "medium": 1.00, "high": 0.75})
 
@@ -289,26 +493,149 @@ class NutrientCalculationService:
                 validation_errors=[f"Unsupported recommendation method '{rec_method}'."]
             )
 
-        # 5. Farm Area Total Calculations
+        # 5. Farm Area Total Calculations (Centralized & without double conversion)
         total_n, total_p2o5, total_k2o = None, None, None
-        if farm_area_ha is not None:
-            total_n = round(n_req * farm_area_ha, 2)
-            total_p2o5 = round(p2o5_req * farm_area_ha, 2)
-            total_k2o = round(k2o_req * farm_area_ha, 2)
+        if farm_area_val is not None:
+            total_n = round(calculate_farm_total_nutrient(n_req, "kg/ha", farm_area_val, farm_area_unit_str), 2)
+            total_p2o5 = round(calculate_farm_total_nutrient(p2o5_req, "kg/ha", farm_area_val, farm_area_unit_str), 2)
+            total_k2o = round(calculate_farm_total_nutrient(k2o_req, "kg/ha", farm_area_val, farm_area_unit_str), 2)
+
+        n_req_acre = round(convert_kg_per_ha_to_kg_per_acre(n_req), 2)
+        p2o5_req_acre = round(convert_kg_per_ha_to_kg_per_acre(p2o5_req), 2)
+        k2o_req_acre = round(convert_kg_per_ha_to_kg_per_acre(k2o_req), 2)
+
+        resp_status = CALCULATION_SUCCESS if is_verified else PENDING_AGRONOMIC_VALIDATION
+        rec_type = rule.get("recommendation_type") or ("GENERAL_BLANKET" if rule.get("recommendation_method") in ("TNAU-BLANKET", "TNAU-SOIL-TEST") else "SOIL_SPECIFIC_STCR")
+        if not is_verified:
+            rec_type = "PROVISIONAL_UNVERIFIED"
+            warnings.append(f"Rule '{rule['rule_id']}' is marked as '{v_status}' (not an authoritative STCR calibration).")
+            warnings.append("This rule has not yet been agronomically validated. A confirmed soil-specific recommendation is unavailable.")
+
+        # Soil nutrient status and interpretation against verified TNAU thresholds
+        n_class = classify("nitrogen", sn, "kg/ha") or "Unknown"
+        p_class = classify("phosphorus", sp, "kg/ha", p_method) or "Unknown"
+        k_class = classify("potassium", sk, "kg/ha") or "Unknown"
+
+        soil_nutrient_status = {
+            "nitrogen": {
+                "value": req.soil_nitrogen,
+                "unit": req.soil_nitrogen_unit or "kg/ha",
+                "value_kg_per_ha": sn,
+                "status": "Deficient" if n_class == "Low" else ("Sufficient" if n_class == "Medium" else "Excessive"),
+                "rating": n_class,
+                "interpretation_threshold": "Low < 280 kg/ha, Medium 280-450 kg/ha, High > 450 kg/ha (TNAU)"
+            },
+            "phosphorus": {
+                "value": req.soil_phosphorus,
+                "unit": req.soil_phosphorus_unit or "kg/ha",
+                "value_kg_per_ha": sp,
+                "method": p_method,
+                "status": "Deficient" if p_class == "Low" else ("Sufficient" if p_class == "Medium" else "Excessive"),
+                "rating": p_class,
+                "interpretation_threshold": "Olsen: Low < 11 kg/ha, Medium 11-22 kg/ha, High > 22 kg/ha (TNAU)" if p_method == "Olsen" else "Bray: Low < 24.2 kg/ha, Medium 24.2-49.7 kg/ha, High > 49.7 kg/ha (TNAU)"
+            },
+            "potassium": {
+                "value": req.soil_potassium,
+                "unit": req.soil_potassium_unit or "kg/ha",
+                "value_kg_per_ha": sk,
+                "status": "Excessive" if k_class == "High" else ("Sufficient" if k_class == "Medium" else "Deficient"),
+                "rating": k_class,
+                "interpretation_threshold": "Low < 118 kg/ha, Medium 118-280 kg/ha, High > 280 kg/ha (TNAU)"
+            }
+        }
+        if req.organic_carbon is not None:
+            try:
+                oc_val = float(req.organic_carbon)
+                oc_class = classify("organic_carbon", oc_val, "%")
+                soil_nutrient_status["organic_carbon"] = {
+                    "value": oc_val,
+                    "unit": "%",
+                    "status": "Deficient" if oc_class == "Low" else ("Sufficient" if oc_class == "Medium" else "High"),
+                    "rating": oc_class,
+                    "interpretation_threshold": "Low < 0.50 %, Medium 0.50-0.75 %, High > 0.75 % (TNAU)"
+                }
+            except Exception:
+                pass
+        if req.ph is not None:
+            try:
+                ph_val = float(req.ph)
+                ph_status = "Acidic" if ph_val < 6.5 else ("Alkaline / Calcareous" if ph_val > 7.8 else "Neutral")
+                soil_nutrient_status["ph"] = {
+                    "value": ph_val,
+                    "unit": None,
+                    "status": ph_status,
+                    "rating": ph_status,
+                    "interpretation_threshold": "Acidic < 6.5, Neutral 6.5-7.8, Alkaline > 7.8"
+                }
+            except Exception:
+                pass
+        if req.ec is not None:
+            try:
+                ec_val = float(req.ec)
+                ec_status = "Critical (Saline)" if ec_val >= 1.0 else "Normal (Non-saline)"
+                soil_nutrient_status["ec"] = {
+                    "value": ec_val,
+                    "unit": "dS/m",
+                    "status": ec_status,
+                    "rating": ec_status,
+                    "interpretation_threshold": "Normal < 1.0 dS/m, Saline >= 1.0 dS/m"
+                }
+            except Exception:
+                pass
+
+        if rec_method.startswith("STCR"):
+            soil_series_name = rule.get("soil_series", ["designated"])[0] if rule.get("soil_series") else "designated"
+            derivation_explanation = (
+                f"Calculated using authoritative TNAU STCR-IPNS targeted yield calibration for {crop_name} "
+                f"on {soil_series_name} soil series at target yield {target_yield:.1f} t/ha. "
+                f"Formulas: FN = {n_c['a']}×T - {n_c['b_soil']}×SN - {fym_credit_n:.1f}; "
+                f"FP₂O₅ = {p_c['a']}×T - {p_c['b_soil']}×SP - {fym_credit_p:.1f}; "
+                f"FK₂O = {k_c['a']}×T - {k_c['b_soil']}×SK - {fym_credit_k:.1f}. "
+                f"Initial soil test values ({sn:.1f} N, {sp:.1f} P, {sk:.1f} K kg/ha) and organic manure ({fym_applied:.1f} t/ha FYM) "
+                f"are deducted from crop uptake to compute the net chemical fertilizer requirement."
+            )
+        elif rec_method in ("TNAU-SOIL-TEST", "TNAU-BLANKET"):
+            derivation_explanation = (
+                f"Calculated from official TNAU Crop Production Guide 2020 blanket schedule ({blanket_rdf['N']}:{blanket_rdf['P2O5']}:{blanket_rdf['K2O']} kg/ha) "
+                f"adjusted by laboratory soil test ratings: Nitrogen is {n_class} (×{factor_n:.2f}), "
+                f"Phosphorus is {p_class} (×{factor_p:.2f}), Potassium is {k_class} (×{factor_k:.2f})."
+            )
+        else:
+            derivation_explanation = f"Calculated using verified TNAU agronomic rule {rule['rule_id']}."
+
+        authoritative_reference = {
+            "title": rule.get("source_title", "TNAU Agronomic Guideline"),
+            "url": rule.get("source_url"),
+            "section_or_page": rule.get("source_page_or_section"),
+            "equation_or_dose_reference": rule.get("equation_or_dose_reference"),
+            "verification_status": v_status,
+            "applicability_notes": rule.get("applicability_notes")
+        }
 
         return NutrientCalculationResponse(
-            status=CALCULATION_SUCCESS,
+            status=resp_status,
             crop=crop_name,
             selected_rule_id=rule["rule_id"],
             selected_method=rec_method,
             calculation_method=rec_method,
+            recommendation_mode="CALCULATED_AGRONOMIC",
+            recommendation_type=rec_type,
+            recommendation_source=rule.get("source_title", "TNAU Agronomic Guideline"),
+            verification_status=v_status,
+            is_verified_rule=is_verified,
+            is_provisional=(not is_verified),
             n_req_kg_per_ha=n_req,
             net_n_kg_per_ha=n_req,
             p2o5_req_kg_per_ha=p2o5_req,
             net_p2o5_kg_per_ha=p2o5_req,
             k2o_req_kg_per_ha=k2o_req,
             net_k2o_kg_per_ha=k2o_req,
-            farm_area_hectares=round(farm_area_ha, 4) if farm_area_ha is not None else None,
+            n_req_kg_per_acre=n_req_acre,
+            p2o5_req_kg_per_acre=p2o5_req_acre,
+            k2o_req_kg_per_acre=k2o_req_acre,
+            farm_area_hectares=farm_area_ha,
+            farm_area_original=farm_area_val,
+            farm_area_unit_original=farm_area_unit_str,
             total_n_req_kg=total_n,
             total_farm_n_kg=total_n,
             total_p2o5_req_kg=total_p2o5,
@@ -318,12 +645,16 @@ class NutrientCalculationService:
             calculation_details=calc_details,
             units={
                 "per_ha": "kg/ha",
+                "per_acre": "kg/acre",
                 "total": "kg",
-                "area": "hectare"
+                "area": farm_area_unit_str
             },
             source_title=rule.get("source_title"),
             source_url=rule.get("source_url"),
             source_page_or_section=rule.get("source_page_or_section"),
+            soil_nutrient_status=soil_nutrient_status,
+            derivation_explanation=derivation_explanation,
+            authoritative_reference=authoritative_reference,
             warnings=warnings,
             missing_inputs=[],
             validation_errors=[]

@@ -160,6 +160,9 @@ class EmptyStateView extends StatelessWidget {
 class FertilizerProductCard extends StatelessWidget {
   final String name;
   final double quantityKg;
+  final double? quantityPerHaKg;
+  final double? totalFarmQuantityKg;
+  final String? applicationTiming;
   final int bags;
   final double bagSizeKg;
   final double totalCostInr;
@@ -172,6 +175,9 @@ class FertilizerProductCard extends StatelessWidget {
     super.key,
     required this.name,
     required this.quantityKg,
+    this.quantityPerHaKg,
+    this.totalFarmQuantityKg,
+    this.applicationTiming,
     required this.bags,
     required this.bagSizeKg,
     required this.totalCostInr,
@@ -183,6 +189,7 @@ class FertilizerProductCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final farmQty = totalFarmQuantityKg ?? quantityKg;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -219,19 +226,65 @@ class FertilizerProductCard extends StatelessWidget {
                 color: const Color(0xFFF1F6F0),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              child: Column(
                 children: [
-                  Text('Total: ${quantityKg.toStringAsFixed(1)} kg', style: const TextStyle(fontWeight: FontWeight.w600)),
-                  Text(
-                    pricePerBagInr != null
-                        ? '$bags bags (₹${pricePerBagInr!.toStringAsFixed(0)} / ${bagSizeKg.toStringAsFixed(0)}kg bag)'
-                        : '$bags bags (${bagSizeKg.toStringAsFixed(0)} kg/bag)',
-                    style: const TextStyle(color: AppTheme.textMuted),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Total for Farm: ${farmQty.toStringAsFixed(1)} kg',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.textDark),
+                      ),
+                      Text(
+                        pricePerBagInr != null
+                            ? '$bags bags (₹${pricePerBagInr!.toStringAsFixed(0)} / ${bagSizeKg.toStringAsFixed(0)}kg)'
+                            : '$bags bags (${bagSizeKg.toStringAsFixed(0)} kg/bag)',
+                        style: const TextStyle(color: AppTheme.textMuted, fontSize: 12),
+                      ),
+                    ],
                   ),
+                  if (quantityPerHaKg != null) ...[
+                    const SizedBox(height: 4),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Rate per Hectare: ${quantityPerHaKg!.toStringAsFixed(1)} kg/ha',
+                          style: const TextStyle(fontSize: 12, color: AppTheme.primaryGreen, fontWeight: FontWeight.w600),
+                        ),
+                        Text(
+                          '≈ ${(quantityPerHaKg! * 0.4046856422).toStringAsFixed(1)} kg/acre',
+                          style: const TextStyle(fontSize: 11, color: AppTheme.textMuted),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),
+            if (applicationTiming != null && applicationTiming!.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE8F5E9),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.schedule_rounded, size: 16, color: Color(0xFF2E7D32)),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Application Timing: $applicationTiming',
+                        style: const TextStyle(fontSize: 11, color: Color(0xFF1B5E20), fontWeight: FontWeight.w500),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             if (priceSource != null && priceSource!.isNotEmpty) ...[
               const SizedBox(height: 6),
               Row(

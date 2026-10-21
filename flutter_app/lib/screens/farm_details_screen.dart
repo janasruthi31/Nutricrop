@@ -60,6 +60,16 @@ class _FarmDetailsScreenState extends State<FarmDetailsScreen> {
       if (v != null && v.isNotEmpty) {
         setState(() => _villageCtrl.text = v);
       }
+      if (p['farm_area'] != null) {
+        final fa = double.tryParse(p['farm_area'].toString());
+        if (fa != null && fa > 0) {
+          setState(() => _areaCtrl.text = fa.toString());
+        }
+      }
+      if (p['farm_area_unit'] != null) {
+        final u = p['farm_area_unit'].toString().toLowerCase();
+        setState(() => _areaUnit = (u.startsWith('hect') || u == 'ha') ? 'hectare' : 'acre');
+      }
     }
 
     // 2. Load stored farm details if any

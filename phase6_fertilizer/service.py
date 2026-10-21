@@ -103,8 +103,37 @@ class FertilizerOptimizerService:
             except (ValueError, TypeError):
                 validation_errors.append("Nutrient requirements must be valid numbers.")
 
-        if area_ha <= 0:
-            validation_errors.append("Farm area in hectares must be greater than 0.")
+        p5 = req.phase5_result or {}
+        p5_status = p5.get("status")
+        is_verified = p5.get("is_verified_rule")
+        if is_verified is None:
+            is_verified = True if req.is_verified_rule is None else req.is_verified_rule
+
+        v_status = p5.get("verification_status") or req.verification_status
+        if p5_status is None and v_status:
+            p5_status = v_status
+
+        allow_unverified = req.allow_unverified or p5.get("allow_unverified", False)
+        is_provisional = p5.get("is_provisional", not is_verified)
+        rec_type = p5.get("recommendation_type", "SOIL_SPECIFIC_STCR")
+
+        # Backend enforcement:
+        # If Phase 5 rule was unverified or pending agronomic validation without allow_unverified flag:
+        if (not is_verified and not allow_unverified) or p5_status in ("UNVERIFIED_RULE", "BLOCKED_UNVERIFIED_RULE") or (
+            p5_status in ("PENDING_AGRONOMIC_VALIDATION", "PENDING_VERIFICATION") and not allow_unverified
+        ):
+            return FertilizerOptimizationResponse(
+                status="BLOCKED_UNVERIFIED_RULE",
+                crop=crop,
+                farm_area_hectares=area_ha,
+                total_cost_inr=0.0,
+                is_verified=False,
+                is_provisional=True,
+                recommendation_type="PROVISIONAL_UNVERIFIED",
+                recommended_products=[],
+                warnings=["This rule has not yet been agronomically validated. A confirmed soil-specific recommendation is unavailable."],
+                validation_errors=["Fertilizer recommendation generation blocked: The agronomic rule is pending agronomic validation. An unverified nutrient target cannot be presented as a confirmed fertilizer recommendation."]
+            )
 
         if validation_errors:
             return FertilizerOptimizationResponse(
@@ -227,6 +256,15 @@ class FertilizerOptimizerService:
                 supplied_p2o5 += p_p2o5
                 supplied_k2o += p_k2o
 
+                timing_desc = "At Sowing / Basal Application"
+                pid_upper = p["id"].upper()
+                if "UREA" in pid_upper:
+                    timing_desc = "Split: 50% Basal, 25% Tillering, 25% Panicle Initiation"
+                elif "DAP" in pid_upper or "SSP" in pid_upper:
+                    timing_desc = "100% Basal at sowing / transplanting"
+                elif "MOP" in pid_upper or "POTASH" in pid_upper:
+                    timing_desc = "Split: 50% Basal, 50% Heading / Flowering"
+
                 product_recs.append(FertilizerProductRecommendation(
                     product_id=p["id"],
                     product_name=p["name"],
@@ -237,6 +275,9 @@ class FertilizerOptimizerService:
                     bag_size_kg=float(p["bag_size_kg"]),
                     price_per_bag_inr=float(p["price_per_bag_inr"]),
                     total_cost_inr=cost,
+                    quantity_per_ha_kg=round(qty_kg / max(0.001, area_ha), 2),
+                    total_farm_quantity_kg=qty_kg,
+                    application_timing=timing_desc,
                     price_source=p.get("source", "Department of Fertilizers, GoI (NBS Subsidy Schedule)"),
                     price_effective_date=p.get("effective_date", "2024-04-01")
                 ))
@@ -280,11 +321,21 @@ class FertilizerOptimizerService:
         if is_globally_optimal:
             warnings.append("Cost minimization solved to global optimality for discrete commercial bags.")
 
+        final_opt_status = OPTIMIZATION_SUCCESS
+        if is_provisional or not is_verified or p5_status == "PROVISIONAL_PENDING_VALIDATION":
+            final_opt_status = "PROVISIONAL_UNVERIFIED"
+            rec_type = "PROVISIONAL_UNVERIFIED"
+            warnings.append("PROVISIONAL ONLY: This recommendation is derived from an unverified agronomic rule awaiting official calibration and must not be used as an official soil-specific recommendation.")
+
         return FertilizerOptimizationResponse(
-            status=OPTIMIZATION_SUCCESS,
+            status=final_opt_status,
             crop=crop,
             farm_area_hectares=area_ha,
             total_cost_inr=round(total_cost, 2),
+            optimization_method=solver_status_msg,
+            is_verified=is_verified and not is_provisional,
+            is_provisional=is_provisional or (not is_verified),
+            recommendation_type=rec_type,
             recommended_products=product_recs,
             nutrient_balance=nutrient_balance,
             split_application_schedule=split_schedule,

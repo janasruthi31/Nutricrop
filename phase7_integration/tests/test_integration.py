@@ -58,7 +58,7 @@ def test_02_master_pipeline_service():
     assert res["district_yield_prediction"]["estimated_production_tonnes"] > 0
     # Weather guidance alias checks
     assert res["weather_guidance"]["guidance_status"] is not None
-    assert res["weather_guidance"]["risk_level"] in ("LOW", "MEDIUM", "HIGH")
+    assert res["weather_guidance"]["risk_level"] in ("LOW", "MEDIUM", "HIGH", "UNKNOWN")
     assert res["weather_guidance"]["actionable_advice"] is not None
 
 
@@ -143,4 +143,77 @@ def test_07_invalid_coordinates_handling():
     res = client.get("/api/location/reverse-geocode?lat=999.0&lon=77.717")
     assert res.status_code == 400
     assert "Invalid coordinates" in res.json()["detail"]
+
+
+# 8. Offline weather failure resilience: soil-based recommendation remains active
+def test_08_weather_offline_fallback_preserves_soil_recommendations(monkeypatch):
+    from phase7_integration import weather
+
+    # Simulate Open-Meteo 503 network outage
+    def mock_fetch_fail(lat, lon):
+        raise urllib.error.HTTPError("https://api.open-meteo.com/v1/forecast", 503, "Service Unavailable", {}, None)
+
+    import urllib.error
+    monkeypatch.setattr(weather, "_fetch_open_meteo", mock_fetch_fail)
+    monkeypatch.setattr(weather, "_get_cached_weather", lambda k: None)
+    monkeypatch.setattr(weather, "_get_stale_cached_weather", lambda k: None)
+
+    # Calling guidance endpoint directly when external service is down
+    guidance = weather.get_weather_guidance(district="Perambalur")
+    assert guidance["status"] == "WEATHER_UNAVAILABLE"
+    assert guidance["guidance_status"] == "WEATHER_UNAVAILABLE"
+    assert guidance["risk_level"] == "UNKNOWN"
+    assert "unreachable" in guidance["advisory_en"].lower()
+
+    # Calling master full recommendation pipeline when external weather is down
+    payload = {
+        "crop": "Rice",
+        "district": "Thanjavur",
+        "soil_series": "Palavidhi",
+        "season": "Kharif",
+        "irrigation_method": "Irrigated",
+        "target_yield": 6.0,
+        "soil_nitrogen": 220.0,
+        "soil_phosphorus": 16.0,
+        "soil_potassium": 190.0,
+        "soil_phosphorus_method": "Olsen",
+        "farm_area": 2.0,
+        "farm_area_unit": "acre"
+    }
+    rec = get_full_recommendation(payload)
+    # Master recommendation must succeed even when weather is offline!
+    assert rec["status"] == "SUCCESS"
+    assert rec["nutrient_requirements"]["n_req_kg_per_ha"] > 0
+    assert rec["fertilizer_plan"]["total_cost_inr"] > 0
+    assert len(rec["fertilizer_plan"]["recommended_products"]) > 0
+    assert rec["weather_guidance"]["status"] == "WEATHER_UNAVAILABLE"
+    assert rec["weather_guidance"]["risk_level"] == "UNKNOWN"
+
+
+# 9. Stale weather cache fallback when live API fails
+def test_09_stale_weather_cache_fallback(monkeypatch):
+    from phase7_integration import weather
+
+    # Mock unexpired cache miss, but stale cache hit
+    monkeypatch.setattr(weather, "_get_cached_weather", lambda k: None)
+    monkeypatch.setattr(weather, "_get_stale_cached_weather", lambda k: {
+        "current": {"temperature_c": 29.5, "condition_en": "Partly Cloudy", "condition_ta": "பகுதி மேகமூட்டம்", "relative_humidity_pct": 65, "wind_speed_kmh": 12.0},
+        "forecast": {"days": [], "rainfall_next_24h_mm": 5.0, "rainfall_next_48h_mm": 10.0},
+        "observation_time": "2026-10-17T08:00",
+        "source": "Open-Meteo (Stale Cache Fallback)",
+        "district": "Madurai"
+    })
+
+    def mock_fetch_fail(lat, lon):
+        raise ConnectionResetError("Connection reset by peer")
+
+    monkeypatch.setattr(weather, "_fetch_open_meteo", mock_fetch_fail)
+
+    live = weather.get_live_weather(district="Madurai")
+    assert live["status"] == "SUCCESS"
+    assert live["is_cached"] is True
+    assert live["is_stale"] is True
+    assert "Stale Cache" in live["source"]
+    assert live["current"]["temperature_c"] == 29.5
+
 

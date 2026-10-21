@@ -226,3 +226,32 @@ def test_duplicate_registration_and_invalid_login():
     assert r_bad.status_code == 401
     assert "invalid email or password" in r_bad.json()["detail"].lower()
 
+
+def test_jwt_tampering_and_expiration():
+    from phase7_integration.extra_api import _create_jwt_token
+    import time
+
+    # 1. Valid token
+    valid_token = _create_jwt_token("farmer_jwt_valid", "jwt@valid.tn", expire_seconds=3600)
+    res_valid = client.get("/api/auth/profile", headers={"Authorization": f"Bearer {valid_token}"})
+    assert res_valid.status_code == 200
+
+    # 2. Tampered token signature
+    parts = valid_token.split(".")
+    tampered_token = f"{parts[0]}.{parts[1]}.tampered_signature_xyz"
+    res_tampered = client.get("/api/auth/profile", headers={"Authorization": f"Bearer {tampered_token}"})
+    assert res_tampered.status_code == 401
+    assert "invalid or expired" in res_tampered.json()["detail"].lower()
+
+    # 3. Expired token (expire_seconds = -100)
+    expired_token = _create_jwt_token("farmer_jwt_expired", "jwt@expired.tn", expire_seconds=-100)
+    res_expired = client.get("/api/auth/profile", headers={"Authorization": f"Bearer {expired_token}"})
+    assert res_expired.status_code == 401
+    assert "invalid or expired" in res_expired.json()["detail"].lower()
+
+    # 4. Logout endpoint
+    logout_res = client.post("/api/auth/logout", headers={"Authorization": f"Bearer {valid_token}"})
+    assert logout_res.status_code == 200
+    assert logout_res.json()["status"] == "SUCCESS"
+
+
