@@ -25,16 +25,42 @@ class _VerifyScreenState extends State<VerifyScreen> {
   @override
   void initState() {
     super.initState();
-    if (_manual) {
+    try {
+      if (_manual) {
+        _drafts = fieldSpecs.map(FieldDraft.empty).toList();
+      } else {
+        final rawFields = widget.ocr?['fields'];
+        final Map<String, FieldDraft> byKey = {};
+        if (rawFields is List) {
+          for (final f in rawFields) {
+            if (f is Map) {
+              final key = f['field']?.toString();
+              if (key != null) {
+                byKey[key] = FieldDraft.fromJson(Map<String, dynamic>.from(f));
+              }
+            }
+          }
+        } else if (rawFields is Map) {
+          for (final entry in rawFields.entries) {
+            final key = entry.key.toString();
+            if (entry.value is Map) {
+              final fMap = Map<String, dynamic>.from(entry.value as Map);
+              fMap['field'] = key;
+              byKey[key] = FieldDraft.fromJson(fMap);
+            }
+          }
+        }
+        _drafts = fieldSpecs.map((s) => byKey[s.key] ?? FieldDraft.empty(s)).toList();
+        final m = (widget.ocr?['metadata'] is Map)
+            ? Map<String, dynamic>.from(widget.ocr!['metadata'] as Map)
+            : <String, dynamic>{};
+        _district.text = m['district']?.toString() ?? '';
+        _village.text = m['village']?.toString() ?? '';
+        _sample.text = m['sample_id']?.toString() ?? '';
+        _date.text = m['test_date']?.toString() ?? '';
+      }
+    } catch (_) {
       _drafts = fieldSpecs.map(FieldDraft.empty).toList();
-    } else {
-      final byKey = {for (final f in (widget.ocr!['fields'] as List)) (f as Map)['field'] as String: FieldDraft.fromJson(f.cast<String, dynamic>())};
-      _drafts = fieldSpecs.map((s) => byKey[s.key] ?? FieldDraft.empty(s)).toList();
-      final m = (widget.ocr!['metadata'] as Map?)?.cast<String, dynamic>() ?? {};
-      _district.text = m['district']?.toString() ?? '';
-      _village.text = m['village']?.toString() ?? '';
-      _sample.text = m['sample_id']?.toString() ?? '';
-      _date.text = m['test_date']?.toString() ?? '';
     }
   }
 
@@ -233,7 +259,7 @@ class _VerifyScreenState extends State<VerifyScreen> {
             ),
           if (d.key == 'phosphorus' && d.valueText.isNotEmpty) Text(d.method ?? 'Method not known'),
           if (!_manual && d.ocrValue != null && !isLowConf)
-            Text('OCR value: ${d.ocrValue}${d.ocrConfidence != null ? ' (confidence ${(d.ocrConfidence! * 100).round()}%)' : ''}', style: const TextStyle(fontSize: 12)),
+            Text('OCR value: ${d.ocrValue}${d.ocrConfidence != null ? ' (confidence ${(d.ocrConfidence! <= 1.0 ? (d.ocrConfidence! * 100).round() : d.ocrConfidence!.round())}%)' : ''}', style: const TextStyle(fontSize: 12)),
           if (chk.message != null) Text(chk.message!, style: TextStyle(fontSize: 12, color: _color(chk.status))),
           for (final m in d.serverMessages.take(2)) Text(m, style: const TextStyle(fontSize: 12, color: Colors.orange)),
         ]),
@@ -251,7 +277,18 @@ class _VerifyScreenState extends State<VerifyScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final warnings = ((widget.ocr?['warnings'] as List?) ?? []).map((w) => (w as Map)['message'].toString()).toList();
+    final List<String> warnings = [];
+    final rawWarn = widget.ocr?['warnings'];
+    if (rawWarn is List) {
+      for (final w in rawWarn) {
+        if (w is Map) {
+          final msg = w['message'] ?? w['code'] ?? w.toString();
+          warnings.add(msg.toString());
+        } else if (w != null) {
+          warnings.add(w.toString());
+        }
+      }
+    }
     final invalidFields = _drafts.where((d) => !d.isRejected && d.check.blocksConfirm).toList();
     final ok = canConfirm(_drafts) && (_manual || _ack) && !_busy;
     return Scaffold(

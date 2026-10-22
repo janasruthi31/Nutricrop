@@ -8,7 +8,7 @@ plugins {
 android {
     namespace = "com.example.soil_report_phase3"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = "26.3.11579264"
+    ndkVersion = "27.0.12077973"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11

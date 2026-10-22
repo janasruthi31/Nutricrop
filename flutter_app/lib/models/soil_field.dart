@@ -80,9 +80,9 @@ class FieldDraft {
 
   factory FieldDraft.fromJson(Map<String, dynamic> j) {
     final v = j['value'];
-    final key = j['field'] as String;
+    final key = (j['field'] ?? '').toString();
     final spec = specFor(key);
-    String? unit = j['unit'] as String?;
+    String? unit = j['unit']?.toString();
     if (spec.units.isNotEmpty) {
       if (unit != null && !spec.units.contains(unit)) {
         unit = spec.units.first;
@@ -90,15 +90,27 @@ class FieldDraft {
         unit = spec.units.first;
       }
     }
+    final List<String> issuesList = [];
+    final rawIssues = j['issues'];
+    if (rawIssues is List) {
+      for (final item in rawIssues) {
+        if (item is Map) {
+          final m = item['message'] ?? item['code'];
+          if (m != null) issuesList.add(m.toString());
+        } else if (item != null) {
+          issuesList.add(item.toString());
+        }
+      }
+    }
     return FieldDraft(
       key: key,
       ocrValue: j['ocr_value']?.toString(),
       valueText: v == null ? '' : _trimNum(v),
       unit: unit,
-      method: j['test_method'] as String?,
+      method: j['test_method']?.toString(),
       ocrConfidence: (j['ocr_confidence'] as num?)?.toDouble(),
-      serverStatus: statusFrom(j['status'] as String?),
-      serverMessages: ((j['issues'] as List?) ?? []).map((i) => (i as Map)['message'].toString()).toList(),
+      serverStatus: statusFrom(j['status']?.toString()),
+      serverMessages: issuesList,
     );
   }
 

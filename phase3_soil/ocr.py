@@ -31,7 +31,23 @@ class OcrUnavailable(RuntimeError):
 
 def load_pages(path, kind):
     if kind == "pdf":
-        return convert_from_path(path, dpi=config.PDF_RENDER_DPI, first_page=1, last_page=config.MAX_PDF_PAGES)
+        try:
+            return convert_from_path(path, dpi=config.PDF_RENDER_DPI, first_page=1, last_page=config.MAX_PDF_PAGES)
+        except Exception:
+            try:
+                import pypdf
+                reader = pypdf.PdfReader(path)
+                images = []
+                for page in reader.pages[:config.MAX_PDF_PAGES]:
+                    for img in page.images:
+                        pil_im = Image.open(io.BytesIO(img.data)).convert("RGB")
+                        if pil_im.width >= 300 and pil_im.height >= 300:
+                            images.append(pil_im)
+                if images:
+                    return images
+            except Exception:
+                pass
+            raise
     img = Image.open(path)
     img = ImageOps.exif_transpose(img)
     return [img.convert("RGB")]

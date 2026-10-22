@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
+import 'api_client.dart';
 import '../config.dart';
 
 class ApiError implements Exception {
@@ -17,7 +18,9 @@ class SoilApi {
   SoilApi([http.Client? c]) : _c = c ?? http.Client();
 
   Map<String, String> get _h => {
-        'X-Farmer-Id': AppConfig.farmerId,
+        'X-Farmer-Id': ApiClient.instance.farmerId,
+        if (ApiClient.instance.authToken != null && ApiClient.instance.authToken!.isNotEmpty)
+          'Authorization': 'Bearer ${ApiClient.instance.authToken}',
         if (AppConfig.apiKey.isNotEmpty) 'X-API-Key': AppConfig.apiKey,
       };
 
