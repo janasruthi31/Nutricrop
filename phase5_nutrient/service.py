@@ -1145,7 +1145,9 @@ class NutrientCalculationService:
                 "soil_supply_kg_per_ha": soil_supply_n,
                 "fym_credit_kg_per_ha": fym_credit_n,
                 "previous_crop_credit_kg_per_ha": prev_crop_n,
+                "previous_crop_credit": prev_crop_n,
                 "previous_fertilizer_residual_kg_per_ha": prev_fert_n,
+                "previous_fertilizer_residual": prev_fert_n,
                 "final_net_dose_kg_per_ha": n_req,
                 "final_net_dose_kg_per_acre": n_req_acre,
                 "total_farm_dose_kg": total_n,
@@ -1157,7 +1159,9 @@ class NutrientCalculationService:
                 "soil_supply_kg_per_ha": soil_supply_p,
                 "fym_credit_kg_per_ha": fym_credit_p,
                 "previous_crop_credit_kg_per_ha": prev_crop_p,
+                "previous_crop_credit": prev_crop_p,
                 "previous_fertilizer_residual_kg_per_ha": prev_fert_p,
+                "previous_fertilizer_residual": prev_fert_p,
                 "final_net_dose_kg_per_ha": p2o5_req,
                 "final_net_dose_kg_per_acre": p2o5_req_acre,
                 "total_farm_dose_kg": total_p2o5,
@@ -1169,13 +1173,18 @@ class NutrientCalculationService:
                 "soil_supply_kg_per_ha": soil_supply_k,
                 "fym_credit_kg_per_ha": fym_credit_k,
                 "previous_crop_credit_kg_per_ha": prev_crop_k,
+                "previous_crop_credit": prev_crop_k,
                 "previous_fertilizer_residual_kg_per_ha": prev_fert_k,
+                "previous_fertilizer_residual": prev_fert_k,
                 "final_net_dose_kg_per_ha": k2o_req,
                 "final_net_dose_kg_per_acre": k2o_req_acre,
                 "total_farm_dose_kg": total_k2o,
                 "clamped_at_zero": raw_k < 0
             }
         }
+        nutrient_breakdown["N"] = nutrient_breakdown["nitrogen"]
+        nutrient_breakdown["P2O5"] = nutrient_breakdown["phosphorus"]
+        nutrient_breakdown["K2O"] = nutrient_breakdown["potassium"]
 
         if is_no_soil_test:
             derivation_explanation = (
@@ -1311,6 +1320,8 @@ class NutrientCalculationService:
             previous_crop_credit_kg_per_ha=previous_crop_credit_kg_per_ha,
             previous_fertilizer_residual_kg_per_ha=previous_fertilizer_residual_kg_per_ha,
             nutrient_breakdown=nutrient_breakdown,
+            card_comparison=card_comparison,
+            card_printed_comparison=card_comparison,
             warnings=warnings,
             missing_inputs=[],
             validation_errors=[]

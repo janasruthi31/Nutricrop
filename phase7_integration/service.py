@@ -350,6 +350,15 @@ class FullRecommendationService:
         all_warnings: list = []
         if status_message and status_message not in all_warnings:
             all_warnings.append(status_message)
+        for w in (p4_res.warnings or []):
+            if w not in all_warnings:
+                all_warnings.append(w)
+        for w in (p5_res.warnings or []):
+            if w not in all_warnings:
+                all_warnings.append(w)
+        for w in (p6_res.warnings or []):
+            if w not in all_warnings:
+                all_warnings.append(w)
 
         # Check test_date age (Task 3c)
         test_date = req.get("test_date") or (p_dict or {}).get("test_date")

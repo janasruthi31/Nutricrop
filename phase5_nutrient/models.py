@@ -125,6 +125,8 @@ class NutrientCalculationResponse(BaseModel):
     previous_crop_credit_kg_per_ha: Optional[Dict[str, float]] = None
     previous_fertilizer_residual_kg_per_ha: Optional[Dict[str, float]] = None
     nutrient_breakdown: Optional[Dict[str, Any]] = None
+    card_comparison: Optional[Dict[str, Any]] = None
+    card_printed_comparison: Optional[Dict[str, Any]] = None
 
     warnings: List[str] = Field(default_factory=list)
     missing_inputs: List[str] = Field(default_factory=list)
