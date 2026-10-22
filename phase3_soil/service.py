@@ -91,6 +91,13 @@ def upload(farmer_id, data, db_path=None):
     with db.connect(db_path) as con:
         row = con.execute("SELECT document_id, status FROM soil_documents WHERE farmer_id=? AND sha256=?", (farmer_id, sha)).fetchone()
         if row:
+            existing_doc = con.execute("SELECT file_path FROM soil_documents WHERE document_id=?", (row["document_id"],)).fetchone()
+            if existing_doc and existing_doc["file_path"]:
+                fpath = existing_doc["file_path"]
+                if not os.path.exists(fpath):
+                    os.makedirs(os.path.dirname(fpath), exist_ok=True)
+                    with open(fpath, "wb") as fh:
+                        fh.write(data)
             return {"document_id": row["document_id"], "status": "uploaded", "duplicate_document": True}
         os.makedirs(config.STORAGE_DIR, exist_ok=True)
         doc_id = uuid.uuid4().hex
@@ -136,6 +143,22 @@ def run_ocr(farmer_id, document_id, db_path=None):
         if not doc:
             raise SoilError("DOCUMENT_NOT_FOUND", "Document not found.", 404)
         path, kind = doc["file_path"], doc["file_kind"]
+        cached = con.execute("SELECT * FROM soil_ocr_results WHERE document_id=? ORDER BY created_at DESC LIMIT 1", (document_id,)).fetchone()
+        if cached:
+            stored_fields = json.loads(cached["fields_json"])
+            stored_meta = json.loads(cached["metadata_json"])
+            mc = cached["mean_confidence"]
+            warnings = []
+            if mc is not None and mc < config.LOW_MEAN_WORD_CONF:
+                warnings.append(issue("poor_image_quality", "warning", "The report was hard to read. Please check every value carefully."))
+            for f in stored_fields:
+                if f.get("field") == "phosphorus" and f.get("value") is not None and f.get("test_method") is None:
+                    warnings.append(issue("p_method_unknown", "warning", "Phosphorus test method (Olsen / Bray) not found. Please select it if you know it."))
+            return {"status": "extracted", "verification_required": True, "banner": BANNER, "document_id": document_id, "ocr_id": cached["ocr_id"],
+                    "fields": stored_fields, "metadata": stored_meta, "review_only": {},
+                    "metadata_issues": [], "warnings": warnings,
+                    "mean_ocr_confidence": None if mc is None else (round(mc / 100, 3) if mc > 1.0 else round(mc, 3)),
+                    "confidence_note": "Tesseract's own word-confidence average; not a measured accuracy."}
     try:
         res = ocr_mod.run_ocr(path, "pdf" if kind == "pdf" else "image", psm=6)
         ex = extract_fields(res["lines"]) if res["lines"] else {}
