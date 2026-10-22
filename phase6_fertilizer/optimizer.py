@@ -12,7 +12,7 @@ from .models import (
     NutrientBalanceDetail,
     SplitApplicationStage,
 )
-from .catalog import FERTILIZER_CATALOG, get_fertilizer_catalog
+from .catalog import FERTILIZER_CATALOG, get_fertilizer_catalog, CATALOG_LAST_UPDATED
 
 __all__ = [
     "FertilizerOptimizerService",
@@ -24,4 +24,5 @@ __all__ = [
     "SplitApplicationStage",
     "FERTILIZER_CATALOG",
     "get_fertilizer_catalog",
+    "CATALOG_LAST_UPDATED",
 ]

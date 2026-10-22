@@ -129,8 +129,80 @@ CREATE INDEX IF NOT EXISTS idx_password_resets_email ON password_resets(email);
 """
 
 
+import logging
+import os
+import sqlite3
+from contextlib import contextmanager
+
+from . import config
+
+logger = logging.getLogger(__name__)
+
+
+class _PostgresConnectionAdapter:
+    """Wraps a psycopg2 connection to provide SQLite-compatible execution semantics."""
+    def __init__(self, raw_conn):
+        self.raw_conn = raw_conn
+
+    def execute(self, sql: str, params=()):
+        if sql.strip().upper().startswith("PRAGMA"):
+            class _DummyCursor:
+                def fetchall(self):
+                    return []
+                def fetchone(self):
+                    return None
+            return _DummyCursor()
+        pg_sql = sql.replace("?", "%s")
+        if "INSERT OR IGNORE INTO" in pg_sql:
+            pg_sql = pg_sql.replace("INSERT OR IGNORE INTO", "INSERT INTO") + " ON CONFLICT DO NOTHING"
+        elif "INSERT OR REPLACE INTO" in pg_sql:
+            pg_sql = pg_sql.replace("INSERT OR REPLACE INTO", "INSERT INTO")
+        cur = self.raw_conn.cursor()
+        cur.execute(pg_sql, params)
+        return cur
+
+    def executescript(self, script: str):
+        cur = self.raw_conn.cursor()
+        for statement in script.split(";"):
+            stmt = statement.strip()
+            if stmt and not stmt.upper().startswith("PRAGMA"):
+                try:
+                    cur.execute(stmt)
+                except Exception as e:
+                    logger.debug(f"Statement in executescript skipped: {e}")
+        return cur
+
+    def commit(self):
+        self.raw_conn.commit()
+
+    def rollback(self):
+        self.raw_conn.rollback()
+
+    def close(self):
+        self.raw_conn.close()
+
+
 @contextmanager
 def connect(path=None):
+    db_url = os.environ.get("DATABASE_URL", "").strip()
+    if db_url and (db_url.startswith("postgres://") or db_url.startswith("postgresql://")):
+        try:
+            import psycopg2
+            import psycopg2.extras
+            raw_conn = psycopg2.connect(db_url, cursor_factory=psycopg2.extras.DictCursor)
+            adapter = _PostgresConnectionAdapter(raw_conn)
+            try:
+                yield adapter
+                adapter.commit()
+            except Exception:
+                adapter.rollback()
+                raise
+            finally:
+                adapter.close()
+            return
+        except Exception as e:
+            logger.warning(f"DATABASE_URL PostgreSQL connection failed ({e}), falling back to SQLite.")
+
     con = sqlite3.connect(path or config.DB_PATH, timeout=30.0)
     con.row_factory = sqlite3.Row
     con.execute("PRAGMA foreign_keys = ON")
@@ -156,15 +228,27 @@ def init_db(path=None):
 
         # Migrations for existing databases: ensure farmer_farms has latitude, longitude, taluk, state
         cursor = con.execute("PRAGMA table_info(farmer_farms)")
-        existing_cols = {row["name"] for row in cursor.fetchall()}
+        existing_cols = {row["name"] for row in (cursor.fetchall() or [])}
         if "latitude" not in existing_cols:
-            con.execute("ALTER TABLE farmer_farms ADD COLUMN latitude REAL")
+            try:
+                con.execute("ALTER TABLE farmer_farms ADD COLUMN latitude REAL")
+            except Exception:
+                pass
         if "longitude" not in existing_cols:
-            con.execute("ALTER TABLE farmer_farms ADD COLUMN longitude REAL")
+            try:
+                con.execute("ALTER TABLE farmer_farms ADD COLUMN longitude REAL")
+            except Exception:
+                pass
         if "taluk" not in existing_cols:
-            con.execute("ALTER TABLE farmer_farms ADD COLUMN taluk TEXT")
+            try:
+                con.execute("ALTER TABLE farmer_farms ADD COLUMN taluk TEXT")
+            except Exception:
+                pass
         if "state" not in existing_cols:
-            con.execute("ALTER TABLE farmer_farms ADD COLUMN state TEXT DEFAULT 'Tamil Nadu'")
+            try:
+                con.execute("ALTER TABLE farmer_farms ADD COLUMN state TEXT DEFAULT 'Tamil Nadu'")
+            except Exception:
+                pass
 
         # Seed fertilizer_prices from catalog if table is empty
         row = con.execute("SELECT COUNT(*) as cnt FROM fertilizer_prices").fetchone()

@@ -3,10 +3,17 @@ Commercial Fertilizer Catalog and Price Registry for Tamil Nadu.
 Contains verified nutrient compositions (% N, P2O5, K2O), bag sizes, and retail prices in INR.
 """
 
+import json
+import os
 from typing import Any, Dict, List, Optional
 
-# Verified Tamil Nadu fertilizer products catalog with dated price references
-FERTILIZER_CATALOG: List[Dict[str, Any]] = [
+_BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_PRICES_JSON_PATH = os.path.join(_BASE_DIR, "data", "agronomy", "fertilizer_prices.json")
+
+CATALOG_LAST_UPDATED = "2026-10-22"
+
+# Default fallback catalog
+_DEFAULT_CATALOG: List[Dict[str, Any]] = [
     {
         "id": "UREA",
         "name": "Neem Coated Urea",
@@ -21,6 +28,7 @@ FERTILIZER_CATALOG: List[Dict[str, Any]] = [
         "package_unit": "bag",
         "source": "Department of Fertilizers, Ministry of Chemicals & Fertilizers, GoI (Statutory MRP notification)",
         "effective_date": "2024-04-01",
+        "last_updated": "2026-10-22",
         "verification_status": "VERIFIED",
         "description": "Standard Nitrogen source (46% N)"
     },
@@ -111,6 +119,23 @@ FERTILIZER_CATALOG: List[Dict[str, Any]] = [
     }
 ]
 
+def _load_catalog() -> tuple[List[Dict[str, Any]], str]:
+    if os.path.exists(_PRICES_JSON_PATH):
+        try:
+            with open(_PRICES_JSON_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                return data.get("products", _DEFAULT_CATALOG), data.get("last_updated", CATALOG_LAST_UPDATED)
+        except Exception:
+            pass
+    return _DEFAULT_CATALOG, CATALOG_LAST_UPDATED
+
+_loaded_catalog, CATALOG_LAST_UPDATED = _load_catalog()
+FERTILIZER_CATALOG: List[Dict[str, Any]] = _loaded_catalog
+
 
 def get_fertilizer_catalog() -> List[Dict[str, Any]]:
     return [dict(p) for p in FERTILIZER_CATALOG]
+
+
+def get_catalog_last_updated() -> str:
+    return CATALOG_LAST_UPDATED

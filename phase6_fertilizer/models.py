@@ -22,6 +22,7 @@ class FertilizerOptimizationRequest(BaseModel):
     allow_unverified: bool = Field(False, description="Whether unverified rule calculation is permitted as provisional")
     allow_fractional_bags: bool = Field(False, description="Whether fractional bag / loose fertilizer application is permitted (ideal for smallholders)")
     max_surplus_factor: Optional[float] = Field(None, description="Optional upper bound factor on nutrient oversupply (e.g. 1.5 for max 50% surplus)")
+    custom_prices: Optional[Dict[str, float]] = Field(None, description="Custom local bag prices keyed by product ID (e.g. {'UREA': 280.0, 'DAP': 1400.0})")
 
 
 class FertilizerProductRecommendation(BaseModel):
@@ -45,6 +46,7 @@ class NutrientBalanceDetail(BaseModel):
     required_kg: float
     supplied_kg: float
     surplus_kg: float
+    surplus_pct: Optional[float] = Field(0.0, description="Percentage surplus relative to target requirement")
 
 
 class SplitApplicationStage(BaseModel):
@@ -67,6 +69,12 @@ class FertilizerOptimizationResponse(BaseModel):
     recommendation_type: str = Field("SOIL_SPECIFIC_STCR", description="Recommendation type")
     recommended_products: List[FertilizerProductRecommendation] = Field(default_factory=list)
     nutrient_balance: Dict[str, NutrientBalanceDetail] = Field(default_factory=dict)
+    nutrient_surplus_kg: Dict[str, float] = Field(default_factory=dict, description="Nutrient surplus in kg (supplied - required)")
+    has_surplus: bool = Field(False, description="Whether any nutrient has a positive surplus")
+    surplus_summary: Optional[str] = Field(None, description="Clear agronomic description of surplus")
+    custom_prices_applied: bool = Field(False, description="True if farmer custom local prices were used")
+    prices_last_updated: Optional[str] = Field("2026-10-22", description="Date fertilizer price registry was last updated")
+    rules_last_updated: Optional[str] = Field("2026-10-22", description="Date agronomic rules were last updated")
     split_application_schedule: List[SplitApplicationStage] = Field(default_factory=list)
     warnings: List[str] = Field(default_factory=list)
     validation_errors: List[str] = Field(default_factory=list)

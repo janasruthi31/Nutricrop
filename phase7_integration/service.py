@@ -6,13 +6,19 @@ Supports dual recommendation modes:
   2. 'CALCULATED_AGRONOMIC': Computed from verified TNAU STCR / soil-test equations.
 """
 
-from typing import Any, Dict, Optional
+import hashlib
+import json
+import time
+from typing import Any, Dict, Optional, Tuple
 from agronomy.service import RuleSelectionService, RuleSelectionRequest
 from phase5_nutrient.service import NutrientCalculationService, NutrientCalculationRequest
 from phase6_fertilizer.service import FertilizerOptimizerService
 from phase6_fertilizer.models import FertilizerOptimizationRequest, FertilizerOptimizationResponse
 from phase7_integration.weather import get_weather_guidance
 from predict_yield import predict_district_yield
+
+_RECOMMENDATION_CACHE: Dict[str, Tuple[float, Dict[str, Any]]] = {}
+_RECOMMENDATION_CACHE_TTL = 3 * 3600  # 3 hours (10800 seconds)
 
 
 class FullRecommendationService:
@@ -22,6 +28,44 @@ class FullRecommendationService:
         self.fertilizer_service = FertilizerOptimizerService()
 
     def generate_full_recommendation(self, req: Dict[str, Any]) -> Dict[str, Any]:
+        # 3-hour recommendation caching by request payload hash
+        cache_key = None
+        if not req.get("no_cache"):
+            try:
+                # Deterministic hash of significant calculation parameters
+                key_fields = {
+                    "crop": req.get("crop"),
+                    "district": req.get("district"),
+                    "soil_series": req.get("soil_series"),
+                    "season": req.get("season"),
+                    "target_yield": req.get("target_yield"),
+                    "soil_n": req.get("soil_nitrogen"),
+                    "soil_p": req.get("soil_phosphorus"),
+                    "soil_k": req.get("soil_potassium"),
+                    "farm_area": req.get("farm_area"),
+                    "farm_area_unit": req.get("farm_area_unit"),
+                    "previous_crop": req.get("previous_crop"),
+                    "previous_fertilizers": req.get("previous_fertilizers"),
+                    "fym": req.get("fym_applied_t_per_ha"),
+                    "custom_prices": req.get("custom_prices"),
+                    "allow_unverified": req.get("allow_unverified"),
+                    "recommendation_mode": req.get("recommendation_mode"),
+                    "recommendation_type": req.get("recommendation_type"),
+                    "no_soil_test": req.get("no_soil_test"),
+                }
+                cache_key = hashlib.sha256(json.dumps(key_fields, sort_keys=True, default=str).encode("utf-8")).hexdigest()
+                cached_entry = _RECOMMENDATION_CACHE.get(cache_key)
+                if cached_entry:
+                    exp_ts, cached_data = cached_entry
+                    if time.time() < exp_ts:
+                        res = dict(cached_data)
+                        res["is_cached"] = True
+                        return res
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(f"Cache key computation error: {e}")
+                cache_key = None
+
         crop = req.get("crop", "Rice")
         district = req.get("district", "Thanjavur")
         soil_series = req.get("soil_series")
@@ -103,7 +147,6 @@ class FullRecommendationService:
         if profile_id:
             try:
                 from phase3_soil import db
-                import json
                 with db.connect() as con:
                     row = con.execute("SELECT profile_json FROM soil_profiles WHERE soil_profile_id = ?", (profile_id,)).fetchone()
                     if row:
@@ -246,7 +289,8 @@ class FullRecommendationService:
             p6_req = FertilizerOptimizationRequest(
                 crop=crop,
                 phase5_result=p5_res.model_dump(),
-                allow_unverified=allow_unverified
+                allow_unverified=allow_unverified,
+                custom_prices=req.get("custom_prices")
             )
             p6_res = self.fertilizer_service.optimize(p6_req)
 
@@ -339,7 +383,7 @@ class FullRecommendationService:
             if w not in all_warnings:
                 all_warnings.append(w)
 
-        return {
+        res_payload = {
             "status": final_status,
             "is_verified": final_is_verified,
             "is_provisional": not final_is_verified,
@@ -356,8 +400,21 @@ class FullRecommendationService:
             "message": status_message,
             "warnings": all_warnings,
             "district_yield_prediction": yield_pred,
-            "weather_guidance": weather_res
+            "weather_guidance": weather_res,
+            "nutrient_surplus_kg": p6_res.nutrient_surplus_kg,
+            "has_surplus": p6_res.has_surplus,
+            "surplus_summary": p6_res.surplus_summary,
+            "custom_prices_applied": p6_res.custom_prices_applied,
+            "prices_last_updated": p6_res.prices_last_updated or "2026-10-22",
+            "rules_last_updated": p6_res.rules_last_updated or "2026-10-22",
+            "data_source": weather_res.get("data_source", "live"),
+            "is_cached": False,
         }
+
+        if cache_key and final_status in ("SUCCESS", "PROVISIONAL_PENDING_VALIDATION"):
+            _RECOMMENDATION_CACHE[cache_key] = (time.time() + _RECOMMENDATION_CACHE_TTL, res_payload)
+
+        return res_payload
 
 
 def get_full_recommendation(payload: Dict[str, Any]) -> Dict[str, Any]:

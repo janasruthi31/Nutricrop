@@ -143,8 +143,20 @@ class FertilizerOptimizerService:
                 validation_errors=validation_errors
             )
 
+        # Prepare candidate fertilizers and apply custom local prices if provided
+        custom_prices_applied = False
+        candidates = [dict(p) for p in self.catalog]
+        if req.custom_prices and isinstance(req.custom_prices, dict):
+            for p in candidates:
+                pid = p.get("id", "")
+                for c_k, c_v in req.custom_prices.items():
+                    if c_k.strip().upper() == pid.strip().upper() and float(c_v) > 0:
+                        p["price_per_bag_inr"] = float(c_v)
+                        p["price_per_kg_inr"] = round(float(c_v) / max(0.1, float(p.get("bag_size_kg", 50.0))), 2)
+                        p["source"] = "Local Dealer / Farmer Custom Price"
+                        custom_prices_applied = True
+
         # Filter candidate fertilizers if allowed list is specified
-        candidates = self.catalog
         if req.allowed_fertilizers:
             allowed_set = {a.upper() for a in req.allowed_fertilizers}
             candidates = [p for p in candidates if p["id"].upper() in allowed_set]
@@ -326,23 +338,49 @@ class FertilizerOptimizerService:
         supplied_p2o5 = round(supplied_p2o5, 2)
         supplied_k2o = round(supplied_k2o, 2)
 
+        surplus_n = round(max(0.0, supplied_n - n_req), 2)
+        surplus_p = round(max(0.0, supplied_p2o5 - p2o5_req), 2)
+        surplus_k = round(max(0.0, supplied_k2o - k2o_req), 2)
+
+        surplus_pct_n = round((surplus_n / n_req) * 100.0, 1) if n_req > 0 else 0.0
+        surplus_pct_p = round((surplus_p / p2o5_req) * 100.0, 1) if p2o5_req > 0 else 0.0
+        surplus_pct_k = round((surplus_k / k2o_req) * 100.0, 1) if k2o_req > 0 else 0.0
+
         nutrient_balance = {
             "nitrogen": NutrientBalanceDetail(
                 required_kg=round(n_req, 2),
                 supplied_kg=supplied_n,
-                surplus_kg=round(max(0.0, supplied_n - n_req), 2)
+                surplus_kg=surplus_n,
+                surplus_pct=surplus_pct_n,
             ),
             "phosphorus_p2o5": NutrientBalanceDetail(
                 required_kg=round(p2o5_req, 2),
                 supplied_kg=supplied_p2o5,
-                surplus_kg=round(max(0.0, supplied_p2o5 - p2o5_req), 2)
+                surplus_kg=surplus_p,
+                surplus_pct=surplus_pct_p,
             ),
             "potassium_k2o": NutrientBalanceDetail(
                 required_kg=round(k2o_req, 2),
                 supplied_kg=supplied_k2o,
-                surplus_kg=round(max(0.0, supplied_k2o - k2o_req), 2)
+                surplus_kg=surplus_k,
+                surplus_pct=surplus_pct_k,
             )
         }
+
+        surplus_dict = {
+            "nitrogen": surplus_n,
+            "phosphorus_p2o5": surplus_p,
+            "potassium_k2o": surplus_k
+        }
+        has_surplus = any(v > 0.05 for v in surplus_dict.values())
+        surplus_parts = []
+        if surplus_n > 0.05:
+            surplus_parts.append(f"Nitrogen +{surplus_n} kg (+{surplus_pct_n}%)")
+        if surplus_p > 0.05:
+            surplus_parts.append(f"P₂O₅ +{surplus_p} kg (+{surplus_pct_p}%)")
+        if surplus_k > 0.05:
+            surplus_parts.append(f"K₂O +{surplus_k} kg (+{surplus_pct_k}%)")
+        surplus_summary = "; ".join(surplus_parts) if surplus_parts else "Balanced (0 kg surplus)"
 
         # Generate crop-specific phenological split application schedule
         split_schedule = self._generate_split_schedule(crop or "General", product_recs)
@@ -385,6 +423,12 @@ class FertilizerOptimizerService:
             recommendation_type=rec_type,
             recommended_products=product_recs,
             nutrient_balance=nutrient_balance,
+            nutrient_surplus_kg=surplus_dict,
+            has_surplus=has_surplus,
+            surplus_summary=surplus_summary,
+            custom_prices_applied=custom_prices_applied,
+            prices_last_updated="2026-10-22",
+            rules_last_updated="2026-10-22",
             split_application_schedule=split_schedule,
             warnings=warnings
         )

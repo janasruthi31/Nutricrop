@@ -113,13 +113,52 @@ class ApiClient {
     return body;
   }
 
-  Future<T> _guard<T>(Future<T> Function() f) async {
+  Future<void> queueOfflineRequest(String endpoint, Map<String, dynamic> payload) async {
     try {
-      return await f().timeout(const Duration(seconds: 45));
-    } on ApiException {
-      rethrow;
-    } catch (e) {
-      throw ApiException('NETWORK', 'Could not reach server. Please check connection and try again.');
+      final prefs = await SharedPreferences.getInstance();
+      final queue = prefs.getStringList('agri_offline_request_queue') ?? [];
+      queue.add(jsonEncode({
+        'endpoint': endpoint,
+        'payload': payload,
+        'queued_at': DateTime.now().toIso8601String(),
+      }));
+      await prefs.setStringList('agri_offline_request_queue', queue);
+    } catch (_) {}
+  }
+
+  Future<List<Map<String, dynamic>>> getOfflineRequestQueue() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final queue = prefs.getStringList('agri_offline_request_queue') ?? [];
+      return queue.map((s) => jsonDecode(s) as Map<String, dynamic>).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<void> clearOfflineRequestQueue() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('agri_offline_request_queue');
+    } catch (_) {}
+  }
+
+  static bool enableRetry = true;
+
+  Future<T> _guard<T>(Future<T> Function() f, {int retries = 2}) async {
+    int attempts = 0;
+    while (true) {
+      try {
+        attempts++;
+        return await f().timeout(const Duration(seconds: 45));
+      } on ApiException {
+        rethrow;
+      } catch (e) {
+        if (attempts > retries || !enableRetry) {
+          throw ApiException('NETWORK', 'Could not reach server. Please check connection and try again.');
+        }
+        await Future.delayed(Duration(milliseconds: 300 * attempts));
+      }
     }
   }
 
@@ -298,6 +337,15 @@ class ApiClient {
   Future<Map<String, dynamic>> getFullRecommendation(Map<String, dynamic> payload) => _guard(() async {
         final res = await _client.post(
           Uri.parse('${AppConfig.apiBase}/api/full-recommendation'),
+          headers: {..._headers, 'Content-Type': 'application/json'},
+          body: jsonEncode(payload),
+        );
+        return _decode(res);
+      });
+
+  Future<Map<String, dynamic>> getTamilVoiceSummary(Map<String, dynamic> payload) => _guard(() async {
+        final res = await _client.post(
+          Uri.parse('${AppConfig.apiBase}/api/voice/tamil-summary'),
           headers: {..._headers, 'Content-Type': 'application/json'},
           body: jsonEncode(payload),
         );

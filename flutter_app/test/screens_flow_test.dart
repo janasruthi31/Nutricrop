@@ -9,6 +9,7 @@ import 'package:soil_report_phase3/screens/register_screen.dart';
 import 'package:soil_report_phase3/screens/yield_prediction_input_screen.dart';
 import 'package:soil_report_phase3/theme/app_theme.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:soil_report_phase3/services/api_client.dart';
 
 Widget _buildTestableWidget(Widget child) {
   return MaterialApp(
@@ -32,6 +33,7 @@ Widget _buildTestableWidget(Widget child) {
 void main() {
   setUp(() {
     globalLocaleNotifier.setLanguageCode('en');
+    ApiClient.enableRetry = false;
   });
 
   testWidgets('LanguageSelectionScreen displays English, Tamil, Hindi options', (WidgetTester tester) async {

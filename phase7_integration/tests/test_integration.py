@@ -217,3 +217,112 @@ def test_09_stale_weather_cache_fallback(monkeypatch):
     assert live["current"]["temperature_c"] == 29.5
 
 
+# 10. Task 4e: Custom local bag prices and nutrient surplus reporting
+def test_10_task4_custom_prices_and_surplus():
+    payload_default = {
+        "crop": "Rice",
+        "district": "Thanjavur",
+        "soil_series": "Palavidhi",
+        "season": "Kharif",
+        "target_yield": 6.0,
+        "soil_nitrogen": 220.0,
+        "soil_phosphorus": 16.0,
+        "soil_potassium": 190.0,
+        "farm_area": 1.0,
+        "farm_area_unit": "ha",
+        "no_cache": True
+    }
+    res_def = get_full_recommendation(payload_default)
+    assert res_def["status"] == "SUCCESS"
+    assert "nutrient_surplus_kg" in res_def
+    assert "surplus_summary" in res_def
+    assert res_def["custom_prices_applied"] is False
+    cost_default = res_def["fertilizer_plan"]["total_cost_inr"]
+
+    # Now apply custom higher local bag prices for Urea and DAP
+    payload_custom = dict(payload_default)
+    payload_custom["custom_prices"] = {
+        "UREA": 350.0,  # default is 266.50
+        "DAP": 1600.0,  # default is 1350.00
+    }
+    res_custom = get_full_recommendation(payload_custom)
+    assert res_custom["status"] == "SUCCESS"
+    assert res_custom["custom_prices_applied"] is True
+    assert res_custom["fertilizer_plan"]["custom_prices_applied"] is True
+    cost_custom = res_custom["fertilizer_plan"]["total_cost_inr"]
+    # With higher local prices, the total cost must reflect the custom prices
+    assert cost_custom > cost_default
+
+
+# 11. Task 4d & 4a: Last updated dates and 3-hour recommendation caching
+def test_11_task4_caching_and_dates():
+    from phase7_integration.service import _RECOMMENDATION_CACHE
+    _RECOMMENDATION_CACHE.clear()
+
+    payload = {
+        "crop": "Cotton (lint)",
+        "district": "Coimbatore",
+        "soil_series": "Irugur",
+        "season": "Kharif",
+        "target_yield": 2.5,
+        "soil_nitrogen": 200.0,
+        "soil_phosphorus": 14.0,
+        "soil_potassium": 180.0,
+        "farm_area": 1.0,
+        "farm_area_unit": "hectare"
+    }
+    res1 = get_full_recommendation(payload)
+    assert res1["status"] == "SUCCESS"
+    assert res1["prices_last_updated"] == "2026-10-22"
+    assert res1["rules_last_updated"] == "2026-10-22"
+    assert res1["is_cached"] is False
+
+    # Repeat identical call should hit the 3-hour recommendation cache
+    res2 = get_full_recommendation(payload)
+    assert res2["status"] == "SUCCESS"
+    assert res2["is_cached"] is True
+
+
+# 12. Task 4b: Tamil Voice Summary endpoint
+def test_12_task4_tamil_voice_summary_endpoint():
+    rec_payload = {
+        "crop": "Rice",
+        "district": "Thanjavur",
+        "fertilizer_plan": {
+            "total_cost_inr": 3450.0,
+            "recommended_products": [
+                {"name": "Neem Coated Urea", "bags": 3, "product_name": "Neem Coated Urea"},
+                {"name": "Di-Ammonium Phosphate (DAP)", "bags": 2, "product_name": "Di-Ammonium Phosphate (DAP)"}
+            ]
+        }
+    }
+    response = client.post("/api/voice/tamil-summary", json=rec_payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "SUCCESS"
+    assert "tamil_speech_script" in data
+    assert "வணக்கம் உழவரே" in data["tamil_speech_script"]
+    assert "யூரியா" in data["tamil_speech_script"]
+    assert data["voice_locale"] == "ta-IN"
+
+
+# 13. Task 4a: Seasonal weather estimate fallback when offline
+def test_13_task4_seasonal_weather_estimate_fallback(monkeypatch):
+    from phase7_integration import weather
+
+    # Force cache miss and network failure
+    monkeypatch.setattr(weather, "_get_cached_weather", lambda k: None)
+    monkeypatch.setattr(weather, "_get_stale_cached_weather", lambda k: None)
+
+    def mock_net_fail(lat, lon):
+        raise ConnectionError("Network unreachable")
+
+    monkeypatch.setattr(weather, "_fetch_open_meteo", mock_net_fail)
+
+    guidance = weather.get_weather_guidance(district="Tiruchirappalli")
+    assert guidance["status"] == "WEATHER_UNAVAILABLE"
+    assert guidance["data_source"] == "seasonal estimate"
+    assert guidance["temperature_c"] is not None
+    assert guidance["rainfall_mm_24h"] is not None
+
+
