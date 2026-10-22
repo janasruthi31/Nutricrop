@@ -53,6 +53,7 @@ class NutrientCalculationRequest(BaseModel):
     printed_source: Optional[str] = Field("Uploaded Soil Health Card", description="Label of source document")
     allow_unverified: Optional[bool] = Field(False, description="Allow calculation for unverified rule with unverified status flag")
     recommendation_type: Optional[str] = Field(None, description="'SOIL_SPECIFIC_STCR', 'GENERAL_BLANKET', 'SOIL_HEALTH_CARD', 'PROVISIONAL_UNVERIFIED'")
+    no_soil_test: Optional[bool] = Field(False, description="Flag indicating farmer has no soil test card; use general blanket dose")
 
 
 

@@ -58,6 +58,28 @@ class UploadScreen extends StatelessWidget {
           icon: const Icon(Icons.edit_note),
           label: Text(l10n.text('manual_entry')),
         ),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed: () {
+            onValidatedProfile({
+              'no_soil_test': true,
+              'recommendation_type': 'GENERAL_BLANKET',
+              'confidence': 'lower',
+              'confidence_label': 'General recommendation (lower confidence)',
+              'crop': 'Rice',
+              'district': 'Thanjavur',
+              'warnings': [
+                'No soil test card provided. Using official TNAU blanket recommendation. For higher yield and fertilizer savings, we recommend getting your soil tested at your nearest Agricultural Extension Center (AEC).'
+              ]
+            });
+          },
+          icon: const Icon(Icons.grass_rounded, color: Color(0xFF00796B)),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: const Color(0xFF00796B),
+            side: const BorderSide(color: Color(0xFF00796B)),
+          ),
+          label: const Text('No Soil Test Card? (General Blanket Dose)'),
+        ),
       ]),
     );
   }

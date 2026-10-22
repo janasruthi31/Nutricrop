@@ -12,4 +12,4 @@ API_KEY = os.environ.get("SOIL_API_KEY")  # if set, X-API-Key header is required
 # OCR quality heuristics (engineering thresholds, NOT accuracy claims)
 LOW_MEAN_WORD_CONF = 55.0   # Tesseract word confidence 0-100
 MIN_WORDS_FOR_TEXT = 8
-TEST_DATE_STALE_YEARS = 3
+TEST_DATE_STALE_YEARS = int(os.environ.get("SOIL_TEST_DATE_STALE_YEARS", 1))

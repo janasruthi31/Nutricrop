@@ -162,23 +162,89 @@ class _VerifyScreenState extends State<VerifyScreen> {
         FieldStatus.missing => Colors.grey,
       };
 
+  bool get _isTestDateOld {
+    final t = _date.text.trim();
+    if (t.isEmpty) return false;
+    try {
+      DateTime? d;
+      if (t.contains('-')) {
+        d = DateTime.tryParse(t);
+      } else if (t.contains('/')) {
+        final p = t.split('/');
+        if (p.length == 3) {
+          if (p[0].length == 4) {
+            d = DateTime.tryParse('${p[0]}-${p[1].padLeft(2, '0')}-${p[2].padLeft(2, '0')}');
+          } else if (p[2].length == 4) {
+            d = DateTime.tryParse('${p[2]}-${p[1].padLeft(2, '0')}-${p[0].padLeft(2, '0')}');
+          }
+        }
+      }
+      if (d != null) {
+        return DateTime.now().difference(d).inDays > 365;
+      }
+    } catch (_) {}
+    return false;
+  }
+
   Widget _card(FieldDraft d) {
     final spec = specFor(d.key);
     final chk = d.check;
     final shown = d.isRejected ? 'Rejected' : (d.valueText.isEmpty ? 'Not found - tap Edit to enter' : '${d.valueText}${d.unit != null ? ' ${d.unit}' : ''}');
     final status = d.isRejected ? FieldStatus.missing : (chk.status == FieldStatus.valid && d.serverStatus == FieldStatus.uncertain && d.action == 'accept' ? FieldStatus.uncertain : chk.status);
+
+    final conf = d.ocrConfidence;
+    final bool isLowConf = !_manual && conf != null &&
+        ((conf <= 1.0 && conf < 0.70) || (conf > 1.0 && conf < 70.0));
+    final bool isRed = isLowConf || status == FieldStatus.invalid;
+
     return Card(
+      color: isRed ? Colors.red.shade50 : null,
+      shape: RoundedRectangleBorder(
+        side: BorderSide(
+          color: isRed ? Colors.red.shade700 : (status == FieldStatus.uncertain ? Colors.orange.shade400 : Colors.grey.shade300),
+          width: isRed ? 2.0 : 1.0,
+        ),
+        borderRadius: BorderRadius.circular(8),
+      ),
       child: ListTile(
-        leading: Icon(Icons.circle, color: _color(status), size: 14),
-        title: Text(spec.label),
+        leading: Icon(
+          isRed ? Icons.error_outline : Icons.circle,
+          color: isRed ? Colors.red.shade700 : _color(status),
+          size: 16,
+        ),
+        title: Text(
+          spec.label,
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            color: isRed ? Colors.red.shade900 : null,
+          ),
+        ),
         subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(shown, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+          Text(shown, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: isRed ? Colors.red.shade900 : null)),
+          if (isLowConf)
+            Container(
+              margin: const EdgeInsets.only(top: 4, bottom: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(color: Colors.red.shade100, borderRadius: BorderRadius.circular(4)),
+              child: Text(
+                'Low OCR Confidence (${conf != null ? (conf <= 1.0 ? (conf * 100).round() : conf.round()) : 0}%) - Please tap Edit to check',
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.red.shade900),
+              ),
+            ),
           if (d.key == 'phosphorus' && d.valueText.isNotEmpty) Text(d.method ?? 'Method not known'),
-          if (!_manual && d.ocrValue != null) Text('OCR value: ${d.ocrValue}${d.ocrConfidence != null ? '  (confidence ${(d.ocrConfidence! * 100).round()}%)' : ''}', style: const TextStyle(fontSize: 12)),
+          if (!_manual && d.ocrValue != null && !isLowConf)
+            Text('OCR value: ${d.ocrValue}${d.ocrConfidence != null ? ' (confidence ${(d.ocrConfidence! * 100).round()}%)' : ''}', style: const TextStyle(fontSize: 12)),
           if (chk.message != null) Text(chk.message!, style: TextStyle(fontSize: 12, color: _color(chk.status))),
           for (final m in d.serverMessages.take(2)) Text(m, style: const TextStyle(fontSize: 12, color: Colors.orange)),
         ]),
-        trailing: TextButton(onPressed: () => _edit(d), child: const Text('Edit')),
+        trailing: OutlinedButton(
+          onPressed: () => _edit(d),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: isRed ? Colors.red.shade700 : null,
+            side: isRed ? BorderSide(color: Colors.red.shade700) : null,
+          ),
+          child: const Text('Edit'),
+        ),
       ),
     );
   }
@@ -191,6 +257,28 @@ class _VerifyScreenState extends State<VerifyScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Review Extracted Soil Information')),
       body: ListView(padding: const EdgeInsets.all(16), children: [
+        if (_isTestDateOld)
+          Container(
+            padding: const EdgeInsets.all(12),
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              color: Colors.red.shade50,
+              border: Border.all(color: Colors.red.shade700, width: 1.5),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.history_toggle_off_rounded, color: Colors.red, size: 28),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Soil test date is more than 1 year old (${_date.text}). Soil nutrient fertility fluctuates each season. We strongly recommend testing a fresh soil sample for accurate dosing.',
+                    style: TextStyle(color: Colors.red.shade900, fontWeight: FontWeight.w600, fontSize: 13),
+                  ),
+                ),
+              ],
+            ),
+          ),
         if (!_manual) Container(
           padding: const EdgeInsets.all(12), margin: const EdgeInsets.only(bottom: 12),
           decoration: BoxDecoration(color: Colors.amber.shade100, borderRadius: BorderRadius.circular(8)),

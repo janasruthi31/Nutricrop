@@ -711,39 +711,50 @@ class NutrientCalculationService:
         if p_method not in ("Olsen", "Bray"):
             validation_errors.append(f"Invalid phosphorus test method '{p_method}'. Must be 'Olsen' or 'Bray'.")
 
+        # Check if this is a "No Soil Test" mode calculation (Task 3d)
+        has_soil_inputs = (req.soil_nitrogen is not None or req.soil_phosphorus is not None or req.soil_potassium is not None)
+        is_no_soil_test = (
+            getattr(req, "no_soil_test", False) or
+            req.recommendation_type == "NO_SOIL_TEST" or
+            (not has_soil_inputs and (req.recommendation_type == "GENERAL_BLANKET" or rec_method in ("TNAU-BLANKET", "TNAU-SOIL-TEST")))
+        )
+
         # Normalize Soil Test Values
         sn, sp, sk = None, None, None
-        try:
-            if req.soil_nitrogen is not None:
-                sn = normalize_soil_nutrient_value(req.soil_nitrogen, req.soil_nitrogen_unit or "kg/ha")
-            else:
-                missing_inputs.append("soil_nitrogen")
-        except ValueError as e:
-            validation_errors.append(str(e))
+        if not is_no_soil_test:
+            try:
+                if req.soil_nitrogen is not None:
+                    sn = normalize_soil_nutrient_value(req.soil_nitrogen, req.soil_nitrogen_unit or "kg/ha")
+                else:
+                    missing_inputs.append("soil_nitrogen")
+            except ValueError as e:
+                validation_errors.append(str(e))
 
-        try:
-            if req.soil_phosphorus is not None:
-                p_unit = (req.soil_phosphorus_unit or "kg/ha").strip().lower()
-                is_p2o5 = "p2o5" in p_unit
-                clean_unit = p_unit.replace("_p2o5", "").replace("p2o5", "").strip() or "kg/ha"
-                sp_raw = normalize_soil_nutrient_value(req.soil_phosphorus, clean_unit)
-                sp = round(convert_oxide_to_elemental(sp_raw, "P"), 4) if is_p2o5 else sp_raw
-            else:
-                missing_inputs.append("soil_phosphorus")
-        except ValueError as e:
-            validation_errors.append(str(e))
+            try:
+                if req.soil_phosphorus is not None:
+                    p_unit = (req.soil_phosphorus_unit or "kg/ha").strip().lower()
+                    is_p2o5 = "p2o5" in p_unit
+                    clean_unit = p_unit.replace("_p2o5", "").replace("p2o5", "").strip() or "kg/ha"
+                    sp_raw = normalize_soil_nutrient_value(req.soil_phosphorus, clean_unit)
+                    sp = round(convert_oxide_to_elemental(sp_raw, "P"), 4) if is_p2o5 else sp_raw
+                else:
+                    missing_inputs.append("soil_phosphorus")
+            except ValueError as e:
+                validation_errors.append(str(e))
 
-        try:
-            if req.soil_potassium is not None:
-                k_unit = (req.soil_potassium_unit or "kg/ha").strip().lower()
-                is_k2o = "k2o" in k_unit
-                clean_unit = k_unit.replace("_k2o", "").replace("k2o", "").strip() or "kg/ha"
-                sk_raw = normalize_soil_nutrient_value(req.soil_potassium, clean_unit)
-                sk = round(convert_oxide_to_elemental(sk_raw, "K"), 4) if is_k2o else sk_raw
-            else:
-                missing_inputs.append("soil_potassium")
-        except ValueError as e:
-            validation_errors.append(str(e))
+            try:
+                if req.soil_potassium is not None:
+                    k_unit = (req.soil_potassium_unit or "kg/ha").strip().lower()
+                    is_k2o = "k2o" in k_unit
+                    clean_unit = k_unit.replace("_k2o", "").replace("k2o", "").strip() or "kg/ha"
+                    sk_raw = normalize_soil_nutrient_value(req.soil_potassium, clean_unit)
+                    sk = round(convert_oxide_to_elemental(sk_raw, "K"), 4) if is_k2o else sk_raw
+                else:
+                    missing_inputs.append("soil_potassium")
+            except ValueError as e:
+                validation_errors.append(str(e))
+        else:
+            sn, sp, sk = 0.0, 0.0, 0.0
 
         # Check STCR specific required inputs
         target_yield = None
@@ -909,16 +920,25 @@ class NutrientCalculationService:
                 }
             })
 
-        elif rec_method in ("TNAU-SOIL-TEST", "TNAU-BLANKET"):
+        elif rec_method in ("TNAU-SOIL-TEST", "TNAU-BLANKET") or is_no_soil_test:
             blanket_rdf = rule.get("blanket_rdf_kg_per_ha", {"N": 150.0, "P2O5": 50.0, "K2O": 50.0})
 
-            n_class = classify("nitrogen", sn, "kg/ha")
-            p_class = classify("phosphorus", sp, "kg/ha", p_method)
-            k_class = classify("potassium", sk, "kg/ha")
+            if is_no_soil_test:
+                n_class, p_class, k_class = "Not Tested", "Not Tested", "Not Tested"
+                factor_n, factor_p, factor_k = 1.0, 1.0, 1.0
+                warnings.append(
+                    "No soil test provided. Recommending official TNAU blanket dose. "
+                    "We strongly recommend testing your field soil at your nearest Agricultural Extension Center (AEC) "
+                    "or Krishi Vigyan Kendra (KVK) for precise fertilizer savings."
+                )
+            else:
+                n_class = classify("nitrogen", sn, "kg/ha")
+                p_class = classify("phosphorus", sp, "kg/ha", p_method)
+                k_class = classify("potassium", sk, "kg/ha")
 
-            factor_n = self.interpolate_soil_rating_multiplier("nitrogen", sn, p_method)
-            factor_p = self.interpolate_soil_rating_multiplier("phosphorus", sp, p_method)
-            factor_k = self.interpolate_soil_rating_multiplier("potassium", sk, p_method)
+                factor_n = self.interpolate_soil_rating_multiplier("nitrogen", sn, p_method)
+                factor_p = self.interpolate_soil_rating_multiplier("phosphorus", sp, p_method)
+                factor_k = self.interpolate_soil_rating_multiplier("potassium", sk, p_method)
 
             req_n = round(blanket_rdf["N"] * factor_n, 2)
             req_p = round(blanket_rdf["P2O5"] * factor_p, 2)
@@ -992,37 +1012,67 @@ class NutrientCalculationService:
             warnings.append("Recommendation is advisory and subject to field verification.")
 
         # Soil nutrient status and interpretation against verified TNAU thresholds
-        n_class = classify("nitrogen", sn, "kg/ha") or "Unknown"
-        p_class = classify("phosphorus", sp, "kg/ha", p_method) or "Unknown"
-        k_class = classify("potassium", sk, "kg/ha") or "Unknown"
-
-        soil_nutrient_status = {
-            "nitrogen": {
-                "value": req.soil_nitrogen,
-                "unit": req.soil_nitrogen_unit or "kg/ha",
-                "value_kg_per_ha": sn,
-                "status": "Deficient" if n_class == "Low" else ("Sufficient" if n_class == "Medium" else "Excessive"),
-                "rating": n_class,
-                "interpretation_threshold": "Low < 280 kg/ha, Medium 280-450 kg/ha, High > 450 kg/ha (TNAU)"
-            },
-            "phosphorus": {
-                "value": req.soil_phosphorus,
-                "unit": req.soil_phosphorus_unit or "kg/ha",
-                "value_kg_per_ha": sp,
-                "method": p_method,
-                "status": "Deficient" if p_class == "Low" else ("Sufficient" if p_class == "Medium" else "Excessive"),
-                "rating": p_class,
-                "interpretation_threshold": "Olsen: Low < 11 kg/ha, Medium 11-22 kg/ha, High > 22 kg/ha (TNAU)" if p_method == "Olsen" else "Bray: Low < 24.2 kg/ha, Medium 24.2-49.7 kg/ha, High > 49.7 kg/ha (TNAU)"
-            },
-            "potassium": {
-                "value": req.soil_potassium,
-                "unit": req.soil_potassium_unit or "kg/ha",
-                "value_kg_per_ha": sk,
-                "status": "Excessive" if k_class == "High" else ("Sufficient" if k_class == "Medium" else "Deficient"),
-                "rating": k_class,
-                "interpretation_threshold": "Low < 118 kg/ha, Medium 118-280 kg/ha, High > 280 kg/ha (TNAU)"
+        if is_no_soil_test:
+            n_class, p_class, k_class = "Not Tested", "Not Tested", "Not Tested"
+            soil_nutrient_status = {
+                "nitrogen": {
+                    "value": None,
+                    "unit": "kg/ha",
+                    "value_kg_per_ha": None,
+                    "status": "Not Tested",
+                    "rating": "Not Tested",
+                    "interpretation_threshold": "Not tested - standard TNAU blanket dose applied"
+                },
+                "phosphorus": {
+                    "value": None,
+                    "unit": "kg/ha",
+                    "value_kg_per_ha": None,
+                    "method": p_method,
+                    "status": "Not Tested",
+                    "rating": "Not Tested",
+                    "interpretation_threshold": "Not tested - standard TNAU blanket dose applied"
+                },
+                "potassium": {
+                    "value": None,
+                    "unit": "kg/ha",
+                    "value_kg_per_ha": None,
+                    "status": "Not Tested",
+                    "rating": "Not Tested",
+                    "interpretation_threshold": "Not tested - standard TNAU blanket dose applied"
+                }
             }
-        }
+        else:
+            n_class = classify("nitrogen", sn, "kg/ha") or "Unknown"
+            p_class = classify("phosphorus", sp, "kg/ha", p_method) or "Unknown"
+            k_class = classify("potassium", sk, "kg/ha") or "Unknown"
+
+            soil_nutrient_status = {
+                "nitrogen": {
+                    "value": req.soil_nitrogen,
+                    "unit": req.soil_nitrogen_unit or "kg/ha",
+                    "value_kg_per_ha": sn,
+                    "status": "Deficient" if n_class == "Low" else ("Sufficient" if n_class == "Medium" else "Excessive"),
+                    "rating": n_class,
+                    "interpretation_threshold": "Low < 280 kg/ha, Medium 280-450 kg/ha, High > 450 kg/ha (TNAU)"
+                },
+                "phosphorus": {
+                    "value": req.soil_phosphorus,
+                    "unit": req.soil_phosphorus_unit or "kg/ha",
+                    "value_kg_per_ha": sp,
+                    "method": p_method,
+                    "status": "Deficient" if p_class == "Low" else ("Sufficient" if p_class == "Medium" else "Excessive"),
+                    "rating": p_class,
+                    "interpretation_threshold": "Olsen: Low < 11 kg/ha, Medium 11-22 kg/ha, High > 22 kg/ha (TNAU)" if p_method == "Olsen" else "Bray: Low < 24.2 kg/ha, Medium 24.2-49.7 kg/ha, High > 49.7 kg/ha (TNAU)"
+                },
+                "potassium": {
+                    "value": req.soil_potassium,
+                    "unit": req.soil_potassium_unit or "kg/ha",
+                    "value_kg_per_ha": sk,
+                    "status": "Excessive" if k_class == "High" else ("Sufficient" if k_class == "Medium" else "Deficient"),
+                    "rating": k_class,
+                    "interpretation_threshold": "Low < 118 kg/ha, Medium 118-280 kg/ha, High > 280 kg/ha (TNAU)"
+                }
+            }
         if req.organic_carbon is not None:
             try:
                 oc_val = float(req.organic_carbon)
@@ -1127,7 +1177,12 @@ class NutrientCalculationService:
             }
         }
 
-        if rec_method.startswith("STCR"):
+        if is_no_soil_test:
+            derivation_explanation = (
+                f"Calculated using standard TNAU blanket recommendation for {crop_name} without soil test adjustment (multipliers = 1.00). "
+                f"Deductions for organic manure ({fym_credit_n:.1f} N) and previous crop credits ({prev_crop_n:.1f} N) applied."
+            )
+        elif rec_method.startswith("STCR"):
             soil_series_name = rule.get("soil_series", ["designated"])[0] if rule.get("soil_series") else "designated"
             derivation_explanation = (
                 f"Calculated using authoritative TNAU STCR-IPNS targeted yield calibration for {crop_name} "
@@ -1186,8 +1241,8 @@ class NutrientCalculationService:
             "K2O": [round(max(0.0, k2o_req_acre * 0.9), 1), round(k2o_req_acre * 1.1, 1)],
         }
 
-        # Confidence level (Task 2a)
-        is_blanket = rec_type == "GENERAL_BLANKET" or rec_method in ("TNAU-BLANKET", "TNAU-SOIL-TEST")
+        # Confidence level (Task 2a & 3d)
+        is_blanket = is_no_soil_test or rec_type == "GENERAL_BLANKET" or rec_method in ("TNAU-BLANKET", "TNAU-SOIL-TEST")
         confidence_val = "lower" if is_blanket else "high"
         confidence_lbl = "General recommendation (lower confidence)" if is_blanket else "Soil-specific calibration (high confidence)"
 

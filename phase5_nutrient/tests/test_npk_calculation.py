@@ -456,3 +456,46 @@ def test_22_blanket_comparison_and_spatial_sampling_note():
     assert any("Recommendation is valid for this sample" in w for w in res.warnings)
 
 
+# 23. Task 3d: No soil test mode uses blanket dose and advises testing
+def test_23_no_soil_test_blanket_mode():
+    req = NutrientCalculationRequest(
+        crop="Groundnut",
+        selected_rule_id="TNAU_BLANKET_GROUNDNUT_001",
+        no_soil_test=True,
+        farm_area=1.0,
+        farm_area_unit="hectare"
+    )
+    res = service.calculate(req)
+    assert res.status == "CALCULATION_SUCCESS"
+    # Groundnut blanket RDF: 25 N : 50 P2O5 : 75 K2O
+    assert res.n_req_kg_per_ha == 25.0
+    assert res.p2o5_req_kg_per_ha == 50.0
+    assert res.k2o_req_kg_per_ha == 75.0
+    assert res.confidence == "lower"
+    assert res.confidence_label == "General recommendation (lower confidence)"
+    assert any("No soil test provided" in w for w in res.warnings)
+    assert any("Agricultural Extension Center" in w for w in res.warnings)
+    assert res.soil_nutrient_status["nitrogen"]["status"] == "Not Tested"
+
+
+# 24. Task 3c: Warning when soil test date is older than 1 year
+def test_24_test_date_age_warning():
+    from phase7_integration.service import FullRecommendationService
+    int_service = FullRecommendationService()
+    payload = {
+        "crop": "Rice",
+        "soil_series": "Palavidhi",
+        "target_yield": 5.0,
+        "soil_nitrogen": 210.0,
+        "soil_phosphorus": 16.0,
+        "soil_potassium": 200.0,
+        "test_date": "2023-01-15",  # Over 1 year ago
+        "farm_area": 1.0,
+        "farm_area_unit": "ha"
+    }
+    rec = int_service.generate_full_recommendation(payload)
+    assert rec["status"] == "SUCCESS"
+    assert any("more than 1 year old" in w for w in rec["warnings"])
+
+
+

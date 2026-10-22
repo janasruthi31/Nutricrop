@@ -218,6 +218,7 @@ class FullRecommendationService:
             previous_fertilizers=previous_fertilizers,
             recommendation_mode=rec_mode,
             recommendation_type=req.get("recommendation_type"),
+            no_soil_test=req.get("no_soil_test", False) or (soil_n is None and soil_p is None and soil_k is None and req.get("recommendation_type") in ("GENERAL_BLANKET", "NO_SOIL_TEST")),
             printed_n_rate=printed_n,
             printed_p2o5_rate=printed_p,
             printed_k2o_rate=printed_k,
@@ -302,6 +303,42 @@ class FullRecommendationService:
             final_rec_type = p5_res.recommendation_type or p4_res.recommendation_type or "SOIL_SPECIFIC_STCR"
             status_message = None
 
+        all_warnings: list = []
+        if status_message and status_message not in all_warnings:
+            all_warnings.append(status_message)
+
+        # Check test_date age (Task 3c)
+        test_date = req.get("test_date") or (p_dict or {}).get("test_date")
+        if test_date:
+            try:
+                import datetime
+                td_dt = None
+                td_str = str(test_date).strip()
+                if "-" in td_str:
+                    td_dt = datetime.date.fromisoformat(td_str[:10])
+                elif "/" in td_str:
+                    parts = td_str.split("/")
+                    if len(parts) == 3:
+                        if len(parts[0]) == 4:
+                            td_dt = datetime.date(int(parts[0]), int(parts[1]), int(parts[2]))
+                        elif len(parts[2]) == 4:
+                            td_dt = datetime.date(int(parts[2]), int(parts[1]), int(parts[0]))
+                if td_dt:
+                    age_days = (datetime.date.today() - td_dt).days
+                    if age_days > 365:
+                        date_warn = f"Soil test date ({test_date}) is more than 1 year old ({age_days} days). Soil nutrient levels fluctuate over time; consider testing a fresh soil sample."
+                        if date_warn not in all_warnings:
+                            all_warnings.append(date_warn)
+            except Exception:
+                pass
+
+        for w in (p5_res.warnings or []):
+            if w not in all_warnings:
+                all_warnings.append(w)
+        for w in (p6_res.warnings or []):
+            if w not in all_warnings:
+                all_warnings.append(w)
+
         return {
             "status": final_status,
             "is_verified": final_is_verified,
@@ -317,7 +354,7 @@ class FullRecommendationService:
             "derivation_explanation": p5_res.derivation_explanation,
             "authoritative_reference": p5_res.authoritative_reference,
             "message": status_message,
-            "warnings": ([status_message] if status_message and status_message not in p6_res.warnings else []) + p6_res.warnings,
+            "warnings": all_warnings,
             "district_yield_prediction": yield_pred,
             "weather_guidance": weather_res
         }

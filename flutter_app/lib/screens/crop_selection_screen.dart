@@ -246,6 +246,38 @@ class _CropSelectionScreenState extends State<CropSelectionScreen> {
                     ),
                   ],
                 ),
+                const SizedBox(height: 8),
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('Rough Options:', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                ),
+                const SizedBox(height: 4),
+                Wrap(
+                  spacing: 6,
+                  children: [
+                    ActionChip(
+                      label: const Text('Half a bag (0.5)'),
+                      onPressed: () => setD(() {
+                        qtyCtrl.text = '0.5';
+                        unit = 'bags';
+                      }),
+                    ),
+                    ActionChip(
+                      label: const Text('1 bag'),
+                      onPressed: () => setD(() {
+                        qtyCtrl.text = '1.0';
+                        unit = 'bags';
+                      }),
+                    ),
+                    ActionChip(
+                      label: const Text('2 bags'),
+                      onPressed: () => setD(() {
+                        qtyCtrl.text = '2.0';
+                        unit = 'bags';
+                      }),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: monthsCtrl,
@@ -259,6 +291,16 @@ class _CropSelectionScreenState extends State<CropSelectionScreen> {
             ),
           ),
           actions: [
+            TextButton(
+              onPressed: () {
+                setState(() => _previousFertilizers.clear());
+                Navigator.pop(ctx);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("No previous fertilizer deduction will be applied (0 deduction).")),
+                );
+              },
+              child: const Text("Don't Remember"),
+            ),
             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
             FilledButton(
               onPressed: () {
@@ -438,6 +480,19 @@ class _CropSelectionScreenState extends State<CropSelectionScreen> {
                                 onDeleted: () => setState(() => _previousFertilizers.removeAt(i)),
                               ),
                           ],
+                        ),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
+                            onPressed: () => setState(() => _previousFertilizers.clear()),
+                            child: const Text("Clear all / Don't remember", style: TextStyle(fontSize: 11, color: Colors.grey)),
+                          ),
+                        ),
+                      ] else ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          "Optional: If you don't remember past fertilizers, leave this empty (0 deduction).",
+                          style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
                         ),
                       ],
                     ],

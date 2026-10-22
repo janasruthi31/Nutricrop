@@ -144,7 +144,7 @@ def validate_metadata(meta, crop=None, today=None):
         else:
             out["test_date"] = p.isoformat()
             if (today - p).days > 365 * config.TEST_DATE_STALE_YEARS:
-                issues.append(issue("stale_test_date", "warning", f"Test is more than {config.TEST_DATE_STALE_YEARS} years old; values may be outdated."))
+                issues.append(issue("stale_test_date", "warning", f"Soil test date is more than {config.TEST_DATE_STALE_YEARS} year(s) old ({p.isoformat()}). Soil fertility fluctuates over time; consider getting a fresh soil test."))
     if crop:
         from .crops import known_crop
         c = known_crop(crop)
