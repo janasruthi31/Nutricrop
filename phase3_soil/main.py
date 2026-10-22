@@ -7,18 +7,23 @@ from . import db
 from .api import soil_router
 from agronomy.api import agronomy_router
 from phase5_nutrient.api import nutrient_router
+import os
+import hmac
 from phase6_fertilizer.api import fertilizer_router, fertilizer_opt_router
 from phase7_integration.api import integration_router
 from phase7_integration.extra_api import extra_router
+from typing import Optional, Set
+from fastapi import Header, HTTPException
 
 app = FastAPI(title="Sustainable Fertilizer Usage Optimizer Master API (Phases 1-8)")
 
-# Enable CORS for web clients (e.g. Flutter Web on Chrome)
+# Security: Enable CORS with standard compliant configuration
+# (allow_credentials must be False when allow_origins is wildcard)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -31,6 +36,12 @@ app.include_router(fertilizer_opt_router)
 app.include_router(integration_router)
 app.include_router(extra_router)
 
+ADMIN_API_KEY = os.environ.get("ADMIN_API_KEY", "tnau_agri_admin_secret_key_2026")
+ENABLE_ADMIN_DIAGNOSTICS = os.environ.get("ENABLE_ADMIN_DIAGNOSTICS", "false").lower() in ("true", "1")
+ALLOWED_DIAGNOSTIC_TABLES = {
+    "soil_profiles", "soil_profile_fields", "farmer_farms", 
+    "farmer_fertilizer_history", "saved_recommendations", "weather_cache", "fertilizer_prices"
+}
 
 
 @app.get("/")
@@ -67,10 +78,24 @@ def download_apk():
     return FileResponse(apk_path, media_type="application/vnd.android.package-archive", filename="app-release.apk")
 
 
+def _verify_admin_access(x_admin_key: Optional[str] = None):
+    """Enforces strict administrative authorization for diagnostics."""
+    if not ENABLE_ADMIN_DIAGNOSTICS:
+        raise HTTPException(
+            status_code=403, 
+            detail="Administrative database diagnostics are disabled in this environment."
+        )
+    if not x_admin_key or not hmac.compare_digest(x_admin_key, ADMIN_API_KEY):
+        raise HTTPException(
+            status_code=401, 
+            detail="Unauthorized: Valid X-Admin-Key header required to access database diagnostics."
+        )
+
 
 @app.get("/api/db/status")
-def db_status():
-    """Inspect SQLite database connectivity, file path, and record counts across all tables."""
+def db_status(x_admin_key: Optional[str] = Header(None)):
+    """Inspect SQLite database connectivity and record counts. Restricted to authorized administrators."""
+    _verify_admin_access(x_admin_key)
     try:
         with db.connect() as con:
             cur = con.cursor()
@@ -78,8 +103,9 @@ def db_status():
             tables = {}
             for r in cur.fetchall():
                 tbl = r["name"]
-                c = con.execute(f"SELECT COUNT(*) FROM {tbl}").fetchone()[0]
-                tables[tbl] = c
+                if tbl in ALLOWED_DIAGNOSTIC_TABLES:
+                    c = con.execute(f"SELECT COUNT(*) FROM {tbl}").fetchone()[0]
+                    tables[tbl] = c
         return {
             "status": "connected",
             "database_type": "SQLite3",
@@ -96,15 +122,18 @@ def db_status():
 
 
 @app.get("/db", response_class=HTMLResponse)
-def view_db_dashboard(table: str = Query("soil_profiles")):
-    """Visual SQLite Database Dashboard for the browser."""
+def view_db_dashboard(table: str = Query("soil_profiles"), x_admin_key: Optional[str] = Header(None)):
+    """Visual SQLite Database Dashboard for authorized administrators."""
+    _verify_admin_access(x_admin_key)
+    if table not in ALLOWED_DIAGNOSTIC_TABLES:
+        raise HTTPException(status_code=400, detail=f"Access to table '{table}' is restricted or not in diagnostic allowlist.")
     try:
         with db.connect() as con:
             cur = con.cursor()
             cur.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
-            all_tables = [r["name"] for r in cur.fetchall()]
+            all_tables = [r["name"] for r in cur.fetchall() if r["name"] in ALLOWED_DIAGNOSTIC_TABLES]
             if not all_tables:
-                return "<h3>No tables found in database.</h3>"
+                return "<h3>No diagnostic tables available.</h3>"
             if table not in all_tables:
                 table = all_tables[0]
 

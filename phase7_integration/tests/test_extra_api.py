@@ -64,8 +64,13 @@ def test_yield_meta_and_predict():
     assert pred["unit"] == "kg/ha"
     assert pred["estimated_yield_kg_per_ha"] > 1000
 
+from phase7_integration.extra_api import _create_jwt_token
+from phase3_soil import db
+
+
 def test_farm_and_fertilizer_history():
-    headers = {"Authorization": "Bearer test_farmer_unit"}
+    token = _create_jwt_token("test_farmer_unit", "unit@test.tn", expire_seconds=3600)
+    headers = {"Authorization": f"Bearer {token}"}
 
     # Save Farm
     farm_res = client.post("/api/farmer/farm", headers=headers, json={
@@ -103,8 +108,10 @@ def test_farm_and_fertilizer_history():
     history = list_res.json()
     assert any(h["id"] == item_id for h in history)
 
+
 def test_recommendation_save_and_pdf():
-    headers = {"Authorization": "Bearer test_farmer_unit"}
+    token = _create_jwt_token("test_farmer_unit", "unit@test.tn", expire_seconds=3600)
+    headers = {"Authorization": f"Bearer {token}"}
 
     # Full Recommendation payload
     mock_payload = {
@@ -162,10 +169,18 @@ def test_recommendation_save_and_pdf():
 
 
 def test_unauthenticated_requests_rejected():
-    # Requests without Authorization or X-Farmer-Id headers must return 401 Unauthorized
+    # Requests without Authorization or with arbitrary strings must return 401 Unauthorized
     res = client.get("/api/recommendations")
     assert res.status_code == 401
     assert "authentication required" in res.json()["detail"].lower()
+
+    # Reject caller-controlled X-Farmer-Id header
+    res_hdr = client.get("/api/recommendations", headers={"X-Farmer-Id": "fake_farmer_123"})
+    assert res_hdr.status_code == 401
+
+    # Reject arbitrary non-JWT string in Authorization
+    res_raw = client.get("/api/recommendations", headers={"Authorization": "Bearer arbitrary_user_id"})
+    assert res_raw.status_code == 401
 
     res_pdf = client.get("/api/recommendations/REC_TEST123/pdf")
     assert res_pdf.status_code == 401
@@ -175,8 +190,10 @@ def test_unauthenticated_requests_rejected():
 
 
 def test_cross_user_data_isolation():
-    farmer_a_headers = {"Authorization": "Bearer test_farmer_alice"}
-    farmer_b_headers = {"Authorization": "Bearer test_farmer_bob"}
+    token_a = _create_jwt_token("test_farmer_alice", "alice@test.tn", expire_seconds=3600)
+    token_b = _create_jwt_token("test_farmer_bob", "bob@test.tn", expire_seconds=3600)
+    farmer_a_headers = {"Authorization": f"Bearer {token_a}"}
+    farmer_b_headers = {"Authorization": f"Bearer {token_b}"}
 
     # Farmer A creates a saved recommendation
     payload = {
@@ -228,30 +245,104 @@ def test_duplicate_registration_and_invalid_login():
 
 
 def test_jwt_tampering_and_expiration():
-    from phase7_integration.extra_api import _create_jwt_token
-    import time
+    # Insert farmer_jwt_valid into database first
+    with db.connect() as con:
+        con.execute(
+            "INSERT OR REPLACE INTO users (user_id, email, password_hash, full_name, phone, preferred_language, district, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            ("farmer_jwt_valid", "jwt@valid.tn", "dummy_hash", "JWT Farmer", "+91 90000 11111", "en", "Thanjavur", "2026-01-01T00:00:00", "2026-01-01T00:00:00")
+        )
 
     # 1. Valid token
     valid_token = _create_jwt_token("farmer_jwt_valid", "jwt@valid.tn", expire_seconds=3600)
     res_valid = client.get("/api/auth/profile", headers={"Authorization": f"Bearer {valid_token}"})
     assert res_valid.status_code == 200
+    assert res_valid.json()["email"] == "jwt@valid.tn"
 
     # 2. Tampered token signature
     parts = valid_token.split(".")
     tampered_token = f"{parts[0]}.{parts[1]}.tampered_signature_xyz"
     res_tampered = client.get("/api/auth/profile", headers={"Authorization": f"Bearer {tampered_token}"})
     assert res_tampered.status_code == 401
-    assert "invalid or expired" in res_tampered.json()["detail"].lower()
+    assert "tampered" in res_tampered.json()["detail"].lower()
 
     # 3. Expired token (expire_seconds = -100)
     expired_token = _create_jwt_token("farmer_jwt_expired", "jwt@expired.tn", expire_seconds=-100)
     res_expired = client.get("/api/auth/profile", headers={"Authorization": f"Bearer {expired_token}"})
     assert res_expired.status_code == 401
-    assert "invalid or expired" in res_expired.json()["detail"].lower()
+    assert "expired" in res_expired.json()["detail"].lower()
 
     # 4. Logout endpoint
     logout_res = client.post("/api/auth/logout", headers={"Authorization": f"Bearer {valid_token}"})
     assert logout_res.status_code == 200
     assert logout_res.json()["status"] == "SUCCESS"
+
+
+def test_forgot_password_and_reset_flow():
+    from phase7_integration.extra_api import _hash_password
+    import time
+    email = f"farmer_reset_{int(time.time())}@tnsih.agri"
+    pwd_old = "OldPassword123"
+    pwd_new = "BrandNewPassword456"
+
+    # Register user if not exists
+    client.post("/api/auth/register", json={
+        "email": email, "password": pwd_old, "full_name": "Reset Test Farmer"
+    })
+    with db.connect() as con:
+        u_row = con.execute("SELECT user_id FROM users WHERE email = ?", (email,)).fetchone()
+        user_id = u_row["user_id"]
+
+    # 1. Forgot password request (anti-enumeration: returns SUCCESS even if email exists or not)
+    forgot_res = client.post("/api/auth/forgot-password", json={"email": email})
+    assert forgot_res.status_code == 200
+    data = forgot_res.json()
+    assert data["status"] == "SUCCESS"
+    assert "recovery instructions" in data["message"].lower()
+
+    # Insert a known test OTP hash into password_resets for testing deterministic verification
+    test_otp = "654321"
+    now_ts = int(time.time())
+    with db.connect() as con:
+        con.execute(
+            """INSERT OR REPLACE INTO password_resets (id, email, user_id, token_hash, expires_at, used, created_at)
+               VALUES (?, ?, ?, ?, ?, 0, ?)""",
+            (f"RESET_{int(time.time())}", email, user_id, _hash_password(test_otp), now_ts + 900, "2026-01-01T00:00:00")
+        )
+
+    # 2. Reset password with wrong OTP -> 400
+    bad_reset = client.post("/api/auth/reset-password", json={
+        "email": email, "reset_token": "999999", "new_password": pwd_new
+    })
+    assert bad_reset.status_code == 400
+
+    # 3. Reset password with correct OTP -> 200
+    good_reset = client.post("/api/auth/reset-password", json={
+        "email": email, "reset_token": test_otp, "new_password": pwd_new
+    })
+    assert good_reset.status_code == 200
+    assert good_reset.json()["status"] == "SUCCESS"
+
+    # 4. Login with old password fails
+    fail_login = client.post("/api/auth/login", json={"email": email, "password": pwd_old})
+    assert fail_login.status_code == 401
+
+    # 5. Login with new password succeeds
+    ok_login = client.post("/api/auth/login", json={"email": email, "password": pwd_new})
+    assert ok_login.status_code == 200
+
+
+def test_admin_database_access_lockdown():
+    # Public anonymous access to /db must be blocked (403 Forbidden)
+    res_db = client.get("/db")
+    assert res_db.status_code == 403
+
+    # Public anonymous access to /api/db/status must be blocked (403 Forbidden)
+    res_status = client.get("/api/db/status")
+    assert res_status.status_code == 403
+
+    # Attempting to access sensitive users table via diagnostic query must be blocked
+    res_users = client.get("/db?table=users", headers={"X-Admin-Key": "tnau_agri_admin_secret_key_2026"})
+    assert res_users.status_code == 403
+
 
 

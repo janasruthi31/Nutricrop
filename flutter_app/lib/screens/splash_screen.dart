@@ -19,11 +19,12 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _checkInit() async {
-    await Future.delayed(const Duration(milliseconds: 1600));
+    await ApiClient.instance.init();
+    await Future.delayed(const Duration(milliseconds: 1400));
     if (!mounted) return;
 
     // Check if session exists or go to language/login
-    if (ApiClient.instance.authToken != null) {
+    if (ApiClient.instance.authToken != null && ApiClient.instance.authToken!.isNotEmpty) {
       Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const MainNavigationShell()));
     } else {
       Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LanguageSelectionScreen()));

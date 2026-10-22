@@ -20,6 +20,8 @@ class FertilizerOptimizationRequest(BaseModel):
     is_verified_rule: Optional[bool] = Field(None, description="Whether rule was verified")
     verification_status: Optional[str] = Field(None, description="Verification status e.g. PENDING_AGRONOMIC_VALIDATION")
     allow_unverified: bool = Field(False, description="Whether unverified rule calculation is permitted as provisional")
+    allow_fractional_bags: bool = Field(False, description="Whether fractional bag / loose fertilizer application is permitted (ideal for smallholders)")
+    max_surplus_factor: Optional[float] = Field(None, description="Optional upper bound factor on nutrient oversupply (e.g. 1.5 for max 50% surplus)")
 
 
 class FertilizerProductRecommendation(BaseModel):
@@ -28,7 +30,7 @@ class FertilizerProductRecommendation(BaseModel):
     name: Optional[str] = None
     category: str
     quantity_kg: float
-    bags: int
+    bags: Any = Field(..., description="Commercial whole bags (int) or fractional bags (float) for smallholders")
     bag_size_kg: float
     price_per_bag_inr: float
     total_cost_inr: float

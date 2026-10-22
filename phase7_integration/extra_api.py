@@ -61,19 +61,28 @@ def _create_jwt_token(user_id: str, email: str, expire_seconds: Optional[int] = 
 
 
 def _verify_jwt_token(token: str) -> Optional[Dict[str, Any]]:
-    """Verify cryptographic HMAC-SHA256 signature and expiration of JWT token."""
+    """Verify cryptographic HMAC-SHA256 signature, algorithm header, and expiration of JWT token."""
     try:
         parts = token.split(".")
         if len(parts) != 3:
             return None
         h_bytes, p_bytes, sig_provided = parts
+
+        # Verify algorithm header is strictly HS256 to prevent algorithm confusion attacks
+        header = json.loads(_b64_decode(h_bytes).decode("utf-8"))
+        if header.get("alg") != "HS256" or header.get("typ") != "JWT":
+            return None
+
         msg = f"{h_bytes}.{p_bytes}".encode("utf-8")
         expected_sig = _b64_encode(hmac.new(JWT_SECRET.encode("utf-8"), msg, hashlib.sha256).digest())
         if not hmac.compare_digest(sig_provided, expected_sig):
             return None
+
         payload = json.loads(_b64_decode(p_bytes).decode("utf-8"))
         if payload.get("exp") and int(time.time()) > payload["exp"]:
             # Expired token
+            return None
+        if not payload.get("sub"):
             return None
         return payload
     except Exception:
@@ -99,32 +108,49 @@ def _get_current_user_id(
     authorization: Optional[str] = Header(None),
     x_farmer_id: Optional[str] = Header(None)
 ) -> str:
-    """Extract and verify authenticated user identity from Authorization or X-Farmer-Id header."""
+    """
+    Extract and verify authenticated user identity exclusively from Authorization Bearer JWT.
+    Caller-controlled headers (like X-Farmer-Id) and arbitrary unverified strings are strictly rejected.
+    """
     token = None
     if authorization and authorization.startswith("Bearer "):
         token = authorization.split("Bearer ", 1)[1].strip()
 
+    # Reject caller-controlled X-Farmer-Id header as proof of authentication
     if not token and x_farmer_id and x_farmer_id.strip():
-        token = x_farmer_id.strip()
+        # Only allowed in isolated test suite runs with explicit AGRI_ALLOW_TEST_BYPASS flag enabled
+        if os.environ.get("AGRI_ALLOW_TEST_BYPASS", "false").lower() in ("true", "1") and x_farmer_id.startswith("test_farmer_"):
+            token = x_farmer_id.strip()
+        else:
+            raise HTTPException(
+                status_code=401,
+                detail="Authentication required. X-Farmer-Id header is not accepted as proof of authentication."
+            )
 
     if not token:
         raise HTTPException(
             status_code=401,
-            detail="Authentication required. Please provide a valid Authorization Bearer token or farmer credentials."
+            detail="Authentication required. Please provide a valid Authorization Bearer token."
         )
 
-    # If it's a signed JWT (contains two dots)
+    # Valid signed JWT (contains two dots: header.payload.signature)
     if token.count(".") == 2:
         payload = _verify_jwt_token(token)
         if not payload or not payload.get("sub"):
             raise HTTPException(
                 status_code=401,
-                detail="Invalid or expired authentication token. Please log in again."
+                detail="Invalid, tampered, or expired authentication token. Please log in again."
             )
         user_id = payload["sub"]
     else:
-        # Compatibility for test fixtures (e.g. test_farmer_unit, test_farmer_alice)
-        user_id = token
+        # Isolated test bypass: ONLY active when explicitly permitted by environment variable in test harness
+        if os.environ.get("AGRI_ALLOW_TEST_BYPASS", "false").lower() in ("true", "1") and (token.startswith("test_") or token.startswith("audit_")):
+            user_id = token
+        else:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid authentication token format. A valid signed JWT token is required."
+            )
 
     # Validate ID format
     from phase3_soil.service import check_farmer, SoilError
@@ -152,6 +178,16 @@ class RegisterRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: str
     password: str
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+
+class ResetPasswordRequest(BaseModel):
+    email: str
+    reset_token: str
+    new_password: str
 
 
 class ProfileUpdateRequest(BaseModel):
@@ -284,6 +320,94 @@ def login_user(req: LoginRequest):
         }
 
 
+@extra_router.post("/api/auth/forgot-password")
+def forgot_password(req: ForgotPasswordRequest):
+    """
+    Initiates time-limited password recovery.
+    Prevents account enumeration by returning a generic success message regardless of existence.
+    """
+    clean_email = req.email.strip().lower()
+    now_ts = int(time.time())
+    
+    with db.connect() as con:
+        # Rate limit: max 3 active unexpired reset attempts per email in last 15 minutes
+        recent = con.execute(
+            "SELECT COUNT(*) as cnt FROM password_resets WHERE email = ? AND created_at > ?",
+            (clean_email, time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now_ts - 900)))
+        ).fetchone()
+        if recent and recent["cnt"] >= 3:
+            raise HTTPException(
+                status_code=429,
+                detail="Too many password reset requests. Please wait 15 minutes before requesting again."
+            )
+
+        row = con.execute("SELECT user_id FROM users WHERE email = ?", (clean_email,)).fetchone()
+        if row:
+            user_id = row["user_id"]
+            # Generate secure single-use 6-digit OTP
+            otp = f"{secrets.randbelow(900000) + 100000}"
+            token_hash = _hash_password(otp)
+            reset_id = f"RESET_{uuid.uuid4().hex[:12]}"
+            created_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now_ts))
+            expires_at = now_ts + 900  # 15 minutes TTL
+
+            con.execute(
+                """INSERT INTO password_resets (id, email, user_id, token_hash, expires_at, used, created_at)
+                   VALUES (?, ?, ?, ?, ?, 0, ?)""",
+                (reset_id, clean_email, user_id, token_hash, expires_at, created_at)
+            )
+
+    return {
+        "status": "SUCCESS",
+        "message": "If this account is registered, password recovery instructions and a single-use verification code have been generated."
+    }
+
+
+@extra_router.post("/api/auth/reset-password")
+def reset_password(req: ResetPasswordRequest):
+    """Resets user password using a verified, unexpired, single-use reset code."""
+    if len(req.new_password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters in length.")
+
+    clean_email = req.email.strip().lower()
+    now_ts = int(time.time())
+
+    with db.connect() as con:
+        # Fetch active, unused reset token for this email
+        resets = con.execute(
+            """SELECT id, user_id, token_hash, expires_at FROM password_resets
+               WHERE email = ? AND used = 0 AND expires_at > ?
+               ORDER BY created_at DESC LIMIT 5""",
+            (clean_email, now_ts)
+        ).fetchall()
+
+        matched_reset = None
+        for r in resets:
+            if _verify_password(req.reset_token.strip(), r["token_hash"]):
+                matched_reset = r
+                break
+
+        if not matched_reset:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid, expired, or already-used password reset code. Please request a new code."
+            )
+
+        # Update password hash and mark token used
+        new_hash = _hash_password(req.new_password)
+        now_iso = time.strftime("%Y-%m-%dT%H:%M:%SZ")
+        con.execute(
+            "UPDATE users SET password_hash = ?, updated_at = ? WHERE user_id = ?",
+            (new_hash, now_iso, matched_reset["user_id"])
+        )
+        con.execute("UPDATE password_resets SET used = 1 WHERE id = ?", (matched_reset["id"],))
+
+    return {
+        "status": "SUCCESS",
+        "message": "Password has been successfully updated. Please log in with your new password."
+    }
+
+
 @extra_router.post("/api/auth/logout")
 def logout_user(
     authorization: Optional[str] = Header(None),
@@ -303,15 +427,7 @@ def get_profile(
     with db.connect() as con:
         row = con.execute("SELECT user_id, email, full_name, phone, preferred_language, district, created_at FROM users WHERE user_id = ?", (user_id,)).fetchone()
         if not row:
-            # Fallback mock for default farmer
-            return {
-                "user_id": user_id,
-                "email": f"{user_id}@tnsih.agri",
-                "full_name": "Tamil Nadu Farmer",
-                "phone": "+91 98765 43210",
-                "preferred_language": "ta",
-                "district": "Thanjavur"
-            }
+            raise HTTPException(status_code=404, detail=f"Farmer profile not found for user ID '{user_id}'.")
         return dict(row)
 
 
@@ -324,18 +440,19 @@ def update_profile(
     user_id = _get_current_user_id(authorization, x_farmer_id)
     now = time.strftime("%Y-%m-%dT%H:%M:%SZ")
     with db.connect() as con:
-        row = con.execute("SELECT * FROM users WHERE user_id = ?", (user_id,)).fetchone()
-        if row:
-            con.execute(
-                """UPDATE users SET
-                   full_name = COALESCE(?, full_name),
-                   phone = COALESCE(?, phone),
-                   preferred_language = COALESCE(?, preferred_language),
-                   district = COALESCE(?, district),
-                   updated_at = ?
-                   WHERE user_id = ?""",
-                (req.full_name, req.phone, req.preferred_language, req.district, now, user_id)
-            )
+        row = con.execute("SELECT user_id FROM users WHERE user_id = ?", (user_id,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail=f"Farmer profile not found for user ID '{user_id}'.")
+        con.execute(
+            """UPDATE users SET
+               full_name = COALESCE(?, full_name),
+               phone = COALESCE(?, phone),
+               preferred_language = COALESCE(?, preferred_language),
+               district = COALESCE(?, district),
+               updated_at = ?
+               WHERE user_id = ?""",
+            (req.full_name, req.phone, req.preferred_language, req.district, now, user_id)
+        )
         return {"status": "SUCCESS", "message": "Profile updated successfully."}
 
 
@@ -574,15 +691,18 @@ def download_recommendation_pdf(
     from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib import colors
+    from .pdf_fonts import get_available_indic_fonts, sanitize_text_for_pdf
+
+    font_regular, font_bold = get_available_indic_fonts()
 
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
     styles = getSampleStyleSheet()
 
-    title_style = ParagraphStyle('ReportTitle', parent=styles['Heading1'], fontSize=16, leading=20, textColor=colors.HexColor("#1b5e20"), alignment=1)
-    sub_style = ParagraphStyle('ReportSub', parent=styles['Normal'], fontSize=10, leading=14, textColor=colors.HexColor("#333333"), alignment=1)
-    heading2_style = ParagraphStyle('SecHeading', parent=styles['Heading2'], fontSize=12, leading=16, textColor=colors.HexColor("#2e7d32"))
-    body_style = ParagraphStyle('BodyText', parent=styles['Normal'], fontSize=9, leading=12)
+    title_style = ParagraphStyle('ReportTitle', parent=styles['Heading1'], fontName=font_bold, fontSize=16, leading=20, textColor=colors.HexColor("#1b5e20"), alignment=1)
+    sub_style = ParagraphStyle('ReportSub', parent=styles['Normal'], fontName=font_regular, fontSize=10, leading=14, textColor=colors.HexColor("#333333"), alignment=1)
+    heading2_style = ParagraphStyle('SecHeading', parent=styles['Heading2'], fontName=font_bold, fontSize=12, leading=16, textColor=colors.HexColor("#2e7d32"))
+    body_style = ParagraphStyle('BodyText', parent=styles['Normal'], fontName=font_regular, fontSize=9, leading=12)
 
     elements = []
 
@@ -594,14 +714,14 @@ def download_recommendation_pdf(
     # Meta Info Table
     meta_data = [
         ["Report ID:", rec_id, "Generated Date:", row["created_at"][:10]],
-        ["Farmer ID:", user_id, "District:", row["district"]],
-        ["Target Crop:", row["crop"], "Cultivation Area:", f"{row['farm_area']} {row['farm_area_unit']}"]
+        ["Farmer ID:", user_id, "District:", sanitize_text_for_pdf(row["district"], font_regular)],
+        ["Target Crop:", sanitize_text_for_pdf(row["crop"], font_regular), "Cultivation Area:", f"{row['farm_area']} {row['farm_area_unit']}"]
     ]
     t_meta = Table(meta_data, colWidths=[100, 170, 100, 170])
     t_meta.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#f1f8e9")),
         ('TEXTCOLOR', (0,0), (-1,-1), colors.HexColor("#1b5e20")),
-        ('FONTNAME', (0,0), (-1,-1), 'Helvetica-Bold'),
+        ('FONTNAME', (0,0), (-1,-1), font_bold),
         ('BOTTOMPADDING', (0,0), (-1,-1), 4),
         ('TOPPADDING', (0,0), (-1,-1), 4),
         ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#c8e6c9"))
@@ -618,8 +738,8 @@ def download_recommendation_pdf(
     tot_n = p5.get("total_n_req_kg") if p5.get("total_n_req_kg") is not None else p5.get("total_farm_n_kg", 0)
     tot_p = p5.get("total_p2o5_req_kg") if p5.get("total_p2o5_req_kg") is not None else p5.get("total_farm_p2o5_kg", 0)
     tot_k = p5.get("total_k2o_req_kg") if p5.get("total_k2o_req_kg") is not None else p5.get("total_farm_k2o_kg", 0)
-    calc_meth = p5.get("calculation_method") or p5.get("selected_method", "TNAU STCR-IPNS")
-    rule_id = p5.get("selected_rule_id", "Verified TNAU Rule")
+    calc_meth = sanitize_text_for_pdf(p5.get("calculation_method") or p5.get("selected_method", "TNAU STCR-IPNS"), font_regular)
+    rule_id = sanitize_text_for_pdf(p5.get("selected_rule_id", "Verified TNAU Rule"), font_regular)
 
     npk_data = [
         ["Nutrient", "Per Hectare (kg/ha)", "Total Farm Quantity (kg)", "Rule Attribution"],
@@ -631,7 +751,8 @@ def download_recommendation_pdf(
     t_npk.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#388e3c")),
         ('TEXTCOLOR', (0,0), (-1,0), colors.white),
-        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+        ('FONTNAME', (0,0), (-1,0), font_bold),
+        ('FONTNAME', (0,1), (-1,-1), font_regular),
         ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
         ('TOPPADDING', (0,0), (-1,-1), 4),
         ('BOTTOMPADDING', (0,0), (-1,-1), 4),
@@ -645,7 +766,7 @@ def download_recommendation_pdf(
     products = p6.get("recommended_products", [])
     fert_data = [["Fertilizer Product", "Quantity (kg)", "Commercial Bags", "Bag Size", "Est. Cost (INR)"]]
     for prod in products:
-        p_name = prod.get("product_name") or prod.get("name") or "Fertilizer"
+        p_name = sanitize_text_for_pdf(prod.get("product_name") or prod.get("name") or "Fertilizer", font_regular)
         fert_data.append([
             p_name,
             f"{prod.get('quantity_kg', 0):.1f} kg",
@@ -659,8 +780,9 @@ def download_recommendation_pdf(
     t_fert.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#2e7d32")),
         ('TEXTCOLOR', (0,0), (-1,0), colors.white),
-        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-        ('FONTNAME', (0,-1), (-1,-1), 'Helvetica-Bold'),
+        ('FONTNAME', (0,0), (-1,0), font_bold),
+        ('FONTNAME', (0,1), (-1,-2), font_regular),
+        ('FONTNAME', (0,-1), (-1,-1), font_bold),
         ('BACKGROUND', (0,-1), (-1,-1), colors.HexColor("#e8f5e9")),
         ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
         ('TOPPADDING', (0,0), (-1,-1), 4),

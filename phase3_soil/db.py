@@ -115,14 +115,26 @@ CREATE TABLE IF NOT EXISTS fertilizer_prices (
   effective_date TEXT NOT NULL,
   last_updated_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS password_resets (
+  id TEXT PRIMARY KEY,
+  email TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  token_hash TEXT NOT NULL,
+  expires_at INTEGER NOT NULL,
+  used INTEGER DEFAULT 0,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_password_resets_email ON password_resets(email);
 """
 
 
 @contextmanager
 def connect(path=None):
-    con = sqlite3.connect(path or config.DB_PATH)
+    con = sqlite3.connect(path or config.DB_PATH, timeout=30.0)
     con.row_factory = sqlite3.Row
     con.execute("PRAGMA foreign_keys = ON")
+    con.execute("PRAGMA busy_timeout = 30000")
     try:
         yield con
         con.commit()
@@ -135,6 +147,11 @@ def connect(path=None):
 
 def init_db(path=None):
     with connect(path) as con:
+        try:
+            con.execute("PRAGMA journal_mode = WAL")
+            con.execute("PRAGMA synchronous = NORMAL")
+        except Exception:
+            pass
         con.executescript(SCHEMA)
 
         # Migrations for existing databases: ensure farmer_farms has latitude, longitude, taluk, state

@@ -12,12 +12,33 @@ soil_router = APIRouter(prefix="/api/soil", tags=["phase3-soil"])
 
 
 def _guard(x_farmer_id: Optional[str], x_api_key: Optional[str], authorization: Optional[str] = None):
-    """Checks API key and extracts farmer identity from X-Farmer-Id or Authorization header."""
+    """Checks API key and extracts farmer identity securely from verified JWT or controlled test harness."""
+    import os
     if config.API_KEY and not (x_api_key and hmac.compare_digest(x_api_key, config.API_KEY)):
         raise SoilError("UNAUTHORIZED", "Invalid or missing API key.", 401)
-    if not x_farmer_id and authorization and authorization.startswith("Bearer "):
-        x_farmer_id = authorization.split("Bearer ", 1)[1].strip()
-    return service.check_farmer(x_farmer_id)
+
+    token = None
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split("Bearer ", 1)[1].strip()
+
+    if token:
+        if token.count(".") == 2:
+            from phase7_integration.extra_api import _verify_jwt_token
+            payload = _verify_jwt_token(token)
+            if not payload or not payload.get("sub"):
+                raise SoilError("UNAUTHORIZED", "Invalid or expired authentication token. Please log in again.", 401)
+            return service.check_farmer(payload["sub"])
+        elif os.environ.get("AGRI_ALLOW_TEST_BYPASS", "false").lower() in ("true", "1"):
+            return service.check_farmer(token)
+        else:
+            raise SoilError("UNAUTHORIZED", "Invalid authentication token format. A valid signed JWT is required.", 401)
+
+    if x_farmer_id:
+        if os.environ.get("AGRI_ALLOW_TEST_BYPASS", "false").lower() in ("true", "1") and (x_farmer_id.startswith("test_farmer_") or x_farmer_id.startswith("farmer_")):
+            return service.check_farmer(x_farmer_id)
+        raise SoilError("UNAUTHORIZED", "Authentication required. X-Farmer-Id header is not accepted as proof of authentication.", 401)
+
+    raise SoilError("UNAUTHORIZED", "Authentication required. Please provide a valid Authorization Bearer token.", 401)
 
 
 def _err(e: SoilError):

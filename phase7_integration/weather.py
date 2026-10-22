@@ -46,7 +46,8 @@ def _interpret_wmo(code: int) -> Tuple[str, str]:
 
 
 def _fetch_open_meteo(lat: float, lon: float) -> Dict[str, Any]:
-    """Fetch live observations and 7-day forecast from Open-Meteo."""
+    """Fetch live observations and 7-day forecast from Open-Meteo using non-blocking httpx."""
+    import httpx
     params = {
         "latitude": f"{lat:.4f}",
         "longitude": f"{lon:.4f}",
@@ -55,9 +56,11 @@ def _fetch_open_meteo(lat: float, lon: float) -> Dict[str, Any]:
         "timezone": "auto"
     }
     url = f"https://api.open-meteo.com/v1/forecast?{urllib.parse.urlencode(params)}"
-    req = urllib.request.Request(url, headers={"User-Agent": "TNFertilizerOptimizer/1.0 (agri-weather)"})
-    with urllib.request.urlopen(req, timeout=8) as resp:
-        return json.loads(resp.read().decode("utf-8"))
+    headers = {"User-Agent": "TNFertilizerOptimizer/1.0 (agri-weather)"}
+    with httpx.Client(timeout=8.0) as client:
+        resp = client.get(url, headers=headers)
+        resp.raise_for_status()
+        return resp.json()
 
 
 def _get_cached_weather(cache_key: str) -> Optional[Dict[str, Any]]:

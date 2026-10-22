@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../config.dart';
 
 class ApiException implements Exception {
@@ -20,21 +21,74 @@ class ApiClient {
   String? _authToken;
   String _farmerId = AppConfig.farmerId;
   Map<String, dynamic>? _currentUser;
+  bool _initialized = false;
 
   String get farmerId => _farmerId;
   String? get authToken => _authToken;
   Map<String, dynamic>? get currentUser => _currentUser;
 
+  Future<void> init() async {
+    if (_initialized) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _authToken = prefs.getString('agri_auth_token');
+      _farmerId = prefs.getString('agri_farmer_id') ?? AppConfig.farmerId;
+      final userJson = prefs.getString('agri_current_user');
+      if (userJson != null) {
+        _currentUser = jsonDecode(userJson) as Map<String, dynamic>;
+      }
+      _initialized = true;
+    } catch (_) {}
+  }
+
   void setSession(String token, String farmerId, [Map<String, dynamic>? user]) {
     _authToken = token;
     _farmerId = farmerId;
     _currentUser = user;
+    SharedPreferences.getInstance().then((prefs) {
+      prefs.setString('agri_auth_token', token);
+      prefs.setString('agri_farmer_id', farmerId);
+      if (user != null) {
+        prefs.setString('agri_current_user', jsonEncode(user));
+      }
+    }).catchError((_) {});
   }
 
   void clearSession() {
     _authToken = null;
     _farmerId = 'farmer_001';
     _currentUser = null;
+    SharedPreferences.getInstance().then((prefs) {
+      prefs.remove('agri_auth_token');
+      prefs.remove('agri_farmer_id');
+      prefs.remove('agri_current_user');
+    }).catchError((_) {});
+  }
+
+  // Offline Caching for Saved Recommendations
+  Future<void> cacheOfflineRecommendation(Map<String, dynamic> rec) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final list = prefs.getStringList('agri_offline_recommendations') ?? [];
+      final recWithMeta = {
+        ...rec,
+        '_cached_at': DateTime.now().toIso8601String(),
+        '_is_offline': true,
+      };
+      list.insert(0, jsonEncode(recWithMeta));
+      if (list.length > 25) list.removeRange(25, list.length);
+      await prefs.setStringList('agri_offline_recommendations', list);
+    } catch (_) {}
+  }
+
+  Future<List<Map<String, dynamic>>> getOfflineRecommendations() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final list = prefs.getStringList('agri_offline_recommendations') ?? [];
+      return list.map((s) => jsonDecode(s) as Map<String, dynamic>).toList();
+    } catch (_) {
+      return [];
+    }
   }
 
   Map<String, String> get _headers => {
@@ -120,6 +174,32 @@ class ApiClient {
         final data = _decode(res);
         setSession(data['token'], data['user_id'], data);
         return data;
+      });
+
+  Future<Map<String, dynamic>> forgotPassword(String email) => _guard(() async {
+        final res = await _client.post(
+          Uri.parse('${AppConfig.apiBase}/api/auth/forgot-password'),
+          headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+          body: jsonEncode({'email': email}),
+        );
+        return _decode(res);
+      });
+
+  Future<Map<String, dynamic>> resetPassword({
+    required String email,
+    required String resetToken,
+    required String newPassword,
+  }) => _guard(() async {
+        final res = await _client.post(
+          Uri.parse('${AppConfig.apiBase}/api/auth/reset-password'),
+          headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+          body: jsonEncode({
+            'email': email,
+            'reset_token': resetToken,
+            'new_password': newPassword,
+          }),
+        );
+        return _decode(res);
       });
 
   Future<Map<String, dynamic>> getProfile() => _guard(() async {

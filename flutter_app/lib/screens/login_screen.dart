@@ -88,14 +88,28 @@ class _LoginScreenState extends State<LoginScreen> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: Text(l10n.text('cancel'))),
           FilledButton(
-            onPressed: () {
+            onPressed: () async {
+              final term = resetCtrl.text.trim();
+              if (term.isEmpty) return;
               Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(l10n.text('reset_instruction')),
-                  backgroundColor: AppTheme.primaryGreen,
-                ),
-              );
+              try {
+                final res = await ApiClient.instance.forgotPassword(term);
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(res['message'] ?? l10n.text('reset_instruction')),
+                    backgroundColor: AppTheme.primaryGreen,
+                  ),
+                );
+              } catch (e) {
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(e.toString()),
+                    backgroundColor: Colors.red.shade700,
+                  ),
+                );
+              }
             },
             child: Text(l10n.text('submit')),
           ),

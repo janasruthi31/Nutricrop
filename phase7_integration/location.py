@@ -93,27 +93,31 @@ def reverse_geocode_coordinates(lat: float, lon: float) -> Dict[str, Any]:
     village = None
     state = "Tamil Nadu"
 
+    import httpx
+
     # 1. Query BigDataCloud reverse geocode client API
     try:
         url = f"https://api.bigdatacloud.net/data/reverse-geocode-client?latitude={lat}&longitude={lon}&localityLanguage=en"
-        req = urllib.request.Request(url, headers={"User-Agent": "TNFertilizerOptimizer/1.0"})
-        with urllib.request.urlopen(req, timeout=5) as response:
-            data = json.loads(response.read().decode("utf-8"))
-            state = data.get("principalSubdivision") or state
-            village = data.get("locality") or data.get("city")
+        headers = {"User-Agent": "TNFertilizerOptimizer/1.0"}
+        with httpx.Client(timeout=5.0) as client:
+            resp = client.get(url, headers=headers)
+            if resp.status_code == 200:
+                data = resp.json()
+                state = data.get("principalSubdivision") or state
+                village = data.get("locality") or data.get("city")
 
-            # Parse admin hierarchy
-            admin_list = data.get("localityInfo", {}).get("administrative", [])
-            for item in admin_list:
-                name = item.get("name", "")
-                desc = item.get("description", "").lower()
-                order = item.get("order", 0)
-                if "district" in desc or "district" in name.lower() or order == 9:
-                    district = name.replace(" district", "").replace(" District", "").replace(" taluk", "").replace(" Taluk", "").strip()
-                elif "taluk" in desc or "taluk" in name.lower():
-                    taluk = name.replace(" taluk", "").replace(" Taluk", "").strip()
-                elif order == 10 and not village:
-                    village = name
+                # Parse admin hierarchy
+                admin_list = data.get("localityInfo", {}).get("administrative", [])
+                for item in admin_list:
+                    name = item.get("name", "")
+                    desc = item.get("description", "").lower()
+                    order = item.get("order", 0)
+                    if "district" in desc or "district" in name.lower() or order == 9:
+                        district = name.replace(" district", "").replace(" District", "").replace(" taluk", "").replace(" Taluk", "").strip()
+                    elif "taluk" in desc or "taluk" in name.lower():
+                        taluk = name.replace(" taluk", "").replace(" Taluk", "").strip()
+                    elif order == 10 and not village:
+                        village = name
     except Exception as e:
         logger.warning(f"BigDataCloud reverse geocode failed: {e}. Trying OpenStreetMap Nominatim.")
 
@@ -121,16 +125,18 @@ def reverse_geocode_coordinates(lat: float, lon: float) -> Dict[str, Any]:
     if not district:
         try:
             url = f"https://nominatim.openstreetmap.org/reverse?format=json&lat={lat}&lon={lon}"
-            req = urllib.request.Request(url, headers={"User-Agent": "TNFertilizerOptimizer/1.0 (agri-research)"})
-            with urllib.request.urlopen(req, timeout=5) as response:
-                data = json.loads(response.read().decode("utf-8"))
-                addr = data.get("address", {})
-                state = addr.get("state") or state
-                district = addr.get("state_district") or addr.get("county")
-                if district:
-                    district = district.replace(" District", "").replace(" district", "").strip()
-                taluk = addr.get("county") or addr.get("suburb") or taluk
-                village = addr.get("village") or addr.get("town") or addr.get("suburb") or village
+            headers = {"User-Agent": "TNFertilizerOptimizer/1.0 (agri-research)"}
+            with httpx.Client(timeout=5.0) as client:
+                resp = client.get(url, headers=headers)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    addr = data.get("address", {})
+                    state = addr.get("state") or state
+                    district = addr.get("state_district") or addr.get("county")
+                    if district:
+                        district = district.replace(" District", "").replace(" district", "").strip()
+                    taluk = addr.get("county") or addr.get("suburb") or taluk
+                    village = addr.get("village") or addr.get("town") or addr.get("suburb") or village
         except Exception as e:
             logger.warning(f"Nominatim reverse geocode failed: {e}")
 

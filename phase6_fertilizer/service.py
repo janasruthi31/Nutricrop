@@ -194,25 +194,35 @@ class FertilizerOptimizerService:
                 warnings=["Nutrient requirement is 0 kg. No fertilizer application required."]
             )
 
-        # Solve using Mixed-Integer Linear Programming (MILP)
+        # Upper bounds configuration
+        ub_bounds = [np.inf] * len(lhs_bounds)
+        if req.max_surplus_factor is not None and req.max_surplus_factor > 1.0:
+            ub_bounds = [b * float(req.max_surplus_factor) for b in lhs_bounds]
+
+        # Solve using Mixed-Integer Linear Programming (MILP) or continuous LP
         bag_counts = None
         solver_status_msg = ""
         is_globally_optimal = False
+        is_fractional = bool(req.allow_fractional_bags)
 
         if HAS_MILP:
-            integrality = np.ones(num_vars)  # 1 indicates integer constraint (whole commercial bags)
-            constraints = LinearConstraint(A_rows, lb=lhs_bounds, ub=[np.inf] * len(lhs_bounds))
+            integrality = np.zeros(num_vars) if is_fractional else np.ones(num_vars)
+            constraints = LinearConstraint(A_rows, lb=lhs_bounds, ub=ub_bounds)
             bounds = Bounds(lb=0, ub=np.inf)
             res = milp(c=c_bags, integrality=integrality, constraints=constraints, bounds=bounds)
 
             if res.success and res.x is not None:
-                bag_counts = [int(round(v)) for v in res.x]
+                if is_fractional:
+                    bag_counts = [round(math.ceil(float(v) * 100.0) / 100.0, 2) for v in res.x]
+                    solver_status_msg = "Solved to fractional optimality via SciPy Linear Programming (continuous bag fractions)."
+                else:
+                    bag_counts = [int(round(v)) for v in res.x]
+                    solver_status_msg = "Solved to global optimality via SciPy Mixed-Integer Linear Programming (HiGHS MILP)."
                 is_globally_optimal = True
-                solver_status_msg = "Solved to global optimality via SciPy Mixed-Integer Linear Programming (HiGHS MILP)."
             else:
                 solver_status_msg = f"MILP solver status: {res.status} ({getattr(res, 'message', 'Infeasible')})"
         else:
-            # Fallback continuous LP with ceiling
+            # Fallback continuous LP
             c_kg = np.array([float(p["price_per_kg_inr"]) for p in candidates])
             A_ub = [[-float(p["n_pct"]) / 100.0 for p in candidates]] if n_req > 0 else []
             b_ub = [-n_req] if n_req > 0 else []
@@ -225,8 +235,13 @@ class FertilizerOptimizerService:
             bounds = [(0, None) for _ in range(num_vars)]
             res = linprog(c_kg, A_ub=np.array(A_ub), b_ub=np.array(b_ub), bounds=bounds, method="highs")
             if res.success and res.x is not None:
-                bag_counts = [math.ceil(round(float(qty), 2) / p["bag_size_kg"]) for qty, p in zip(res.x, candidates)]
-                solver_status_msg = "Solved via continuous LP with integer bag ceiling."
+                if is_fractional:
+                    bag_counts = [round(float(qty) / p["bag_size_kg"], 3) for qty, p in zip(res.x, candidates)]
+                    solver_status_msg = "Solved via continuous LP (fractional bag units)."
+                else:
+                    bag_counts = [math.ceil(round(float(qty), 2) / p["bag_size_kg"]) for qty, p in zip(res.x, candidates)]
+                    solver_status_msg = "Solved via continuous LP with integer bag ceiling."
+                is_globally_optimal = True
 
         if bag_counts is None:
             return FertilizerOptimizationResponse(
@@ -282,15 +297,16 @@ class FertilizerOptimizerService:
                     price_effective_date=p.get("effective_date", "2024-04-01")
                 ))
 
-        # Re-validate that whole-bag combination completely satisfies target nutrients
-        if (n_req > 0 and supplied_n + 1e-4 < n_req) or \
-           (p2o5_req > 0 and supplied_p2o5 + 1e-4 < p2o5_req) or \
-           (k2o_req > 0 and supplied_k2o + 1e-4 < k2o_req):
+        # Re-validate that fertilizer package combination satisfies target nutrients
+        val_tol = 0.1 if is_fractional else 1e-4
+        if (n_req > 0 and supplied_n + val_tol < n_req) or \
+           (p2o5_req > 0 and supplied_p2o5 + val_tol < p2o5_req) or \
+           (k2o_req > 0 and supplied_k2o + val_tol < k2o_req):
             return FertilizerOptimizationResponse(
                 status=INFEASIBLE,
                 crop=crop,
                 farm_area_hectares=area_ha,
-                validation_errors=["Whole-bag fertilizer package combination failed to satisfy nutrient requirements. Recommendation rejected as infeasible."]
+                validation_errors=["Fertilizer package combination failed to satisfy nutrient requirements. Recommendation rejected as infeasible."]
             )
 
         supplied_n = round(supplied_n, 2)
@@ -319,7 +335,25 @@ class FertilizerOptimizerService:
         split_schedule = self._generate_split_schedule(crop or "General", product_recs)
 
         if is_globally_optimal:
-            warnings.append("Cost minimization solved to global optimality for discrete commercial bags.")
+            if is_fractional:
+                warnings.append("Cost minimization solved to global optimality for continuous fractional quantities.")
+            else:
+                warnings.append("Cost minimization solved to global optimality for discrete commercial bags.")
+
+        # Check for significant discrete oversupply (> 1.5x)
+        surplus_alerts = []
+        if n_req > 0 and supplied_n > 1.5 * n_req:
+            surplus_alerts.append(f"Nitrogen (supplied {supplied_n:.1f} kg vs required {n_req:.1f} kg; {supplied_n/n_req:.1f}x)")
+        if p2o5_req > 0 and supplied_p2o5 > 1.5 * p2o5_req:
+            surplus_alerts.append(f"P₂O₅ (supplied {supplied_p2o5:.1f} kg vs required {p2o5_req:.1f} kg; {supplied_p2o5/p2o5_req:.1f}x)")
+        if k2o_req > 0 and supplied_k2o > 1.5 * k2o_req:
+            surplus_alerts.append(f"K₂O (supplied {supplied_k2o:.1f} kg vs required {k2o_req:.1f} kg; {supplied_k2o/k2o_req:.1f}x)")
+
+        if surplus_alerts and not is_fractional:
+            warnings.append(
+                f"Commercial whole-bag packaging constraint causes surplus over 1.5x for: {'; '.join(surplus_alerts)}. "
+                f"For smallholder plots, farmers are advised to apply precise fractional/loose quantities to avoid nutrient oversupply and unnecessary cost."
+            )
 
         final_opt_status = OPTIMIZATION_SUCCESS
         if is_provisional or not is_verified or p5_status == "PROVISIONAL_PENDING_VALIDATION":

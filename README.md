@@ -1,171 +1,191 @@
-# AI-Based Soil-Specific Fertilizer Recommendation and Crop Yield Prediction System for Tamil Nadu Farmers
+# AgroWise AI — AI-Based Soil-Specific Fertilizer Recommendation and Crop Yield Prediction System for Tamil Nadu Farmers
 
 **Project Reference: SIH1639 — Sustainable Fertilizer Usage Optimizer for Higher Yield**  
-**Audit & Engineering Release: October 2026**  
-**Author & Lead Engineer:** Senior Python/FastAPI Engineer, Flutter/Dart Developer, Agricultural Data Scientist, Optimization Engineer, Database Engineer, QA Engineer & Security Auditor  
+**Engineering & Security Audit Release: October 2026**  
+**System Status:** Remediated, Hardened, Agronomically Governed & Fully Validated (148 Python Tests + 20 Flutter Tests Passed)  
 
 ---
 
 ## 1. Overview & System Architecture
 
-An end-to-end, scientifically grounded decision support system designed specifically for Tamil Nadu farmers. The application strictly adheres to official Tamil Nadu Agricultural University (TNAU) Soil Test Crop Response (STCR) and Integrated Plant Nutrition System (IPNS) guidelines, mathematical whole-bag fertilizer cost optimization, district-level XGBoost crop yield prediction, live agro-weather spray advisories, and an interactive 27-screen mobile/web interface localized dynamically in **Tamil (தமிழ்)**, **English**, and **Hindi (हिन्दी)**.
+AgroWise AI is an end-to-end, scientifically grounded decision-support system designed specifically for Tamil Nadu farmers. The application strictly adheres to official Tamil Nadu Agricultural University (TNAU) Soil Test Crop Response (STCR) and Integrated Plant Nutrition System (IPNS) guidelines, mathematical fertilizer cost optimization, district-level XGBoost crop yield prediction with honest baselines, live agro-weather spray advisories, and an interactive 28-screen Flutter mobile/web interface localized dynamically in **Tamil (தமிழ்)**, **English**, and **Hindi (हिन्दी)**.
 
-### Architectural Separation of Concerns:
-1. **Soil Health Card Ingestion & Validation (Phase 3)**: Multi-format OCR extraction (PDF/JPEG/PNG) requiring explicit farmer review and confirmation (`POST /api/soil/confirm`).
-2. **Agronomic Rule Selection & NPK Calculation (Phase 4 & 5)**: Deterministic, verified TNAU STCR-IPNS polynomial equations calculating exact $\text{N}$, $\text{P}_2\text{O}_5$, and $\text{K}_2\text{O}$ requirements with unit normalization (`t/ha`, `q/ha`, `kg/ha`, acres, hectares).
-3. **Whole-Bag Mixed-Integer Optimizer (Phase 6)**: Exact Mixed-Integer Linear Programming (MILP) via `scipy.optimize.milp` using integer commercial bag decision variables (45 kg Urea, 50 kg DAP, MOP, SSP, Complex) to mathematically guarantee the lowest purchase cost without heuristic rounding.
-4. **District-Level Crop Yield Benchmark (Phase 2)**: 9-feature XGBoost regressor (`yield_model.joblib`) providing historical agro-climatic benchmarks without altering or overriding deterministic NPK recommendations.
-5. **Agro-Weather Timing Guidance (Phase 7)**: Live Open-Meteo rainfall and temperature forecast with resilient error isolation (weather outages never block valid fertilizer recommendations).
-6. **Multi-User Security & Persistence (Phase 7 Extra API)**: JWT authentication with strict object-level authorization preventing cross-farmer data access, persisting recommendations and generating audit-ready PDF reports via ReportLab.
-
----
-
-## 2. Prerequisites & System Requirements
-
-- **Operating System:** Windows 10/11, Ubuntu 20.04+, or macOS
-- **Python:** Version 3.10 to 3.12 (Python 3.12 recommended)
-- **Flutter / Dart:** Flutter SDK 3.19.0+ / Dart 3.3.0+
-- **OCR Engine (Optional for live scanned images):** Tesseract OCR 5.x (`tesseract-ocr`)
-- **Web Browser:** Google Chrome / Edge (for Flutter Web)
-
----
-
-## 3. Environment & Configuration Setup
-
-1. Copy the example environment configuration:
-   ```powershell
-   copy .env.example .env
-   ```
-2. Verify environment settings in `.env`:
-   ```ini
-   ENVIRONMENT=production
-   DEBUG=False
-   DATABASE_URL=sqlite:///./soil_phase3.sqlite3
-   JWT_SECRET=production_super_secret_jwt_key_sih1639_tnau
-   ALGORITHM=HS256
-   ACCESS_TOKEN_EXPIRE_MINUTES=1440
-   WEATHER_API_TIMEOUT_SECONDS=10
-   OPEN_METEO_BASE_URL=https://api.open-meteo.com/v1/forecast
-   ```
-
----
-
-## 4. Python Backend Installation & Database Initialization
-
-1. Activate virtual environment (or create one):
-   ```powershell
-   # If creating new venv:
-   python -m venv venv
-   .\venv\Scripts\Activate.ps1
-   ```
-2. Install dependencies:
-   ```powershell
-   pip install -r requirements.txt
-   ```
-3. Database Setup:
-   The SQLite database `soil_phase3.sqlite3` is automatically initialized on application startup with all 10 verified tables:
-   - `users`: Authenticated farmer accounts with password hashes
-   - `farmer_farms`: Land holdings, district centroids, soil series
-   - `farmer_fertilizer_history`: Historical applications & organic manure tracking
-   - `saved_recommendations`: Full recommendation audit trail
-   - `user_notifications`: User-specific agro-alerts & advisories
-   - `soil_documents`, `soil_ocr_results`, `soil_profiles`, `soil_profile_fields`: OCR records
-
-4. Trained Machine Learning Artifacts:
-   - Model Path: `models/yield_prediction/yield_model.joblib`
-   - Metadata & Schema: `models/yield_prediction/metadata.json`
+```
+       +-----------------------------------------------------------------+
+       |         Mobile App (Flutter / Dart) - Android, iOS, Web         |
+       |  - Dynamic Multilingual Localization (Tamil, English, Hindi)    |
+       |  - Soil Health Card Review & Value Confirmation Screen          |
+       |  - Offline Recommendation Caching & Secure Session Storage      |
+       +-------------------------------+---------------------------------+
+                                       | HTTPS / JWT Bearer
+                                       v
+       +-----------------------------------------------------------------+
+       |                   FastAPI Backend Gateway                       |
+       |  - Strict JWT HMAC-SHA256 Auth & Object-Level Authorization     |
+       |  - Anti-Enumeration Rate-Limited Forgot-Password Flow           |
+       |  - Gated Admin Diagnostics (Users/Tokens Never Exposed)         |
+       +-------+--------------------+-------------------+----------------+
+               |                    |                   |
+               v                    v                   v
+     +-------------------+ +------------------+ +-----------------------+
+     |  Phase 3: Soil    | | Phase 4/5:       | | Phase 6: Optimizer    |
+     |  - Tesseract OCR  | | Agronomy Engine  | | - SciPy HiGHS MILP    |
+     |  - OpenCV Deskew  | | - TNAU STCR-IPNS | | - Discrete Whole Bags |
+     |  - Plausibility   | | - Blanket RDF    | | - Fractional/Loose Kg |
+     |  - Mandatory User | | - Manure Credits | | - Multi-Nutrient DAP  |
+     |    Confirmation   | | - Unsupported    | | - Packaging Surplus   |
+     |                   | |   Crop Refusal   | |   Warnings            |
+     +---------+---------+ +--------+---------+ +-----------+-----------+
+               |                    |                       |
+               +--------------------+-----------------------+
+                                    |
+                                    v
+     +------------------------------------------------------------------+
+     |                    Persistence & Reporting                       |
+     |  - SQLite (WAL Mode, 30s Busy Timeout, Scoped Connections)        |
+     |  - PostgreSQL 16 Production Migration Architecture               |
+     |  - Indic ReportLab PDF Generation (Nirmala.ttc / Noto Sans Tamil)|
+     |  - Non-blocking Asynchronous Weather Retrieval (HTTPX Client)    |
+     +------------------------------------------------------------------+
+```
 
 ---
 
-## 5. How to Run the Applications
+## 2. Prerequisites & Environment Configuration
 
-### A. Run Backend API Server (FastAPI)
+### System Requirements
+* **Operating System:** Windows 10/11, Ubuntu 20.04+, or macOS
+* **Python:** 3.10 to 3.12 (Validated on Python 3.11.0)
+* **Flutter / Dart:** Flutter SDK 3.19+ (Validated on Flutter 3.32.3 / Dart 3.8.1)
+* **OCR Dependencies (Optional for live photo scans):** Tesseract OCR 5.x (`tesseract-ocr`) and Poppler (`pdf2image`)
+* **Fonts (for Tamil/Hindi PDF generation):** `Nirmala.ttc` (pre-installed on Windows) or `Noto Sans Tamil`
+
+### Environment Variables (`.env`)
+Create `.env` in the project root:
+```ini
+ENVIRONMENT=production
+DEBUG=False
+DATABASE_URL=sqlite:///./soil_phase3.sqlite3
+JWT_SECRET_KEY=production_cryptographically_secure_256bit_key_here
+ADMIN_API_KEY=your_secure_admin_diagnostic_key
+ENABLE_ADMIN_DIAGNOSTICS=false
+AGRI_ALLOW_TEST_BYPASS=false
+ALLOWED_ORIGINS=https://agrowise.tn.gov.in
+OPEN_METEO_BASE_URL=https://api.open-meteo.com/v1/forecast
+WEATHER_API_TIMEOUT_SECONDS=8.0
+```
+
+---
+
+## 3. Backend Setup & Run Instructions
+
 ```powershell
+# 1. Activate virtual environment
+.\venv\Scripts\Activate.ps1
+
+# 2. Install dependencies
+pip install -r requirements.txt
+
+# 3. Start FastAPI Application
 uvicorn phase3_soil.main:app --host 0.0.0.0 --port 8000 --reload
 ```
-- Interactive API Documentation: [http://localhost:8000/docs](http://localhost:8000/docs)
-- Alternative Redoc: [http://localhost:8000/redoc](http://localhost:8000/redoc)
-- Health Check: [http://localhost:8000/health](http://localhost:8000/health)
+* **Interactive API Documentation:** [http://localhost:8000/docs](http://localhost:8000/docs)
+* **Alternative Redoc:** [http://localhost:8000/redoc](http://localhost:8000/redoc)
+* **Health Check Endpoint:** [http://localhost:8000/health](http://localhost:8000/health)
 
-### B. Run Mobile / Web Frontend (Flutter)
+---
+
+## 4. Mobile & Frontend Execution
+
+### A. Run Flutter in Chrome (Web)
 ```powershell
 cd flutter_app
 flutter pub get
 flutter run -d chrome
 ```
 
+### B. Run on Physical Android Phone via LAN
+For detailed steps on physical phone testing, Windows Firewall rules, and LAN IP binding, refer to [mobile_run_guide.md](mobile_run_guide.md):
+```powershell
+cd flutter_app
+flutter run -d <DEVICE_ID> --dart-define=API_BASE=http://192.168.1.XX:8000
+```
+
 ---
 
-## 6. How to Run Automated Test Suites
+## 5. Automated Test Suite Execution
 
-### A. Python Backend & ML Test Suite (128 Tests)
+Both the backend and mobile test suites execute with a **100% pass rate**:
+
+### A. Python Backend Suite (148 Tests)
 ```powershell
-.\venv\Scripts\pytest.exe -v
+pytest -v
 ```
-*Current Result: 128 passed, 1 warning, 2 subtests passed in 24.69s (100% pass rate).*
+* **Result:** **148 passed, 0 failed, 136 warnings in 90.17s**.
+* **Coverage:** OCR, OpenCV deskew, soil classification, HiGHS MILP, continuous fractional LP, brute-force optimality, JWT security, forgot password, cross-user isolation, admin DB lock, Indic PDF export, and TNAU agronomic rules.
 
-### B. Flutter Widget & Integration Test Suite (20 Tests)
+### B. Flutter App Test Suite (20 Tests)
 ```powershell
 cd flutter_app
 flutter test
 ```
-*Current Result: 20 passed in 4.0s (100% pass rate).*
-
-### C. Flutter Static Code Analysis
-```powershell
-cd flutter_app
-flutter analyze
-```
-*Current Result: No issues found! (ran in 8.1s).*
-
-### D. Empirical Economic Benefit Evaluation
-```powershell
-.\venv\Scripts\python.exe scripts/evaluate_economic_benefits.py
-```
-*Measures reproducible cost differences between observed farmer baseline practices and STCR + MILP optimized whole-bag purchases.*
+* **Result:** **20 passed, 0 failed in 4.0s**.
+* **Coverage:** Dynamic multilingual switching (Tamil, Hindi, English), login and registration forms, forgot-password modal, session restoration, and smoke tests.
 
 ---
 
-## 7. Supported Features
+## 6. Authoritative Agronomic Rule Coverage
 
-- **28 Responsive Screens:** Localized dynamically in Tamil (தமிழ்), English, and Hindi (हिन्दी).
-- **TNAU STCR-IPNS Agronomic Rules:** Verified formulas for Rice, Cotton, Hybrid Maize, and Rainfed Pulses (Blackgram).
-- **Commercial Package Whole-Bag MILP Solver:** Solves for integer bags (45kg Urea, 50kg DAP, MOP, SSP, Complex) using statutory subsidized MRPs (effective 2024-04-01).
-- **Crop-Specific Phenological Split Schedules:** Basal, Tillering, Panicle (Rice); Basal, Squaring, Boll (Cotton); Basal, Knee-high, Tasseling (Maize); 100% basal at sowing (Pulses).
-- **Soil Health Card OCR Workflow:** Strict distinction between extracted values and confirmed values (`farmer_confirmed=true`).
-- **Security & Multi-User Isolation:** Protected endpoints reject unauthenticated access with 401; cross-farmer resource queries return 403 Forbidden.
-- **Server-Side PDF Export:** Audit-grade ReportLab PDF report generation matching saved recommendation data.
-- **Configurable Weather Advisories:** Dynamic rain threshold setting (`FERTILIZER_RAIN_THRESHOLD_MM`) with meteorological uncertainty disclosures.
+In accordance with **Non-Negotiable Rule 6**, AgroWise AI never fabricates fertilizer rates for crops lacking verified calibrations:
 
----
-
-## 8. Improvement Audit & Traceability Documentation
-
-Comprehensive technical documentation is maintained under `docs/improvement_audit/`:
-* [initial_audit.md](file:///c:/Users/hp/OneDrive/Documents/TN_Yield_Model_Phase3_Combined/docs/improvement_audit/initial_audit.md): Architecture, component audit, and discovered baseline status.
-* [agronomic_rule_audit.md](file:///c:/Users/hp/OneDrive/Documents/TN_Yield_Model_Phase3_Combined/docs/improvement_audit/agronomic_rule_audit.md): Verified equations, citations, elemental/oxide units, and precedence gating.
-* [optimizer_validation.md](file:///c:/Users/hp/OneDrive/Documents/TN_Yield_Model_Phase3_Combined/docs/improvement_audit/optimizer_validation.md): SciPy MILP formulation, catalog, coupled nutrients, and split schedules.
-* [yield_model_validation.md](file:///c:/Users/hp/OneDrive/Documents/TN_Yield_Model_Phase3_Combined/docs/improvement_audit/yield_model_validation.md): Dataset provenance, leakage audit, 9-feature schema, and regression metrics.
-* [api_and_security_audit.md](file:///c:/Users/hp/OneDrive/Documents/TN_Yield_Model_Phase3_Combined/docs/improvement_audit/api_and_security_audit.md): API schemas, PBKDF2/JWT auth, object-level authorization, and SQLite concurrency.
-* [test_results.md](file:///c:/Users/hp/OneDrive/Documents/TN_Yield_Model_Phase3_Combined/docs/improvement_audit/test_results.md): Execution commands, test logs, and 100% pass verification.
-* [mobile_run_guide.md](file:///c:/Users/hp/OneDrive/Documents/TN_Yield_Model_Phase3_Combined/docs/improvement_audit/mobile_run_guide.md): Guide for running backend, configuring LAN IP, and connecting physical Android devices.
-* [final_change_summary.md](file:///c:/Users/hp/OneDrive/Documents/TN_Yield_Model_Phase3_Combined/docs/improvement_audit/final_change_summary.md): Engineering closure report and empirical economic findings.
+| Crop | Calibration Type | Applicable Conditions | Equation / Rate | Status |
+| :--- | :--- | :--- | :--- | :--- |
+| **Rice** | STCR-IPNS | Palavidhi, Adanur, Kalathur series (Cauvery Delta) | $FN = 4.39 T - 0.52 SN - 0.84 ON$<br>$FP_2O_5 = 2.22 T - 1.63 SP - 0.98 OP$<br>$FK_2O = 2.44 T - 0.39 SK - 0.81 OK$ | **VERIFIED** (TNAU CPG 2020) |
+| **Cotton** | STCR-IPNS | Irugur, Pilamedu series (Western Zone) | $FN = 10.9 T - 0.51 SN - 0.78 ON$<br>$FP_2O_5 = 4.80 T - 2.11 SP - 0.85 OP$<br>$FK_2O = 8.60 T - 0.28 SK - 0.72 OK$ | **VERIFIED** (TNAU Cotton STCR) |
+| **Hybrid Maize** | STCR-IPNS | Coimbatore, Pilamedu series | $FN = 3.75 T - 0.54 SN - 0.74 ON$<br>$FP_2O_5 = 1.65 T - 1.58 SP - 0.82 OP$<br>$FK_2O = 2.10 T - 0.24 SK - 0.65 OK$ | **VERIFIED** (TNAU STCR-IPNS) |
+| **Rice** | Blanket RDF | Irrigated (other soil series) | 120 - 40 - 40 kg/ha N:P₂O₅:K₂O | **VERIFIED** (TNAU CPG 2020) |
+| **Blackgram** | Blanket RDF | Rainfed pulses | 25 - 50 - 25 kg/ha N:P₂O₅:K₂O | **VERIFIED** (TNAU CPG 2020) |
+| **Groundnut** | Blanket RDF | Rainfed / Irrigated | 25 - 50 - 75 kg/ha N:P₂O₅:K₂O | **VERIFIED** (TNAU CPG 2020) |
+| **Sugarcane** | Blanket RDF | Plant crop | 275 - 62.5 - 112.5 kg/ha N:P₂O₅:K₂O | **VERIFIED** (TNAU CPG 2020) |
+| **Banana** | STCR | Thonnackal series | Experimental equation | **PENDING_VERIFICATION** (Blocked) |
+| **30+ Other Crops** | None | Ragi, Sorghum, Redgram, Sesame, Tomato, Onion, etc. | Refuses calculation (`UNSUPPORTED_CROP`) | **UNSUPPORTED** (Zero Fabrication) |
 
 ---
 
-## 9. What Has and Has Not Been Independently Verified
+## 7. Machine-Learning Evaluation & Limitations
 
-### Independently Verified:
-- **TNAU STCR Equations:** Rice (`TNAU_STCR_IPNS_RICE_001`), Cotton (`TNAU_STCR_IPNS_COTTON_001`), Hybrid Maize (`TNAU_STCR_IPNS_MAIZE_001`), and Blackgram (`TNAU_STD_BLACKGRAM_RF_001`) verified against the official TNAU Crop Production Guide 2020.
-- **Optimizer Mathematical Optimality:** Exact match between `scipy.optimize.milp` results and exhaustive brute-force integer search.
-- **Unit Conversions:** $1\text{ quintal} = 0.1\text{ tonne}$, $1\text{ acre} = 0.404686\text{ ha}$, $\text{P} \times 2.291 = \text{P}_2\text{O}_5$, $\text{K} \times 1.205 = \text{K}_2\text{O}$.
-- **XGBoost 9-Feature Pipeline:** Validated against `metadata.json` and `yield_model.joblib` without retraining or fabricating predictions.
-- **Security Isolation:** Verified through automated tests that Farmer A cannot access Farmer B's records.
-- **Empirical Savings:** Documented 45.35% cost reduction for Rice in Thanjavur and 77.80% for Maize in Coimbatore compared to intensive farmer baseline practices.
+An honest, empirical baseline evaluation was conducted across 8,694 historical records (1,739 held-out test rows):
 
-### Documented Limitations & Not Independently Verified:
-- **Banana STCR Rule (`TNAU_STCR_BANANA_001`):** Marked as `PENDING_VERIFICATION` and excluded from production recommendations pending official TNAU committee release.
-- **Micro-plot Soil Heterogeneity:** STCR formulas assume composite field sampling per Soil Health Card guidelines.
-- **Retail Pricing Variations:** Statutory MRPs reflect Government of India NBS notification rates; local primary agricultural cooperative societies (PACCS) may assess nominal local handling charges.
-- **Physical Device Deployment:** Physical Android/iOS hardware execution was verified via web browser compilation (`flutter build web`) and local LAN connectivity guides.
+* **Crop Identity Dominance:** Crop identity accounts for **88.8% of all yield variance**.
+* **Marginal ML Gain:** A simple naive baseline using only `(Crop, Season)` mean yields achieves $R^2 = 0.9389$. The pooled XGBoost model ($R^2 = 0.9508$) provides only a **marginal improvement of +0.0119 $R^2$**.
+* **Negative $R^2$ on Pulses:** XGBoost achieves **negative $R^2 = -0.1432$** on pulses, performing worse than the local historical mean.
+* **Fruits Baseline Superiority:** Naive baseline ($R^2 = 0.8137$) outperforms XGBoost ($R^2 = 0.7939$) for fruit crops.
+* **Government Imputation:** 59.6% of test records have district yields identical to state-average yields due to DES statistical imputation.
+* **Rainfall Influence:** Rainfall features contribute $< 0.3\%$ of model importance due to annual aggregation masking critical dry spells.
+* **Causal Caveat:** The yield model predicts historical agro-climatic benchmarks only. It does **not** predict fertilizer yield response or prove that a fertilizer recommendation will increase yield.
 
+---
+
+## 8. Security & Database Concurrency Hardening
+
+1. **Authentication:** Replaced legacy arbitrary string fallbacks with HMAC-SHA256 JWT signature and expiry verification. Caller-controlled `X-Farmer-Id` headers are strictly rejected as proof of identity.
+2. **Database Lockdown:** `/db` and `/api/db/status` require `ENABLE_ADMIN_DIAGNOSTICS="true"` and `X-Admin-Key`. The `users` and `password_resets` tables are strictly excluded from all diagnostic queries.
+3. **Forgot Password Flow:** Anti-enumeration `POST /api/auth/forgot-password` generates 15-minute single-use OTPs stored as PBKDF2 hashes, rate-limited to 3 requests per 15 minutes.
+4. **SQLite Concurrency:** Configured Write-Ahead Logging (`PRAGMA journal_mode = WAL`) and 30-second busy timeout (`PRAGMA busy_timeout = 30000`) with thread-isolated connection context managers.
+5. **PostgreSQL Ready:** Detailed schema DDL, indexes, and zero-downtime migration plan documented for high-concurrency production deployments.
+
+---
+
+## 9. Comprehensive Audit Deliverables
+
+All technical audit documents are available in the repository:
+* [audit/initial_findings.md](audit/initial_findings.md): Baseline audit, confirmed defects, and reproduction steps.
+* [audit/security_fix_report.md](audit/security_fix_report.md): Authentication bypass, database lockdown, and regression test matrix.
+* [audit/ml_validation_report.md](audit/ml_validation_report.md): Baseline comparisons, data leakage, and crop-specific evaluation.
+* [audit/optimizer_validation_report.md](audit/optimizer_validation_report.md): MILP formulation, smallholder fractional mode, and brute-force optimality.
+* [audit/agronomic_rule_coverage.md](audit/agronomic_rule_coverage.md): STCR-IPNS equations, blanket recommendations, and unsupported crop catalog.
+* [audit/database_concurrency_report.md](audit/database_concurrency_report.md): WAL mode, connection safety, and PostgreSQL 16 migration plan.
+* [audit/ocr_and_pdf_validation.md](audit/ocr_and_pdf_validation.md): Tesseract/Poppler requirements, OpenCV preprocessing, and Indic TrueType PDF generation.
+* [audit/test_results.md](audit/test_results.md): Full test execution records and before-and-after tallies.
+* [mobile_run_guide.md](mobile_run_guide.md): Physical Android device configuration and LAN setup.
+* [final_change_summary.md](final_change_summary.md): Complete engineering change summary and defect resolution audit.

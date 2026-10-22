@@ -216,3 +216,59 @@ def test_10_whole_bag_integer_units():
         assert p.price_source != ""
         assert p.price_effective_date != ""
 
+
+# 11. Fractional bag optimization for smallholders
+def test_11_fractional_bags_for_smallholders():
+    # Smallholder 0.05 ha plot: requires 6 kg N, 2 kg P2O5, 2 kg K2O
+    req = FertilizerOptimizationRequest(
+        crop="Rice",
+        n_req_kg=6.0,
+        p2o5_req_kg=2.0,
+        k2o_req_kg=2.0,
+        farm_area_hectares=0.05,
+        allow_fractional_bags=True
+    )
+    res = service.optimize(req)
+    assert res.status == "OPTIMIZATION_SUCCESS"
+    assert res.total_cost_inr > 0
+    # Must not force full whole 50kg bags
+    total_delivered_kg = sum(p.quantity_kg for p in res.recommended_products)
+    assert total_delivered_kg < 45.0  # Fraction is less than one single full bag
+    assert any(isinstance(p.bags, float) or p.bags < 1.0 for p in res.recommended_products)
+
+
+# 12. Surplus factor upper bound constraint
+def test_12_surplus_factor_constraint():
+    # Setting max_surplus_factor=1.2 on fractional bags
+    req = FertilizerOptimizationRequest(
+        crop="Rice",
+        n_req_kg=50.0,
+        p2o5_req_kg=25.0,
+        k2o_req_kg=25.0,
+        allow_fractional_bags=True,
+        max_surplus_factor=1.2
+    )
+    res = service.optimize(req)
+    assert res.status == "OPTIMIZATION_SUCCESS"
+    assert res.nutrient_balance["nitrogen"].supplied_kg <= 50.0 * 1.2001
+    assert res.nutrient_balance["phosphorus_p2o5"].supplied_kg <= 25.0 * 1.2001
+    assert res.nutrient_balance["potassium_k2o"].supplied_kg <= 25.0 * 1.2001
+
+
+# 13. Smallholder surplus packaging warning in whole bag mode
+def test_13_smallholder_surplus_packaging_warning():
+    # Very small plot with discrete whole bags -> oversupply > 1.5x triggers warning
+    req = FertilizerOptimizationRequest(
+        crop="Rice",
+        n_req_kg=6.0,
+        p2o5_req_kg=2.0,
+        k2o_req_kg=2.0,
+        farm_area_hectares=0.05,
+        allow_fractional_bags=False
+    )
+    res = service.optimize(req)
+    assert res.status == "OPTIMIZATION_SUCCESS"
+    # Should flag packaging oversupply in warnings
+    assert any("surplus over 1.5x" in w.lower() for w in res.warnings)
+
+
