@@ -30,8 +30,8 @@
     "source_title": "TNAU Agriculture / STCR-IPNS Reference",
     "source_url": "https://agritech.tnau.ac.in/pdf/AGRICULTURE.pdf",
     "source_page_or_section": "STCR-IPNS Rice Calibration Tables, pp. 12-15",
-    "verification_status": "VERIFIED",
-    "verification_date": "2024-01-15",
+    "verification_status": "PROVISIONAL",
+    "verification_date": null,
     "applicability_notes": "Valid for irrigated paddy in Cauvery delta soils (Palavidhi, Adanur, Kalathur series) for target yields between 3.0 and 8.0 t/ha using STCR-IPNS approach."
   },
   {
@@ -65,8 +65,8 @@
     "source_title": "TNAU Cotton STCR",
     "source_url": "https://agritech.tnau.ac.in/agriculture/agri_cotton_STCR_P_K_cotton.html",
     "source_page_or_section": "Cotton STCR P & K equations section",
-    "verification_status": "VERIFIED",
-    "verification_date": "2024-01-15",
+    "verification_status": "PROVISIONAL",
+    "verification_date": null,
     "applicability_notes": "Valid for MCU 5 cotton under irrigated conditions in Coimbatore/Tiruppur region on Irugur and Pilamedu soil series with target yield 1.5-3.5 t/ha."
   },
   {
@@ -100,8 +100,8 @@
     "source_title": "TNAU Crop Production Guide 2020",
     "source_url": "https://tnau.ac.in/site/research/wp-content/uploads/sites/60/2020/02/Agriculture-CPG-2020.pdf",
     "source_page_or_section": "Maize STCR-IPNS Chapter, p. 84",
-    "verification_status": "VERIFIED",
-    "verification_date": "2024-01-15",
+    "verification_status": "PROVISIONAL",
+    "verification_date": null,
     "applicability_notes": "Applicable for hybrid maize under irrigation on Coimbatore/Pilamedu soil series."
   },
   {
@@ -135,8 +135,8 @@
     "source_title": "TNAU Soil Testing Services",
     "source_url": "https://agritech.tnau.ac.in/agriculture/agri_soil_tnau_soiltestingservices.html",
     "source_page_or_section": "General Rice Recommendation Table",
-    "verification_status": "VERIFIED",
-    "verification_date": "2024-01-15",
+    "verification_status": "PROVISIONAL",
+    "verification_date": null,
     "applicability_notes": "Standard soil-test based rating adjustment recommendation for irrigated rice when specific STCR soil series is not applicable or available."
   },
   {
@@ -170,8 +170,8 @@
     "source_title": "TNAU Blackgram Rainfed",
     "source_url": "https://agritech.tnau.ac.in/agriculture/CropProduction/Pulses/BlackgramRainfed.html",
     "source_page_or_section": "Nutrient Management for Rainfed Blackgram",
-    "verification_status": "VERIFIED",
-    "verification_date": "2024-01-15",
+    "verification_status": "PROVISIONAL",
+    "verification_date": null,
     "applicability_notes": "Verified rainfed fertilizer recommendation for blackgram across Tamil Nadu rainfed tracts."
   },
   {
@@ -242,8 +242,8 @@
     "source_title": "TNAU Crop Production Guide (General Blanket Schedule)",
     "source_url": "https://tnau.ac.in/site/research/wp-content/uploads/sites/60/2020/02/Agriculture-CPG-2020.pdf",
     "source_page_or_section": "Groundnut General Blanket Schedule, p. 112",
-    "verification_status": "VERIFIED",
-    "verification_date": "2024-01-15",
+    "verification_status": "PROVISIONAL",
+    "verification_date": null,
     "applicability_notes": "Verified official TNAU general blanket recommendation (25:50:75 kg/ha) with soil-test rating adjustments for groundnut across Tamil Nadu. This is a GENERAL/BLANKET RECOMMENDATION, NOT an STCR target-yield equation."
   },
   {
@@ -277,8 +277,8 @@
     "source_title": "TNAU Crop Production Guide 2020",
     "source_url": "https://tnau.ac.in/site/research/wp-content/uploads/sites/60/2020/02/Agriculture-CPG-2020.pdf",
     "source_page_or_section": "Sugarcane Recommendation, p. 150",
-    "verification_status": "VERIFIED",
-    "verification_date": "2024-01-15",
+    "verification_status": "PROVISIONAL",
+    "verification_date": null,
     "applicability_notes": "Soil-test based recommendation for irrigated sugarcane."
   },
   {
@@ -313,7 +313,7 @@
     "source_url": "https://agritech.tnau.ac.in/pdf/2.pdf",
     "source_page_or_section": "Banana STCR Draft Section",
     "verification_status": "PENDING_VERIFICATION",
-    "verification_date": "2024-01-15",
+    "verification_date": null,
     "applicability_notes": "Pending field validation by TNAU STCR committee. Cannot be used for production recommendations until verified."
   },
   {

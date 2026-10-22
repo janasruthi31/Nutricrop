@@ -118,9 +118,9 @@ class FertilizerOptimizerService:
         rec_type = p5.get("recommendation_type", "SOIL_SPECIFIC_STCR")
 
         # Backend enforcement:
-        # If Phase 5 rule was unverified or pending agronomic validation without allow_unverified flag:
-        if (not is_verified and not allow_unverified) or p5_status in ("UNVERIFIED_RULE", "BLOCKED_UNVERIFIED_RULE") or (
-            p5_status in ("PENDING_AGRONOMIC_VALIDATION", "PENDING_VERIFICATION") and not allow_unverified
+        # If Phase 5 rule was explicitly blocked or pending agronomic validation without allow_unverified flag:
+        if p5_status in ("UNVERIFIED_RULE", "BLOCKED_UNVERIFIED_RULE") or (
+            (p5_status in ("PENDING_AGRONOMIC_VALIDATION", "PENDING_VERIFICATION") or v_status in ("PENDING_AGRONOMIC_VALIDATION", "PENDING_VERIFICATION")) and not allow_unverified
         ):
             return FertilizerOptimizationResponse(
                 status="BLOCKED_UNVERIFIED_RULE",
@@ -204,6 +204,19 @@ class FertilizerOptimizerService:
         solver_status_msg = ""
         is_globally_optimal = False
         is_fractional = bool(req.allow_fractional_bags)
+
+        # Feasibility pre-check: verify that each requested nutrient has at least one candidate product that supplies it
+        for r_idx, row in enumerate(A_rows):
+            if max(row) <= 0.0 and lhs_bounds[r_idx] > 0.0:
+                return FertilizerOptimizationResponse(
+                    status=INFEASIBLE,
+                    crop=crop,
+                    farm_area_hectares=area_ha,
+                    validation_errors=[
+                        "Optimization failed to find a feasible fertilizer combination. "
+                        "Required nutrient cannot be supplied by the allowed fertilizer catalog."
+                    ]
+                )
 
         if HAS_MILP:
             integrality = np.zeros(num_vars) if is_fractional else np.ones(num_vars)

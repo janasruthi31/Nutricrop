@@ -272,10 +272,11 @@ class NutrientCalculationService:
             )
 
         # 2. Check Rule Verification Status
-        v_status = rule.get("verification_status", "PENDING_VERIFICATION")
+        v_status = rule.get("verification_status", "PROVISIONAL")
         is_verified = (v_status == "VERIFIED")
 
-        if not is_verified and not req.allow_unverified:
+        # Explicitly unsupported or unconfirmed pending rules are blocked unless allow_unverified is set
+        if v_status in ("UNSUPPORTED", "PENDING_VERIFICATION", "PENDING_AGRONOMIC_VALIDATION") and not req.allow_unverified:
             return NutrientCalculationResponse(
                 status=UNVERIFIED_RULE,
                 crop=rule["crop"],
@@ -406,22 +407,27 @@ class NutrientCalculationService:
                 )
 
             # N, P2O5, K2O calculation with FYM scaling
-            fym_applied = float(req.fym_applied_t_per_ha) if req.fym_applied_t_per_ha is not None else 12.5
-            fym_factor = max(0.0, fym_applied / 12.5) if 12.5 > 0 else 1.0
+            # Default FYM to 0.0 unless farmer specifically applied it (Problem E fix)
+            fym_applied = float(req.fym_applied_t_per_ha) if req.fym_applied_t_per_ha is not None else 0.0
+            fym_factor = max(0.0, fym_applied / 12.5) if 12.5 > 0 else 0.0
+
+            # Target yield scaling: if rule expects q/ha, scale 1 t/ha = 10 q/ha
+            rule_t_unit = (stcr_coeffs.get("target_yield_unit") or "t/ha").strip().lower()
+            t_calc = target_yield * 10.0 if rule_t_unit in ("q/ha", "quintal/ha", "q") else target_yield
 
             n_c = stcr_coeffs["N"]
             fym_credit_n = round(n_c.get("c_fym", 0.0) * min(1.0, fym_factor), 2)
-            raw_n = n_c["a"] * target_yield - n_c["b_soil"] * sn - fym_credit_n
+            raw_n = n_c["a"] * t_calc - n_c["b_soil"] * sn - fym_credit_n
             n_req = round(max(0.0, raw_n), 2)
 
             p_c = stcr_coeffs["P2O5"]
             fym_credit_p = round(p_c.get("c_fym", 0.0) * min(1.0, fym_factor), 2)
-            raw_p = p_c["a"] * target_yield - p_c["b_soil"] * sp - fym_credit_p
+            raw_p = p_c["a"] * t_calc - p_c["b_soil"] * sp - fym_credit_p
             p2o5_req = round(max(0.0, raw_p), 2)
 
             k_c = stcr_coeffs["K2O"]
             fym_credit_k = round(k_c.get("c_fym", 0.0) * min(1.0, fym_factor), 2)
-            raw_k = k_c["a"] * target_yield - k_c["b_soil"] * sk - fym_credit_k
+            raw_k = k_c["a"] * t_calc - k_c["b_soil"] * sk - fym_credit_k
             k2o_req = round(max(0.0, raw_k), 2)
 
             clamping_notes: List[str] = []
@@ -442,6 +448,8 @@ class NutrientCalculationService:
                 "formula_N": f"{n_c['a']} * T - {n_c['b_soil']} * SN - {fym_credit_n}",
                 "formula_P2O5": f"{p_c['a']} * T - {p_c['b_soil']} * SP - {fym_credit_p}",
                 "formula_K2O": f"{k_c['a']} * T - {k_c['b_soil']} * SK - {fym_credit_k}",
+                "target_yield_used": t_calc,
+                "target_yield_unit_used": rule_t_unit,
                 "fym_applied_t_per_ha": fym_applied,
                 "fym_credit_kg_per_ha": {"N": fym_credit_n, "P2O5": fym_credit_p, "K2O": fym_credit_k},
                 "raw_calculated_rates_kg_per_ha": {
@@ -452,6 +460,7 @@ class NutrientCalculationService:
                 "clamping_notes": clamping_notes,
                 "inputs_used": {
                     "target_yield": target_yield,
+                    "target_yield_unit": req.target_yield_unit or "t/ha",
                     "soil_N_kg_per_ha": sn,
                     "soil_P_kg_per_ha": sp,
                     "soil_K_kg_per_ha": sk,
@@ -504,12 +513,12 @@ class NutrientCalculationService:
         p2o5_req_acre = round(convert_kg_per_ha_to_kg_per_acre(p2o5_req), 2)
         k2o_req_acre = round(convert_kg_per_ha_to_kg_per_acre(k2o_req), 2)
 
-        resp_status = CALCULATION_SUCCESS if is_verified else PENDING_AGRONOMIC_VALIDATION
+        resp_status = PENDING_AGRONOMIC_VALIDATION if v_status in ("PENDING_AGRONOMIC_VALIDATION", "PENDING_VERIFICATION") else CALCULATION_SUCCESS
         rec_type = rule.get("recommendation_type") or ("GENERAL_BLANKET" if rule.get("recommendation_method") in ("TNAU-BLANKET", "TNAU-SOIL-TEST") else "SOIL_SPECIFIC_STCR")
         if not is_verified:
-            rec_type = "PROVISIONAL_UNVERIFIED"
-            warnings.append(f"Rule '{rule['rule_id']}' is marked as '{v_status}' (not an authoritative STCR calibration).")
-            warnings.append("This rule has not yet been agronomically validated. A confirmed soil-specific recommendation is unavailable.")
+            rec_type = "PROVISIONAL"
+            warnings.append(f"Rule '{rule['rule_id']}' is marked as {v_status} pending TNAU/KVK verification.")
+            warnings.append("Recommendation is advisory and subject to field verification.")
 
         # Soil nutrient status and interpretation against verified TNAU thresholds
         n_class = classify("nitrogen", sn, "kg/ha") or "Unknown"

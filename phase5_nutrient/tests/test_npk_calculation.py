@@ -23,7 +23,8 @@ def test_01_valid_stcr_calculation():
         soil_nitrogen=220.0,
         soil_phosphorus=16.0,
         soil_potassium=190.0,
-        soil_phosphorus_method="Olsen"
+        soil_phosphorus_method="Olsen",
+        fym_applied_t_per_ha=12.5
     )
     res = service.calculate(req)
     assert res.status == "CALCULATION_SUCCESS"
@@ -181,7 +182,8 @@ def test_10_acre_to_hectare_conversion():
         soil_phosphorus=16.0,
         soil_potassium=190.0,
         farm_area=5.0,
-        farm_area_unit="acre"
+        farm_area_unit="acre",
+        fym_applied_t_per_ha=12.5
     )
     res = service.calculate(req)
     assert res.status == "CALCULATION_SUCCESS"
@@ -281,7 +283,8 @@ def test_15_target_yield_unit_conversions():
         soil_nitrogen=220.0,
         soil_phosphorus=16.0,
         soil_potassium=190.0,
-        soil_phosphorus_method="Olsen"
+        soil_phosphorus_method="Olsen",
+        fym_applied_t_per_ha=12.5
     )
     res = service.calculate(req)
     assert res.status == "CALCULATION_SUCCESS"
@@ -301,7 +304,8 @@ def test_16_elemental_and_oxide_nutrient_units():
         soil_phosphorus=36.66,
         soil_phosphorus_unit="kg_p2o5_per_ha",
         soil_potassium=190.0,
-        soil_phosphorus_method="Olsen"
+        soil_phosphorus_method="Olsen",
+        fym_applied_t_per_ha=12.5
     )
     res = service.calculate(req)
     assert res.status == "CALCULATION_SUCCESS"
@@ -320,10 +324,34 @@ def test_17_farm_area_acre_and_sqm_conversions():
         soil_phosphorus=16.0,
         soil_potassium=190.0,
         farm_area=2.5,
-        farm_area_unit="acre"
+        farm_area_unit="acre",
+        fym_applied_t_per_ha=12.5
     )
     res = service.calculate(req)
     assert res.status == "CALCULATION_SUCCESS"
     assert round(res.farm_area_hectares, 4) == 1.0117
     assert res.total_n_req_kg == round(17.6 * 1.011714, 2)
+
+
+# 18. Zero FYM default verification (Problem E fix)
+def test_18_zero_fym_default_no_unearned_credit():
+    # When farmer enters no FYM, fym_applied must default to 0.0 t/ha, giving 0 credit.
+    # N = 22.4 * 6.0 - 0.44 * 220 - 0.0 = 134.4 - 96.8 = 37.6 kg/ha (NOT 17.6)
+    req = NutrientCalculationRequest(
+        crop="Rice",
+        selected_rule_id="TNAU_STCR_IPNS_RICE_001",
+        target_yield=6.0,
+        soil_nitrogen=220.0,
+        soil_phosphorus=16.0,
+        soil_potassium=190.0,
+        soil_phosphorus_method="Olsen"
+    )
+    res = service.calculate(req)
+    assert res.status == "CALCULATION_SUCCESS"
+    assert res.n_req_kg_per_ha == 37.6
+    assert res.p2o5_req_kg_per_ha == 38.4
+    assert res.k2o_req_kg_per_ha == 20.2
+    assert res.calculation_details["fym_applied_t_per_ha"] == 0.0
+    assert res.calculation_details["fym_credit_kg_per_ha"]["N"] == 0.0
+
 

@@ -232,7 +232,8 @@ class FullRecommendationService:
         else:
             p6_req = FertilizerOptimizationRequest(
                 crop=crop,
-                phase5_result=p5_res.model_dump()
+                phase5_result=p5_res.model_dump(),
+                allow_unverified=allow_unverified
             )
             p6_res = self.fertilizer_service.optimize(p6_req)
 
@@ -265,10 +266,17 @@ class FullRecommendationService:
             status_message = "Recommendation cannot yet be calculated reliably. " + "; ".join(p5_res.validation_errors or ["Please check soil data."])
         elif p4_res.status in ("PENDING_VERIFICATION", "PENDING_AGRONOMIC_VALIDATION") or not p5_res.is_verified_rule:
             if rec_mode != "SOIL_HEALTH_CARD":
-                final_status = "PENDING_AGRONOMIC_VALIDATION" if not allow_unverified else "PROVISIONAL_PENDING_VALIDATION"
+                if allow_unverified and p4_res.status in ("PENDING_VERIFICATION", "PENDING_AGRONOMIC_VALIDATION"):
+                    final_status = "PROVISIONAL_PENDING_VALIDATION"
+                    final_rec_type = "PROVISIONAL_UNVERIFIED"
+                elif p6_res.status in ("BLOCKED_UNVERIFIED_RULE", "PENDING_AGRONOMIC_VALIDATION"):
+                    final_status = p6_res.status
+                    final_rec_type = "PROVISIONAL_UNVERIFIED"
+                else:
+                    final_status = "SUCCESS" if p6_res.status in ("OPTIMIZATION_SUCCESS", "PROVISIONAL_UNVERIFIED") else p6_res.status
+                    final_rec_type = "PROVISIONAL"
                 final_is_verified = False
-                final_rec_type = "PROVISIONAL_UNVERIFIED"
-                status_message = "This rule has not yet been agronomically validated. A confirmed soil-specific recommendation is unavailable."
+                status_message = "This recommendation is based on PROVISIONAL agronomic rules pending official TNAU verification."
             else:
                 final_status = "SUCCESS"
                 final_is_verified = True
