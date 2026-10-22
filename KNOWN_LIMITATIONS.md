@@ -30,9 +30,9 @@
 ## 3. Agronomic Crop Rule Registry Boundaries
 
 - **Supported Crops:**
-  Verified STCR-IPNS equations are active for **7 crops**: Rice (Paddy), Cotton, Hybrid Maize, Groundnut, Sugarcane, and Blackgram.
+  Agronomic equations and blanket dose benchmarks are active for **6 crops**: Rice (Paddy), Cotton, Hybrid Maize, Groundnut, Sugarcane, and Blackgram. Only equations backed by published TNAU/ICAR citations and passing golden integration tests are marked `VERIFIED`. All other rules are strictly marked `PROVISIONAL` and flagged in both API and UI responses.
 - **Pending / Unsupported Crops:**
-  Crops without peer-reviewed calibration equations (e.g. Banana, exotic vegetables) are flagged as `PENDING_VERIFICATION` or `UNSUPPORTED` and cannot be processed for certified recommendations until verified field trial coefficients are added to `tnau_stcr_rules.json`.
+  Crops without peer-reviewed calibration equations or TNAU blanket schedules (e.g. Banana, exotic vegetables) are flagged as `UNSUPPORTED` or `PROVISIONAL` and will not yield certified agronomic recommendations.
 - **Soil Method Assumptions:**
   Soil tests must be conducted using standardized methods (Alkaline Permanganate for N, Olsen/Bray for P, Ammonium Acetate for K). Unusual lab protocols will be rejected by validation range checks.
 
@@ -40,10 +40,10 @@
 
 ## 4. Fertilizer Optimization & Commercial Discretization
 
-- **Continuous Solver with Discrete Ceiling Rounding:**
-  Optimization uses the `scipy.optimize.linprog` continuous HiGHS solver followed by integer whole-bag ceiling conversion ($x_{\text{bags}} = \lceil x / \text{bag\_size} \rceil$). While post-rounding validation guarantees that nutrient minimums are satisfied, integer-bag quantization may result in modest nutrient surpluses (within safe agronomic thresholds).
-- **Subsidized Price Volatility:**
-  Fertilizer prices stored in `catalog.py` represent standard Government of India maximum subsidized retail prices (e.g. Urea at ₹267 per 45 kg bag). Local retail premiums or dealer handling fees are not modeled.
+- **Mixed-Integer Linear Programming (MILP):**
+  Optimization uses the exact Mixed-Integer Linear Programming solver `scipy.optimize.milp` with the HiGHS backend. Decision variables for commercial fertilizer bags are modeled directly as discrete integers ($x_i \in \mathbb{Z}_{\ge 0}$), with optional non-negative continuous slack for loose kg purchases. The optimizer minimizes total farmer expenditure while satisfying N, P₂O₅, and K₂O crop requirements. Any nutrient surplus resulting from integer bag sizes is computed and explicitly reported in `nutrient_surplus_kg`.
+- **Subsidized and Local Retail Prices:**
+  Default fertilizer prices in `data/agronomy/fertilizer_catalog.json` reflect standard Government of India maximum retail prices (e.g. Urea at ₹266.50 per 45 kg bag) tagged with a `last_updated` timestamp. Farmers can optionally provide custom local bag prices at calculation time to reflect specific co-operative or dealer rates.
 
 ---
 
