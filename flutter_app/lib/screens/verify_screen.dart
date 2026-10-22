@@ -232,44 +232,71 @@ class _VerifyScreenState extends State<VerifyScreen> {
         ),
         borderRadius: BorderRadius.circular(8),
       ),
-      child: ListTile(
-        leading: Icon(
-          isRed ? Icons.error_outline : Icons.circle,
-          color: isRed ? Colors.red.shade700 : _color(status),
-          size: 16,
-        ),
-        title: Text(
-          spec.label,
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            color: isRed ? Colors.red.shade900 : null,
-          ),
-        ),
-        subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(shown, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: isRed ? Colors.red.shade900 : null)),
-          if (isLowConf)
-            Container(
-              margin: const EdgeInsets.only(top: 4, bottom: 4),
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(color: Colors.red.shade100, borderRadius: BorderRadius.circular(4)),
-              child: Text(
-                'Low OCR Confidence (${conf != null ? (conf <= 1.0 ? (conf * 100).round() : conf.round()) : 0}%) - Please tap Edit to check',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.red.shade900),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Icon(
+              isRed ? Icons.error_outline : Icons.circle,
+              color: isRed ? Colors.red.shade700 : _color(status),
+              size: 16,
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    spec.label,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: isRed ? Colors.red.shade900 : null,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    shown,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      color: isRed ? Colors.red.shade900 : null,
+                    ),
+                  ),
+                  if (isLowConf)
+                    Container(
+                      margin: const EdgeInsets.only(top: 4, bottom: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(color: Colors.red.shade100, borderRadius: BorderRadius.circular(4)),
+                      child: Text(
+                        'Low OCR Confidence (${conf != null ? (conf <= 1.0 ? (conf * 100).round() : conf.round()) : 0}%) - Please tap Edit to check',
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.red.shade900),
+                      ),
+                    ),
+                  if (d.key == 'phosphorus' && d.valueText.isNotEmpty) Text(d.method ?? 'Method not known'),
+                  if (!_manual && d.ocrValue != null && !isLowConf)
+                    Text('OCR value: ${d.ocrValue}${d.ocrConfidence != null ? ' (confidence ${(d.ocrConfidence! <= 1.0 ? (d.ocrConfidence! * 100).round() : d.ocrConfidence!.round())}%)' : ''}', style: const TextStyle(fontSize: 12)),
+                  if (chk.message != null) Text(chk.message!, style: TextStyle(fontSize: 12, color: _color(chk.status))),
+                  for (final m in d.serverMessages.take(2)) Text(m, style: const TextStyle(fontSize: 12, color: Colors.orange)),
+                ],
               ),
             ),
-          if (d.key == 'phosphorus' && d.valueText.isNotEmpty) Text(d.method ?? 'Method not known'),
-          if (!_manual && d.ocrValue != null && !isLowConf)
-            Text('OCR value: ${d.ocrValue}${d.ocrConfidence != null ? ' (confidence ${(d.ocrConfidence! <= 1.0 ? (d.ocrConfidence! * 100).round() : d.ocrConfidence!.round())}%)' : ''}', style: const TextStyle(fontSize: 12)),
-          if (chk.message != null) Text(chk.message!, style: TextStyle(fontSize: 12, color: _color(chk.status))),
-          for (final m in d.serverMessages.take(2)) Text(m, style: const TextStyle(fontSize: 12, color: Colors.orange)),
-        ]),
-        trailing: OutlinedButton(
-          onPressed: () => _edit(d),
-          style: OutlinedButton.styleFrom(
-            foregroundColor: isRed ? Colors.red.shade700 : null,
-            side: isRed ? BorderSide(color: Colors.red.shade700) : null,
-          ),
-          child: const Text('Edit'),
+            const SizedBox(width: 12),
+            SizedBox(
+              width: 76,
+              height: 36,
+              child: OutlinedButton(
+                onPressed: () => _edit(d),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  minimumSize: const Size(60, 36),
+                  foregroundColor: isRed ? Colors.red.shade700 : null,
+                  side: isRed ? BorderSide(color: Colors.red.shade700) : null,
+                ),
+                child: const Text('Edit'),
+              ),
+            ),
+          ],
         ),
       ),
     );
