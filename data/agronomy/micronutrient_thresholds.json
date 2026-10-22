@@ -1,0 +1,101 @@
+{
+  "source_document": "TNAU Crop Production Guide (Agriculture) 2020 & TNAU Department of Soil Science and Agricultural Chemistry",
+  "source_url": "https://tnau.ac.in/site/research/wp-content/uploads/sites/60/2020/02/Agriculture-CPG-2020.pdf",
+  "disclaimer": "Soil application of micronutrients must be done on soil test basis only. Do not mix zinc sulphate with phosphatic fertilizers.",
+  "spatial_sampling_note": "Recommendation is valid for this sample; sample several spots of the field for representative accuracy.",
+  "micronutrients": {
+    "zinc": {
+      "element": "Zn",
+      "name": "Zinc",
+      "test_method": "DTPA Extractable Zn",
+      "unit": "ppm",
+      "critical_limit": 1.2,
+      "interpretation": {
+        "deficient_threshold": 1.2,
+        "citation": "TNAU CPG 2020, Soil Health and Nutrient Management Section, p. 18"
+      },
+      "recommendations": {
+        "deficient": {
+          "status": "Deficient",
+          "advisory": "Soil is deficient in available Zinc (< 1.2 ppm). Apply 25 kg Zinc Sulphate (ZnSO4) per hectare (10 kg/acre) as basal soil application. Alternatively, spray 0.5% Zinc Sulphate foliar spray with 0.5% lime at 30 and 45 days after sowing/transplanting.",
+          "product": "Zinc Sulphate (ZnSO4)",
+          "dose_kg_per_ha": 25.0,
+          "dose_kg_per_acre": 10.1,
+          "application_method": "Basal soil application or 0.5% foliar spray",
+          "caution": "Do not mix Zinc Sulphate directly with DAP or other phosphatic fertilizers; apply separately to prevent zinc phosphate precipitation."
+        },
+        "sufficient": {
+          "status": "Sufficient",
+          "advisory": "Soil contains sufficient available Zinc (≥ 1.2 ppm). No external zinc application required.",
+          "product": null,
+          "dose_kg_per_ha": 0.0,
+          "dose_kg_per_acre": 0.0,
+          "application_method": null,
+          "caution": null
+        }
+      }
+    },
+    "sulphur": {
+      "element": "S",
+      "name": "Sulphur",
+      "test_method": "0.15% CaCl2 Extractable Sulphur",
+      "unit": "ppm",
+      "critical_limit": 10.0,
+      "interpretation": {
+        "deficient_threshold": 10.0,
+        "citation": "TNAU CPG 2020, Secondary and Micronutrients Management, p. 19"
+      },
+      "recommendations": {
+        "deficient": {
+          "status": "Deficient",
+          "advisory": "Soil is deficient in available Sulphur (< 10.0 ppm). Apply 20 to 40 kg Sulphur per hectare through Gypsum (approx. 200–250 kg gypsum/ha, or 80–100 kg gypsum/acre) as basal application before sowing.",
+          "product": "Agricultural Gypsum (approx. 16-18% S)",
+          "dose_kg_per_ha": 200.0,
+          "dose_kg_per_acre": 80.9,
+          "application_method": "Basal broadcast and incorporate before sowing",
+          "caution": "Gypsum also supplies valuable calcium which improves soil structure in alkaline and sodic soils."
+        },
+        "sufficient": {
+          "status": "Sufficient",
+          "advisory": "Soil contains adequate available Sulphur (≥ 10.0 ppm). No corrective sulphur application needed.",
+          "product": null,
+          "dose_kg_per_ha": 0.0,
+          "dose_kg_per_acre": 0.0,
+          "application_method": null,
+          "caution": null
+        }
+      }
+    },
+    "boron": {
+      "element": "B",
+      "name": "Boron",
+      "test_method": "Hot Water Extractable Boron",
+      "unit": "ppm",
+      "critical_limit": 0.5,
+      "interpretation": {
+        "deficient_threshold": 0.5,
+        "citation": "TNAU CPG 2020, Micronutrient Recommendations for Crops, p. 20"
+      },
+      "recommendations": {
+        "deficient": {
+          "status": "Deficient",
+          "advisory": "Soil is deficient in available Boron (< 0.5 ppm). Apply 10 kg Borax per hectare (4 kg/acre) as basal soil application, or apply 0.2% Borax foliar spray (or 0.1% Solubor) at pre-flowering and flower opening stage.",
+          "product": "Borax (10.5% B) / Solubor",
+          "dose_kg_per_ha": 10.0,
+          "dose_kg_per_acre": 4.0,
+          "application_method": "Basal soil application or 0.2% foliar spray",
+          "caution": "Do not exceed recommended doses; boron has a narrow range between deficiency and crop toxicity."
+        },
+        "sufficient": {
+          "status": "Sufficient",
+          "advisory": "Soil contains sufficient available Boron (≥ 0.5 ppm). Additional boron is not needed.",
+          "product": null,
+          "dose_kg_per_ha": 0.0,
+          "dose_kg_per_acre": 0.0,
+          "application_method": null,
+          "caution": null
+        }
+      }
+    }
+  }
+}

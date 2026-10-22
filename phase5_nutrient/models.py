@@ -2,7 +2,7 @@
 Pydantic schemas for Phase 5 NPK Nutrient Requirement Calculation Engine.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 from pydantic import BaseModel, Field
 
 
@@ -32,6 +32,9 @@ class NutrientCalculationRequest(BaseModel):
     organic_carbon: Optional[Any] = Field(None, description="Organic Carbon %")
     ph: Optional[Any] = Field(None, description="Soil pH value")
     ec: Optional[Any] = Field(None, description="Electrical Conductivity in dS/m")
+    zinc: Optional[Any] = Field(None, description="Available Zinc in ppm / mg/kg")
+    sulphur: Optional[Any] = Field(None, description="Available Sulphur in ppm / mg/kg")
+    boron: Optional[Any] = Field(None, description="Available Boron in ppm / mg/kg")
     fym_applied_t_per_ha: Optional[Any] = Field(0.0, description="FYM applied in t/ha (default 0.0)")
     farm_area: Optional[Any] = Field(None, description="Farm area size")
     farm_area_unit: Optional[str] = Field("hectare", description="hectare, acre, cent, sq_meter")
@@ -52,6 +55,7 @@ class NutrientCalculationRequest(BaseModel):
     recommendation_type: Optional[str] = Field(None, description="'SOIL_SPECIFIC_STCR', 'GENERAL_BLANKET', 'SOIL_HEALTH_CARD', 'PROVISIONAL_UNVERIFIED'")
 
 
+
 class NutrientCalculationResponse(BaseModel):
     status: str = Field(..., description="CALCULATION_SUCCESS, UNVERIFIED_RULE, PENDING_AGRONOMIC_VALIDATION, MISSING_INPUTS, VALIDATION_ERROR, UNSUPPORTED_CROP, CALCULATION_FAILED")
     crop: Optional[str] = None
@@ -63,6 +67,18 @@ class NutrientCalculationResponse(BaseModel):
     verification_status: Optional[str] = None
     is_verified_rule: bool = False
     is_provisional: bool = False
+
+    # Confidence and fallback labels (Task 2a)
+    confidence: Optional[str] = Field("high", description="'high' for soil-specific STCR, 'lower' for general blanket fallback")
+    confidence_label: Optional[str] = Field(None, description="'General recommendation (lower confidence)' or 'Soil-specific STCR (high confidence)'")
+
+    # Recommended Range (Task 2c)
+    recommended_range_kg_per_ha: Optional[Dict[str, Any]] = Field(None, description="Recommended min/max range per nutrient in kg/ha")
+    recommended_range_kg_per_acre: Optional[Dict[str, Any]] = Field(None, description="Recommended min/max range per nutrient in kg/acre")
+    blanket_comparison: Optional[Dict[str, Any]] = Field(None, description="Comparison with official TNAU blanket dose and >50% deviation warnings")
+
+    # Micronutrient Advisory (Task 2d)
+    micronutrient_advisory: Optional[Union[Dict[str, Any], List[Dict[str, Any]]]] = Field(default_factory=dict, description="Zinc, Sulphur, and Boron advisory based on TNAU critical limits")
 
     # Per-hectare rates
     n_req_kg_per_ha: Optional[float] = Field(None, description="Nitrogen requirement in kg/ha")

@@ -187,6 +187,10 @@ class FullRecommendationService:
         previous_crop = req.get("previous_crop")
         previous_fertilizers = req.get("previous_fertilizers") or []
 
+        zinc = req.get("zinc")
+        sulphur = req.get("sulphur")
+        boron = req.get("boron")
+
         p5_req = NutrientCalculationRequest(
             crop=crop,
             variety=variety,
@@ -203,6 +207,9 @@ class FullRecommendationService:
             organic_carbon=organic_carbon,
             ph=soil_ph,
             ec=soil_ec,
+            zinc=zinc,
+            sulphur=sulphur,
+            boron=boron,
             fym_applied_t_per_ha=fym_applied,
             farm_area=farm_area,
             farm_area_unit=farm_area_unit,
@@ -253,7 +260,9 @@ class FullRecommendationService:
                 "estimated_yield_kg_per_ha": round(yield_kg_per_ha, 2),
                 "crop": crop,
                 "district": district,
-                "scope": "District-Level Yield Benchmark (Phase 2 Model)"
+                "scope": "district benchmark, not a prediction for your field",
+                "label": "district benchmark, not a prediction for your field",
+                "disclaimer": "Historical district benchmark, not a prediction for your field."
             }
         except Exception as e:
             yield_pred = {"error": f"Yield prediction model error: {str(e)}"}

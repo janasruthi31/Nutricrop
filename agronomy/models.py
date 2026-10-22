@@ -68,6 +68,8 @@ class RuleSelectionResponse(BaseModel):
     source_page_or_section: Optional[str] = None
     verification_status: Optional[str] = None
     is_verified: bool = False
+    confidence: Optional[str] = Field("high", description="'high' or 'lower'")
+    confidence_label: Optional[str] = Field(None, description="'General recommendation (lower confidence)' or 'Soil-specific STCR (high confidence)'")
     applicability_notes: Optional[str] = None
     missing_inputs: List[str] = Field(default_factory=list)
     warnings: List[str] = Field(default_factory=list)

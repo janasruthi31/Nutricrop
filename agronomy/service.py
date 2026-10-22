@@ -177,6 +177,13 @@ class RuleSelectionService:
 
         if valid_candidates:
             best_score, best_rule, missing_inputs = valid_candidates[0]
+            rec_type = best_rule.get("recommendation_type") or ("GENERAL_BLANKET" if best_rule.get("recommendation_method") in ("TNAU-BLANKET", "TNAU-SOIL-TEST") else "SOIL_SPECIFIC_STCR")
+            is_blanket = rec_type == "GENERAL_BLANKET" or best_rule.get("recommendation_method") in ("TNAU-BLANKET", "TNAU-SOIL-TEST")
+            confidence_val = "lower" if is_blanket else "high"
+            confidence_lbl = "General recommendation (lower confidence)" if is_blanket else "Soil-specific calibration (high confidence)"
+
+            if is_blanket:
+                warnings.append("General recommendation (lower confidence): Using TNAU blanket recommendation adjusted by soil test ratings.")
 
             if missing_inputs:
                 return RuleSelectionResponse(
@@ -184,7 +191,7 @@ class RuleSelectionService:
                     selected_rule_id=best_rule["rule_id"],
                     crop=canonical_crop,
                     recommendation_method=best_rule["recommendation_method"],
-                    recommendation_type=best_rule.get("recommendation_type") or ("GENERAL_BLANKET" if best_rule.get("recommendation_method") in ("TNAU-BLANKET", "TNAU-SOIL-TEST") else "SOIL_SPECIFIC_STCR"),
+                    recommendation_type=rec_type,
                     applicable_soil_series=best_rule.get("soil_series"),
                     applicable_season=best_rule.get("season"),
                     irrigation_method=best_rule.get("irrigation_method"),
@@ -194,13 +201,14 @@ class RuleSelectionService:
                     source_page_or_section=best_rule.get("source_page_or_section"),
                     verification_status=best_rule.get("verification_status"),
                     is_verified=(best_rule.get("verification_status") == "VERIFIED"),
+                    confidence=confidence_val,
+                    confidence_label=confidence_lbl,
                     applicability_notes=best_rule.get("applicability_notes"),
                     missing_inputs=missing_inputs,
                     warnings=[f"Missing mandatory input(s) for selected rule {best_rule['rule_id']}: {', '.join(missing_inputs)}"]
                 )
 
             # All required inputs present and rule verified!
-            rec_type = best_rule.get("recommendation_type") or ("GENERAL_BLANKET" if best_rule.get("recommendation_method") in ("TNAU-BLANKET", "TNAU-SOIL-TEST") else "SOIL_SPECIFIC_STCR")
             return RuleSelectionResponse(
                 status=RULE_SELECTED,
                 selected_rule_id=best_rule["rule_id"],
@@ -216,6 +224,8 @@ class RuleSelectionService:
                 source_page_or_section=best_rule.get("source_page_or_section"),
                 verification_status=best_rule.get("verification_status"),
                 is_verified=(best_rule.get("verification_status") == "VERIFIED"),
+                confidence=confidence_val,
+                confidence_label=confidence_lbl,
                 applicability_notes=best_rule.get("applicability_notes"),
                 missing_inputs=[],
                 warnings=warnings
@@ -224,12 +234,16 @@ class RuleSelectionService:
         # If no verified candidates, check pending candidates
         if pending_candidates:
             p_rule = pending_candidates[0]
+            rec_type = "PROVISIONAL_UNVERIFIED"
+            is_blanket = p_rule.get("recommendation_method") in ("TNAU-BLANKET", "TNAU-SOIL-TEST")
+            confidence_val = "lower" if is_blanket else "high"
+            confidence_lbl = "General recommendation (lower confidence)" if is_blanket else "Soil-specific calibration (high confidence)"
             return RuleSelectionResponse(
                 status=PENDING_VERIFICATION,
                 selected_rule_id=p_rule["rule_id"],
                 crop=canonical_crop,
                 recommendation_method=p_rule.get("recommendation_method"),
-                recommendation_type="PROVISIONAL_UNVERIFIED",
+                recommendation_type=rec_type,
                 applicable_soil_series=p_rule.get("soil_series"),
                 applicable_season=p_rule.get("season"),
                 irrigation_method=p_rule.get("irrigation_method"),
@@ -239,6 +253,8 @@ class RuleSelectionService:
                 source_page_or_section=p_rule.get("source_page_or_section"),
                 verification_status=p_rule.get("verification_status", "PENDING_VERIFICATION"),
                 is_verified=False,
+                confidence=confidence_val,
+                confidence_label=confidence_lbl,
                 warnings=[f"Rule '{p_rule['rule_id']}' matches inputs but is {p_rule.get('verification_status', 'pending verification').replace('_', ' ')} and cannot be used for production recommendations."]
             )
 

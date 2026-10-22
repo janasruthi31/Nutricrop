@@ -795,14 +795,25 @@ def download_recommendation_pdf(
     elements.append(Paragraph("3. District Benchmark & Agro-Weather Guidance", heading2_style))
     yp = rec_data.get("district_yield_prediction", {})
     wg = rec_data.get("weather_guidance", {})
-    guidance_text = f"<b>District Benchmark:</b> {yp.get('estimated_yield_kg_per_ha', 'N/A')} kg/ha (Statistical average from historical district data)<br/>" \
+    micro_advisory = rec_data.get("nutrient_requirements", {}).get("micronutrient_advisory") or {}
+    micro_str = ""
+    if micro_advisory:
+        micro_parts = []
+        for mk, mv in micro_advisory.items():
+            if mv.get("is_deficient"):
+                micro_parts.append(f"<b>{mv.get('nutrient')}:</b> {mv.get('advisory')}")
+        if micro_parts:
+            micro_str = "<br/><b>Micronutrient Advisory:</b><br/>" + "<br/>".join(micro_parts)
+
+    guidance_text = f"<b>District Benchmark:</b> {yp.get('estimated_yield_kg_per_ha', 'N/A')} kg/ha (district benchmark, not a prediction for your field)<br/>" \
                     f"<b>Agro-Weather Timing:</b> {wg.get('actionable_advice', 'Apply fertilizers during clear weather.')}<br/>" \
-                    f"<b>Rainfall Risk:</b> {wg.get('risk_level', 'LOW')} | Current condition: {wg.get('current_condition', 'Fair')}"
+                    f"<b>Rainfall Risk:</b> {wg.get('risk_level', 'LOW')} | Current condition: {wg.get('current_condition', 'Fair')}" \
+                    f"{micro_str}"
     elements.append(Paragraph(guidance_text, body_style))
     elements.append(Spacer(1, 14))
 
     # Footer Disclaimer
-    disclaimer = "<i>Disclaimer: Recommendations are calculated from verified TNAU/STCR/IPNS agronomic equations and commercial bag sizes. Yield prediction is a statistical benchmark and not a farm guarantee. Follow local agricultural officer guidance.</i>"
+    disclaimer = "<i>Disclaimer: Confirm with your local agriculture officer. Recommendations are based on TNAU guidelines and commercial bag sizes. Yield prediction is a district benchmark, not a prediction for your field.</i>"
     elements.append(Paragraph(disclaimer, ParagraphStyle('Disc', parent=styles['Normal'], fontSize=8, leading=10, textColor=colors.dimgrey)))
 
     doc.build(elements)

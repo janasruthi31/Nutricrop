@@ -7,7 +7,7 @@ Does NOT calculate final fertilizer product quantities (Phase 6 responsibility).
 
 import json
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from agronomy.registry import AgronomicRuleRegistry
 from agronomy.service import RuleSelectionService, RuleSelectionRequest
 from phase3_soil.classification import classify
@@ -39,6 +39,7 @@ class NutrientCalculationService:
         self.registry = registry or AgronomicRuleRegistry()
         self.rule_selection_service = RuleSelectionService(self.registry)
         self.crop_credits_data = self._load_previous_crop_credits()
+        self.micronutrients_data = self._load_micronutrient_thresholds()
 
     def _load_previous_crop_credits(self) -> Dict[str, Any]:
         """Loads verified previous crop credits and fertilizer residual parameters."""
@@ -50,6 +51,197 @@ class NutrientCalculationService:
             except Exception:
                 pass
         return {}
+
+    def _load_micronutrient_thresholds(self) -> Dict[str, Any]:
+        """Loads verified TNAU secondary and micronutrient thresholds (CPG 2020)."""
+        path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "data", "agronomy", "micronutrient_thresholds.json"))
+        if os.path.exists(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception:
+                pass
+        return {}
+
+    @staticmethod
+    def interpolate_soil_rating_multiplier(nutrient: str, value: Optional[float], method: str = "Olsen") -> float:
+        """
+        Interpolates soil-test rating multiplier continuously across TNAU rating bands.
+        Replaces discrete step multipliers (1.25, 1.00, 0.75) so different soil values produce different doses.
+
+        TNAU Rating Bands (CPG 2020 / phase3_soil/classification.py):
+        - Nitrogen (kg/ha): Low < 280, Medium 280-450, High > 450
+        - Phosphorus Olsen (kg/ha): Low < 11.0, Medium 11.0-22.0, High > 22.0
+        - Phosphorus Bray (kg/ha): Low < 24.2, Medium 24.2-49.7, High > 49.7
+        - Potassium (kg/ha): Low < 118, Medium 118-280, High > 280
+
+        Multiplier curves:
+        - Low: smoothly decreases from 1.30 down to 1.05 at low cutoff
+        - Medium: smoothly decreases from 1.05 down to 0.95 at high cutoff (midpoint = 1.00)
+        - High: smoothly decreases below 0.95 down to 0.50 floor for excessive soils
+        """
+        if value is None:
+            return 1.0
+
+        nut = nutrient.strip().lower()
+        val = max(0.0, float(value))
+
+        if nut in ("n", "nitrogen"):
+            low_cut, high_cut = 280.0, 450.0
+        elif nut in ("p", "phosphorus", "p2o5"):
+            if method.strip().lower() == "bray":
+                low_cut, high_cut = 24.2, 49.7
+            else:
+                low_cut, high_cut = 11.0, 22.0
+        elif nut in ("k", "potassium", "k2o"):
+            low_cut, high_cut = 118.0, 280.0
+        else:
+            return 1.0
+
+        if val < low_cut:
+            # Low band: 1.30 at val=0 down to 1.05 at val=low_cut
+            return round(1.30 - (val / low_cut) * 0.25, 3)
+        elif val <= high_cut:
+            # Medium band: 1.05 at low_cut down to 0.95 at high_cut (centered at 1.00)
+            frac = (val - low_cut) / (high_cut - low_cut)
+            return round(1.05 - frac * 0.10, 3)
+        else:
+            # High band: 0.95 down to 0.50 floor
+            excess = val - high_cut
+            return round(max(0.50, 0.95 - (excess / high_cut) * 0.25), 3)
+
+    def _evaluate_micronutrients(
+        self,
+        zinc: Optional[float],
+        sulphur: Optional[float],
+        boron: Optional[float],
+    ) -> Dict[str, Any]:
+        """
+        Evaluates soil test Zinc, Sulphur, and Boron against verified TNAU critical limits:
+        - Zinc: < 1.2 ppm (DTPA-Zn) -> 25 kg ZnSO4/ha (10 kg/acre)
+        - Sulphur: < 10.0 ppm (CaCl2-S) -> 200 kg Gypsum/ha (80 kg/acre)
+        - Boron: < 0.5 ppm (Hot Water B) -> 10 kg Borax/ha (4 kg/acre)
+        """
+        micros = self.micronutrients_data.get("micronutrients", {})
+        advisory: Dict[str, Any] = {}
+
+        if zinc is not None:
+            z_spec = micros.get("zinc", {})
+            crit = float(z_spec.get("critical_limit", 1.2))
+            is_def = float(zinc) < crit
+            rec = z_spec.get("recommendations", {}).get("deficient" if is_def else "sufficient", {})
+            advisory["zinc"] = {
+                "nutrient": "Zinc (Zn)",
+                "value_ppm": float(zinc),
+                "critical_limit_ppm": crit,
+                "status": "Deficient" if is_def else "Sufficient",
+                "is_deficient": is_def,
+                "advisory": rec.get("advisory"),
+                "product": rec.get("product"),
+                "dose_kg_per_ha": rec.get("dose_kg_per_ha", 0.0),
+                "dose_kg_per_acre": rec.get("dose_kg_per_acre", 0.0),
+                "application_method": rec.get("application_method"),
+                "caution": rec.get("caution"),
+                "source": z_spec.get("interpretation", {}).get("citation", "TNAU CPG 2020 p. 18")
+            }
+
+        if sulphur is not None:
+            s_spec = micros.get("sulphur", {})
+            crit = float(s_spec.get("critical_limit", 10.0))
+            is_def = float(sulphur) < crit
+            rec = s_spec.get("recommendations", {}).get("deficient" if is_def else "sufficient", {})
+            advisory["sulphur"] = {
+                "nutrient": "Sulphur (S)",
+                "value_ppm": float(sulphur),
+                "critical_limit_ppm": crit,
+                "status": "Deficient" if is_def else "Sufficient",
+                "is_deficient": is_def,
+                "advisory": rec.get("advisory"),
+                "product": rec.get("product"),
+                "dose_kg_per_ha": rec.get("dose_kg_per_ha", 0.0),
+                "dose_kg_per_acre": rec.get("dose_kg_per_acre", 0.0),
+                "application_method": rec.get("application_method"),
+                "caution": rec.get("caution"),
+                "source": s_spec.get("interpretation", {}).get("citation", "TNAU CPG 2020 p. 19")
+            }
+
+        if boron is not None:
+            b_spec = micros.get("boron", {})
+            crit = float(b_spec.get("critical_limit", 0.5))
+            is_def = float(boron) < crit
+            rec = b_spec.get("recommendations", {}).get("deficient" if is_def else "sufficient", {})
+            advisory["boron"] = {
+                "nutrient": "Boron (B)",
+                "value_ppm": float(boron),
+                "critical_limit_ppm": crit,
+                "status": "Deficient" if is_def else "Sufficient",
+                "is_deficient": is_def,
+                "advisory": rec.get("advisory"),
+                "product": rec.get("product"),
+                "dose_kg_per_ha": rec.get("dose_kg_per_ha", 0.0),
+                "dose_kg_per_acre": rec.get("dose_kg_per_acre", 0.0),
+                "application_method": rec.get("application_method"),
+                "caution": rec.get("caution"),
+                "source": b_spec.get("interpretation", {}).get("citation", "TNAU CPG 2020 p. 20")
+            }
+
+        return advisory
+
+    def _compare_with_blanket_dose(
+        self,
+        crop: str,
+        calc_n_ha: float,
+        calc_p2o5_ha: float,
+        calc_k2o_ha: float,
+    ) -> Tuple[Dict[str, Any], List[str]]:
+        """
+        Compares calculated STCR net dose with official TNAU blanket recommendation.
+        Flags warnings if calculated dose deviates > 50% from the standard blanket dose.
+        """
+        blanket_benchmarks = {
+            "rice": {"N": 150.0, "P2O5": 50.0, "K2O": 50.0, "citation": "TNAU CPG 2020 p. 28"},
+            "groundnut": {"N": 25.0, "P2O5": 50.0, "K2O": 75.0, "citation": "TNAU CPG 2020 p. 112"},
+            "blackgram": {"N": 25.0, "P2O5": 50.0, "K2O": 25.0, "citation": "TNAU CPG 2020 p. 64"},
+            "sugarcane": {"N": 275.0, "P2O5": 62.5, "K2O": 112.5, "citation": "TNAU CPG 2020 p. 150"},
+            "maize": {"N": 250.0, "P2O5": 75.0, "K2O": 75.0, "citation": "TNAU CPG 2020 p. 80"},
+            "cotton (lint)": {"N": 80.0, "P2O5": 40.0, "K2O": 40.0, "citation": "TNAU CPG 2020 p. 132"},
+            "cotton": {"N": 80.0, "P2O5": 40.0, "K2O": 40.0, "citation": "TNAU CPG 2020 p. 132"},
+        }
+        c_low = crop.strip().lower()
+        b_data = None
+        for k, v in blanket_benchmarks.items():
+            if k == c_low or k in c_low or c_low in k:
+                b_data = v
+                break
+
+        if not b_data:
+            return {}, []
+
+        warnings: List[str] = []
+        comparison: Dict[str, Any] = {
+            "crop": crop,
+            "source": b_data.get("citation"),
+            "nutrients": {}
+        }
+        nutrients = [("N", calc_n_ha), ("P2O5", calc_p2o5_ha), ("K2O", calc_k2o_ha)]
+        for name, calc_val in nutrients:
+            b_val = float(b_data.get(name, 0.0))
+            diff = abs(calc_val - b_val)
+            pct = round((diff / b_val * 100.0) if b_val > 0 else 0.0, 1)
+            is_large_dev = pct > 50.0
+            comparison["nutrients"][name] = {
+                "blanket_rdf_kg_per_ha": b_val,
+                "calculated_net_dose_kg_per_ha": calc_val,
+                "difference_pct": pct,
+                "deviates_over_50_pct": is_large_dev
+            }
+            if is_large_dev:
+                warnings.append(
+                    f"Calculated {name} recommendation ({calc_val:.1f} kg/ha) differs by {pct:.0f}% from standard TNAU blanket dose ({b_val:.1f} kg/ha). "
+                    "Significant adjustment is due to soil test levels and targeted yield calibration."
+                )
+
+        return comparison, warnings
 
     def _get_previous_crop_credit(self, previous_crop: Optional[str]) -> Dict[str, float]:
         """Returns N, P2O5, K2O biological credit in kg/ha for the previous crop."""
@@ -372,6 +564,10 @@ class NutrientCalculationService:
                     "verification_status": "SOIL_HEALTH_CARD_PRINTED",
                     "source": "Report Printed Recommendation Table"
                 },
+                confidence="lower",
+                confidence_label="Copied from Soil Health Card",
+                recommended_range_kg_per_ha={"N": [n_ha, n_ha], "P2O5": [p2o5_ha, p2o5_ha], "K2O": [k2o_ha, k2o_ha]},
+                recommended_range_kg_per_acre={"N": [n_acre, n_acre], "P2O5": [p2o5_acre, p2o5_acre], "K2O": [k2o_acre, k2o_acre]},
                 warnings=warnings
             )
 
@@ -715,15 +911,14 @@ class NutrientCalculationService:
 
         elif rec_method in ("TNAU-SOIL-TEST", "TNAU-BLANKET"):
             blanket_rdf = rule.get("blanket_rdf_kg_per_ha", {"N": 150.0, "P2O5": 50.0, "K2O": 50.0})
-            adj_factors = rule.get("rating_adjustment_factors", {"low": 1.25, "medium": 1.00, "high": 0.75})
 
             n_class = classify("nitrogen", sn, "kg/ha")
             p_class = classify("phosphorus", sp, "kg/ha", p_method)
             k_class = classify("potassium", sk, "kg/ha")
 
-            factor_n = adj_factors.get(n_class.lower(), 1.00)
-            factor_p = adj_factors.get(p_class.lower(), 1.00)
-            factor_k = adj_factors.get(k_class.lower(), 1.00)
+            factor_n = self.interpolate_soil_rating_multiplier("nitrogen", sn, p_method)
+            factor_p = self.interpolate_soil_rating_multiplier("phosphorus", sp, p_method)
+            factor_k = self.interpolate_soil_rating_multiplier("potassium", sk, p_method)
 
             req_n = round(blanket_rdf["N"] * factor_n, 2)
             req_p = round(blanket_rdf["P2O5"] * factor_p, 2)
@@ -953,6 +1148,49 @@ class NutrientCalculationService:
         else:
             derivation_explanation = f"Calculated using verified TNAU agronomic rule {rule['rule_id']}."
 
+        # Micronutrient advisory evaluation (Task 2d)
+        micronutrient_advisory = self._evaluate_micronutrients(req.zinc, req.sulphur, req.boron)
+        if micronutrient_advisory:
+            calc_details["micronutrient_advisory"] = micronutrient_advisory
+            for m_key, m_info in micronutrient_advisory.items():
+                soil_nutrient_status[m_key] = {
+                    "value": m_info["value_ppm"],
+                    "unit": "ppm",
+                    "status": m_info["status"],
+                    "rating": m_info["status"],
+                    "interpretation_threshold": f"Critical limit {m_info['critical_limit_ppm']} ppm ({m_info['source']})",
+                    "advisory": m_info["advisory"]
+                }
+
+        # Blanket dose comparison & >50% deviation warning (Task 2c)
+        blanket_comparison, b_warnings = self._compare_with_blanket_dose(crop_name, n_req, p2o5_req, k2o_req)
+        if blanket_comparison:
+            calc_details["blanket_comparison"] = blanket_comparison
+            if b_warnings:
+                warnings.extend(b_warnings)
+
+        # Spatial sampling note (Task 2c)
+        spatial_sampling_note = "Recommendation is valid for this sample; sample several spots of the field for representative accuracy."
+        if spatial_sampling_note not in warnings:
+            warnings.append(spatial_sampling_note)
+
+        # Recommended ranges (+/- 10%) (Task 2c)
+        rec_range_ha = {
+            "N": [round(max(0.0, n_req * 0.9), 1), round(n_req * 1.1, 1)],
+            "P2O5": [round(max(0.0, p2o5_req * 0.9), 1), round(p2o5_req * 1.1, 1)],
+            "K2O": [round(max(0.0, k2o_req * 0.9), 1), round(k2o_req * 1.1, 1)],
+        }
+        rec_range_acre = {
+            "N": [round(max(0.0, n_req_acre * 0.9), 1), round(n_req_acre * 1.1, 1)],
+            "P2O5": [round(max(0.0, p2o5_req_acre * 0.9), 1), round(p2o5_req_acre * 1.1, 1)],
+            "K2O": [round(max(0.0, k2o_req_acre * 0.9), 1), round(k2o_req_acre * 1.1, 1)],
+        }
+
+        # Confidence level (Task 2a)
+        is_blanket = rec_type == "GENERAL_BLANKET" or rec_method in ("TNAU-BLANKET", "TNAU-SOIL-TEST")
+        confidence_val = "lower" if is_blanket else "high"
+        confidence_lbl = "General recommendation (lower confidence)" if is_blanket else "Soil-specific calibration (high confidence)"
+
         authoritative_reference = {
             "title": rule.get("source_title", "TNAU Agronomic Guideline"),
             "url": rule.get("source_url"),
@@ -974,6 +1212,12 @@ class NutrientCalculationService:
             verification_status=v_status,
             is_verified_rule=is_verified,
             is_provisional=(not is_verified),
+            confidence=confidence_val,
+            confidence_label=confidence_lbl,
+            recommended_range_kg_per_ha=rec_range_ha,
+            recommended_range_kg_per_acre=rec_range_acre,
+            blanket_comparison=blanket_comparison,
+            micronutrient_advisory=micronutrient_advisory,
             n_req_kg_per_ha=n_req,
             net_n_kg_per_ha=n_req,
             p2o5_req_kg_per_ha=p2o5_req,

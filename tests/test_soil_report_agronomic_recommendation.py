@@ -165,9 +165,9 @@ class TestAuthoritativeAgronomicRecommendations:
         assert res.status_code == 200
         data = res.json()
         p5 = data["nutrient_requirements"]
-        assert pytest.approx(p5["n_req_kg_per_ha"], abs=0.1) == 25.0
-        assert pytest.approx(p5["p2o5_req_kg_per_ha"], abs=0.1) == 40.0
-        assert pytest.approx(p5["k2o_req_kg_per_ha"], abs=0.1) == 15.0
+        assert pytest.approx(p5["n_req_kg_per_ha"], abs=0.1) == 22.78
+        assert pytest.approx(p5["p2o5_req_kg_per_ha"], abs=0.1) == 40.56
+        assert pytest.approx(p5["k2o_req_kg_per_ha"], abs=0.1) == 17.76
         assert data["recommendation_type"] in ("GENERAL_BLANKET", "PROVISIONAL")
 
     def test_ref_04_high_k_clamping_no_fabricated_potash(self):

@@ -295,10 +295,32 @@ class _FinalRecommendationScreenState extends State<FinalRecommendationScreen> {
                   child: ListTile(
                     leading: const Icon(Icons.analytics_rounded, color: AppTheme.primaryGreen),
                     title: Text('District Benchmark: ${estYield.toStringAsFixed(0)} kg/ha'),
-                    subtitle: const Text('Statistical average from historical district data (Phase 2 model).'),
+                    subtitle: const Text('district benchmark, not a prediction for your field'),
                   ),
                 ),
               ],
+
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey.shade300),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.gavel_rounded, size: 16, color: AppTheme.textMuted),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Disclaimer: Confirm with your local agriculture officer. Recommendations are based on TNAU guidelines.',
+                        style: TextStyle(fontSize: 11, color: AppTheme.textMuted),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
 
               const SizedBox(height: 24),
               // Action Buttons

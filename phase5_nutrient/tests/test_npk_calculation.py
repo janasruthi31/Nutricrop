@@ -40,12 +40,12 @@ def test_01_valid_stcr_calculation():
     assert res.source_title == "TNAU Agriculture / STCR-IPNS Reference"
 
 
-# 2. Valid soil-test-based calculation
+# 2. Valid soil-test-based calculation with continuous rating interpolation
 def test_02_valid_soil_test_based_calculation():
     # Blackgram Rainfed: Blanket RDF = 20 N : 40 P2O5 : 20 K2O
-    # Soil N = 200 (Low < 280 -> +25% = 25.0 kg N)
-    # Soil P = 18 (Medium 11-22 -> 100% = 40.0 kg P2O5)
-    # Soil K = 200 (Medium 118-280 -> 100% = 20.0 kg K2O)
+    # Soil N = 200 (Low continuous interpolation: 1.30 - (200/280)*0.25 = 1.121 -> 22.42 kg N)
+    # Soil P = 18 (Medium continuous interpolation: 1.05 - (7/11)*0.10 = 0.986 -> 39.44 kg P2O5)
+    # Soil K = 200 (Medium continuous interpolation: 1.05 - (82/162)*0.10 = 0.999 -> 19.98 kg K2O)
     req = NutrientCalculationRequest(
         crop="Blackgram",
         selected_rule_id="TNAU_STD_BLACKGRAM_RF_001",
@@ -58,9 +58,9 @@ def test_02_valid_soil_test_based_calculation():
     assert res.status == "CALCULATION_SUCCESS"
     assert res.selected_rule_id == "TNAU_STD_BLACKGRAM_RF_001"
     assert res.selected_method == "TNAU-SOIL-TEST"
-    assert res.n_req_kg_per_ha == 25.0
-    assert res.p2o5_req_kg_per_ha == 40.0
-    assert res.k2o_req_kg_per_ha == 20.0
+    assert res.n_req_kg_per_ha == 22.42
+    assert res.p2o5_req_kg_per_ha == 39.44
+    assert res.k2o_req_kg_per_ha == 19.98
 
 
 # 3. Missing target yield
@@ -207,14 +207,14 @@ def test_11_per_hectare_vs_total_farm():
     res = service.calculate(req)
     assert res.status == "CALCULATION_SUCCESS"
     # Primary per-ha outputs preserved
-    assert res.n_req_kg_per_ha == 25.0
-    assert res.p2o5_req_kg_per_ha == 40.0
-    assert res.k2o_req_kg_per_ha == 20.0
+    assert res.n_req_kg_per_ha == 22.42
+    assert res.p2o5_req_kg_per_ha == 39.44
+    assert res.k2o_req_kg_per_ha == 19.98
 
     # Total farm outputs = per_ha * 2.5 (no double multiplication)
-    assert res.total_n_req_kg == 62.5
-    assert res.total_p2o5_req_kg == 100.0
-    assert res.total_k2o_req_kg == 50.0
+    assert res.total_n_req_kg == 56.05
+    assert res.total_p2o5_req_kg == 98.6
+    assert res.total_k2o_req_kg == 49.95
 
 
 # 12. Invalid numeric values
@@ -353,5 +353,106 @@ def test_18_zero_fym_default_no_unearned_credit():
     assert res.k2o_req_kg_per_ha == 20.2
     assert res.calculation_details["fym_applied_t_per_ha"] == 0.0
     assert res.calculation_details["fym_credit_kg_per_ha"]["N"] == 0.0
+
+
+# 19. Task 2b: Continuous rating interpolation ensures different soil values give different doses
+def test_19_different_soil_values_give_different_doses():
+    # Comparing soil N = 100 vs soil N = 270 (both are in the "Low" rating band < 280)
+    req_100 = NutrientCalculationRequest(
+        crop="Rice",
+        selected_rule_id="TNAU_STD_RICE_001",
+        soil_nitrogen=100.0,
+        soil_phosphorus=15.0,
+        soil_potassium=200.0,
+        soil_phosphorus_method="Olsen"
+    )
+    req_270 = NutrientCalculationRequest(
+        crop="Rice",
+        selected_rule_id="TNAU_STD_RICE_001",
+        soil_nitrogen=270.0,
+        soil_phosphorus=15.0,
+        soil_potassium=200.0,
+        soil_phosphorus_method="Olsen"
+    )
+    res_100 = service.calculate(req_100)
+    res_270 = service.calculate(req_270)
+
+    assert res_100.status == "CALCULATION_SUCCESS"
+    assert res_270.status == "CALCULATION_SUCCESS"
+    # Previously, both received identical multiplier 1.25 -> 187.5 kg N/ha
+    # Now, soil N 100 receives higher dose than soil N 270!
+    assert res_100.n_req_kg_per_ha > res_270.n_req_kg_per_ha
+    assert res_100.n_req_kg_per_ha != res_270.n_req_kg_per_ha
+
+
+# 20. Task 2c: Recommended ranges (+/- 10%) returned
+def test_20_recommended_range_returned():
+    req = NutrientCalculationRequest(
+        crop="Rice",
+        selected_rule_id="TNAU_STCR_IPNS_RICE_001",
+        target_yield=6.0,
+        soil_nitrogen=220.0,
+        soil_phosphorus=16.0,
+        soil_potassium=190.0,
+        soil_phosphorus_method="Olsen",
+        fym_applied_t_per_ha=12.5
+    )
+    res = service.calculate(req)
+    assert res.status == "CALCULATION_SUCCESS"
+    assert res.recommended_range_kg_per_ha is not None
+    assert "N" in res.recommended_range_kg_per_ha
+    r_n = res.recommended_range_kg_per_ha["N"]
+    assert len(r_n) == 2
+    assert r_n[0] <= res.n_req_kg_per_ha <= r_n[1]
+    assert round(r_n[0], 1) == round(res.n_req_kg_per_ha * 0.9, 1)
+    assert round(r_n[1], 1) == round(res.n_req_kg_per_ha * 1.1, 1)
+
+
+# 21. Task 2d: Secondary & micronutrient advisory (Zinc, Sulphur, Boron)
+def test_21_micronutrient_advisory_deficient_and_sufficient():
+    # Zn < 1.2 ppm (deficient), Sulphur < 10.0 ppm (deficient), Boron >= 0.5 ppm (sufficient)
+    req = NutrientCalculationRequest(
+        crop="Rice",
+        selected_rule_id="TNAU_STD_RICE_001",
+        soil_nitrogen=200.0,
+        soil_phosphorus=15.0,
+        soil_potassium=200.0,
+        zinc=0.8,
+        sulphur=6.5,
+        boron=0.9
+    )
+    res = service.calculate(req)
+    assert res.status == "CALCULATION_SUCCESS"
+    assert res.micronutrient_advisory is not None
+    assert "zinc" in res.micronutrient_advisory
+    assert res.micronutrient_advisory["zinc"]["is_deficient"] is True
+    assert "Zinc Sulphate" in res.micronutrient_advisory["zinc"]["advisory"]
+
+    assert "sulphur" in res.micronutrient_advisory
+    assert res.micronutrient_advisory["sulphur"]["is_deficient"] is True
+    assert "Gypsum" in res.micronutrient_advisory["sulphur"]["advisory"]
+
+    assert "boron" in res.micronutrient_advisory
+    assert res.micronutrient_advisory["boron"]["is_deficient"] is False
+
+    # Also verify attached to soil_nutrient_status
+    assert "zinc" in res.soil_nutrient_status
+    assert res.soil_nutrient_status["zinc"]["status"] == "Deficient"
+
+
+# 22. Task 2c: Blanket comparison & >50% deviation warning & spatial sampling note
+def test_22_blanket_comparison_and_spatial_sampling_note():
+    # Groundnut STCR with low target yield resulting in dose very different from blanket
+    req = NutrientCalculationRequest(
+        crop="Groundnut",
+        selected_rule_id="TNAU_BLANKET_GROUNDNUT_001",
+        soil_nitrogen=150.0,
+        soil_phosphorus=8.0,
+        soil_potassium=80.0
+    )
+    res = service.calculate(req)
+    assert res.status == "CALCULATION_SUCCESS"
+    assert res.blanket_comparison is not None
+    assert any("Recommendation is valid for this sample" in w for w in res.warnings)
 
 

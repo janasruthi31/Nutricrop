@@ -47,9 +47,9 @@ class TestGoldenSTCRReferenceCases:
         )
         res = service.calculate(req)
         assert res.status == "CALCULATION_SUCCESS"
-        assert res.n_req_kg_per_ha == 25.0
-        assert res.p2o5_req_kg_per_ha == 40.0
-        assert res.k2o_req_kg_per_ha == 15.0
+        assert res.n_req_kg_per_ha == 22.6
+        assert res.p2o5_req_kg_per_ha == 40.56
+        assert res.k2o_req_kg_per_ha == 18.28
         assert res.source_title == "TNAU Blackgram Rainfed"
         assert res.source_url is not None
         assert res.source_page_or_section is not None
@@ -58,8 +58,8 @@ class TestGoldenSTCRReferenceCases:
         """
         Cited Source: TNAU Crop Production Guide 2020 p. 64 (Pulses biological N fixation).
         Succeeding cereal crop receives 20.0 kg N/ha credit from previous Blackgram crop.
-        Baseline: Blackgram with no previous crop -> 25.0 kg N/ha.
-        With previous crop Blackgram -> Net N = 25.0 - 20.0 = 5.0 kg N/ha.
+        Baseline: Blackgram with no previous crop -> 22.6 kg N/ha.
+        With previous crop Blackgram -> Net N = 22.6 - 20.0 = 2.6 kg N/ha.
         """
         req_with_legume = NutrientCalculationRequest(
             crop="Blackgram",
@@ -75,9 +75,9 @@ class TestGoldenSTCRReferenceCases:
         assert res.status == "CALCULATION_SUCCESS"
         assert res.previous_crop == "Blackgram"
         assert res.previous_crop_credit_kg_per_ha["n"] == 20.0
-        assert res.n_req_kg_per_ha == 5.0
+        assert res.n_req_kg_per_ha == 2.6
         assert res.nutrient_breakdown["nitrogen"]["previous_crop_credit_kg_per_ha"] == 20.0
-        assert res.nutrient_breakdown["nitrogen"]["final_net_dose_kg_per_ha"] == 5.0
+        assert res.nutrient_breakdown["nitrogen"]["final_net_dose_kg_per_ha"] == 2.6
 
     def test_golden_03_previous_fertilizer_residual_p2o5_carryover(self):
         """
@@ -85,7 +85,7 @@ class TestGoldenSTCRReferenceCases:
         DAP (18-46-0) applied 2 months ago:
         1 bag (50 kg) on 1 ha contains 23.0 kg P2O5.
         Residual factor is 15% -> 23.0 * 0.15 = 3.45 kg P2O5/ha.
-        Baseline P2O5 = 40.0 kg/ha -> Net P2O5 = 40.0 - 3.45 = 36.55 kg/ha.
+        Baseline P2O5 = 40.56 kg/ha -> Net P2O5 = 40.56 - 3.45 = 37.11 kg/ha.
         Synthetic N has 0% residual (tropical leaching/volatilization).
         """
         req = NutrientCalculationRequest(
@@ -109,7 +109,7 @@ class TestGoldenSTCRReferenceCases:
         assert res.status == "CALCULATION_SUCCESS"
         assert pytest.approx(res.previous_fertilizer_residual_kg_per_ha["p2o5"], abs=0.05) == 3.45
         assert res.previous_fertilizer_residual_kg_per_ha["n"] == 0.0
-        assert pytest.approx(res.p2o5_req_kg_per_ha, abs=0.05) == 36.55
+        assert pytest.approx(res.p2o5_req_kg_per_ha, abs=0.05) == 37.11
 
     def test_golden_04_no_previous_history_means_zero_deduction(self):
         """
@@ -129,9 +129,9 @@ class TestGoldenSTCRReferenceCases:
         res = service.calculate(req)
         assert res.previous_crop_credit_kg_per_ha == {"n": 0.0, "p2o5": 0.0, "k2o": 0.0}
         assert res.previous_fertilizer_residual_kg_per_ha == {"n": 0.0, "p2o5": 0.0, "k2o": 0.0}
-        assert res.n_req_kg_per_ha == 25.0
-        assert res.p2o5_req_kg_per_ha == 40.0
-        assert res.k2o_req_kg_per_ha == 15.0
+        assert res.n_req_kg_per_ha == 22.6
+        assert res.p2o5_req_kg_per_ha == 40.56
+        assert res.k2o_req_kg_per_ha == 18.28
 
     def test_golden_05_high_soil_test_clamping_at_zero(self):
         """
@@ -251,7 +251,7 @@ class TestGoldenSTCRReferenceCases:
         assert "nitrogen" in b
         assert "phosphorus" in b
         assert "potassium" in b
-        assert b["nitrogen"]["crop_requirement_kg_per_ha"] == 25.0
+        assert b["nitrogen"]["crop_requirement_kg_per_ha"] == 22.6
         assert b["nitrogen"]["previous_crop_credit_kg_per_ha"] == 20.0
-        assert b["nitrogen"]["final_net_dose_kg_per_ha"] == 5.0
+        assert b["nitrogen"]["final_net_dose_kg_per_ha"] == 2.6
         assert b["nitrogen"]["total_farm_dose_kg"] is not None

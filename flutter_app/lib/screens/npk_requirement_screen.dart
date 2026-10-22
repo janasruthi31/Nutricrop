@@ -58,6 +58,9 @@ class _NpkRequirementScreenState extends State<NpkRequirementScreen> {
       double? organicCarbon;
       double? ph;
       double? ec;
+      double? zinc;
+      double? sulphur;
+      double? boron;
       String pMethod = 'Olsen';
 
       // Check flowData first
@@ -78,6 +81,15 @@ class _NpkRequirementScreenState extends State<NpkRequirementScreen> {
       }
       if (widget.flowData['ec'] != null) {
         ec = double.tryParse(widget.flowData['ec'].toString());
+      }
+      if (widget.flowData['zinc'] != null) {
+        zinc = double.tryParse(widget.flowData['zinc'].toString());
+      }
+      if (widget.flowData['sulphur'] != null) {
+        sulphur = double.tryParse(widget.flowData['sulphur'].toString());
+      }
+      if (widget.flowData['boron'] != null) {
+        boron = double.tryParse(widget.flowData['boron'].toString());
       }
 
       if (widget.soilProfile != null) {
@@ -128,6 +140,27 @@ class _NpkRequirementScreenState extends State<NpkRequirementScreen> {
           ec = (p['ec'] as num).toDouble();
         }
 
+        if (p['zinc'] is Map && p['zinc']['value'] != null) {
+          final val = double.tryParse(p['zinc']['value'].toString());
+          if (val != null) zinc = val;
+        } else if (p['zinc'] is num) {
+          zinc = (p['zinc'] as num).toDouble();
+        }
+
+        if (p['sulphur'] is Map && p['sulphur']['value'] != null) {
+          final val = double.tryParse(p['sulphur']['value'].toString());
+          if (val != null) sulphur = val;
+        } else if (p['sulphur'] is num) {
+          sulphur = (p['sulphur'] as num).toDouble();
+        }
+
+        if (p['boron'] is Map && p['boron']['value'] != null) {
+          final val = double.tryParse(p['boron']['value'].toString());
+          if (val != null) boron = val;
+        } else if (p['boron'] is num) {
+          boron = (p['boron'] as num).toDouble();
+        }
+
         if (p['fields'] is List) {
           final fields = p['fields'] as List;
           for (final f in fields) {
@@ -152,6 +185,9 @@ class _NpkRequirementScreenState extends State<NpkRequirementScreen> {
                 if (k == 'organic_carbon') organicCarbon = numVal;
                 if (k == 'ph') ph = numVal;
                 if (k == 'ec') ec = numVal;
+                if (k == 'zinc' || k == 'zn') zinc = numVal;
+                if (k == 'sulphur' || k == 's') sulphur = numVal;
+                if (k == 'boron' || k == 'b') boron = numVal;
               }
             }
           }
@@ -183,6 +219,9 @@ class _NpkRequirementScreenState extends State<NpkRequirementScreen> {
         'organic_carbon': organicCarbon,
         'ph': ph,
         'ec': ec,
+        'zinc': zinc,
+        'sulphur': sulphur,
+        'boron': boron,
         'fym_applied_t_per_ha': widget.flowData['fym_applied_t_per_ha'] ?? 0.0,
         'previous_crop': widget.flowData['previous_crop'],
         'previous_fertilizers': widget.flowData['previous_fertilizers'] ?? [],
@@ -477,6 +516,7 @@ class _NpkRequirementScreenState extends State<NpkRequirementScreen> {
     required double total,
     required String primaryUnit,
     required Color color,
+    List<dynamic>? range,
   }) {
     final isAcrePrimary = primaryUnit.toLowerCase().contains('acre');
     final primaryRate = isAcrePrimary ? perAcre : perHa;
@@ -524,6 +564,13 @@ class _NpkRequirementScreenState extends State<NpkRequirementScreen> {
                       ),
                     ],
                   ),
+                  if (range != null && range.length == 2) ...[
+                    const SizedBox(height: 3),
+                    Text(
+                      'Recommended Range: ${range[0]} – ${range[1]} $primaryRateUnit',
+                      style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w500, color: Colors.blueGrey.shade700),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -537,6 +584,95 @@ class _NpkRequirementScreenState extends State<NpkRequirementScreen> {
                 const Text('Farm Total', style: TextStyle(fontSize: 11, color: AppTheme.textMuted)),
               ],
             )
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMicronutrientSection(Map<String, dynamic> p5, AppLocalizations l10n) {
+    final advisory = p5['micronutrient_advisory'] as Map<String, dynamic>? ?? {};
+    if (advisory.isEmpty) return const SizedBox.shrink();
+
+    return Card(
+      elevation: 1.5,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.teal.shade300),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.science_rounded, color: Colors.teal.shade800, size: 22),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Secondary & Micronutrient Advisory (TNAU CPG 2020)',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5, color: Colors.teal.shade900),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            ...advisory.entries.map((e) {
+              final val = e.value as Map<String, dynamic>? ?? {};
+              final isDef = val['is_deficient'] == true;
+              return Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: isDef ? const Color(0xFFFFF3E0) : const Color(0xFFE8F5E9),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: isDef ? Colors.orange.shade300 : Colors.green.shade200),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          val['nutrient']?.toString() ?? e.key.toUpperCase(),
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5, color: isDef ? Colors.brown.shade900 : Colors.green.shade900),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: isDef ? Colors.orange.shade700 : Colors.green.shade700,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            val['status']?.toString() ?? (isDef ? 'Deficient' : 'Sufficient'),
+                            style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        const Spacer(),
+                        Text(
+                          'Test: ${val['value_ppm']} ppm',
+                          style: const TextStyle(fontSize: 11, color: AppTheme.textMuted),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      val['advisory']?.toString() ?? '',
+                      style: TextStyle(fontSize: 11.5, color: isDef ? Colors.brown.shade800 : Colors.green.shade900, height: 1.3),
+                    ),
+                    if (val['caution'] != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        'Caution: ${val['caution']}',
+                        style: TextStyle(fontSize: 10.5, fontStyle: FontStyle.italic, color: Colors.red.shade900),
+                      ),
+                    ],
+                  ],
+                ),
+              );
+            }).toList(),
           ],
         ),
       ),
@@ -569,6 +705,13 @@ class _NpkRequirementScreenState extends State<NpkRequirementScreen> {
     final farmAreaOrig = (p5['farm_area_original'] as num?)?.toDouble() ?? (widget.flowData['area'] is num ? (widget.flowData['area'] as num).toDouble() : 1.0);
     final farmAreaUnitOrig = p5['farm_area_unit_original']?.toString() ?? (widget.flowData['area_unit']?.toString() ?? 'acre');
     final farmAreaHa = (p5['farm_area_hectares'] as num?)?.toDouble() ?? (farmAreaUnitOrig == 'acre' ? farmAreaOrig * 0.4046856422 : farmAreaOrig);
+
+    final isAcre = farmAreaUnitOrig.toLowerCase().contains('acre');
+    final rangesMap = isAcre ? p5['recommended_range_kg_per_acre'] : p5['recommended_range_kg_per_ha'];
+    final rangeN = rangesMap is Map ? rangesMap['N'] as List? : null;
+    final rangeP = rangesMap is Map ? rangesMap['P2O5'] as List? : null;
+    final rangeK = rangesMap is Map ? rangesMap['K2O'] as List? : null;
+
     return Scaffold(
       appBar: AppBar(title: Text(l10n.text('npk_title'))),
       body: SafeArea(
@@ -892,6 +1035,7 @@ class _NpkRequirementScreenState extends State<NpkRequirementScreen> {
                             total: totN,
                             primaryUnit: farmAreaUnitOrig,
                             color: const Color(0xFF1976D2),
+                            range: rangeN,
                           ),
                           const SizedBox(height: 8),
                           _nutrientCard(
@@ -902,6 +1046,7 @@ class _NpkRequirementScreenState extends State<NpkRequirementScreen> {
                             total: totP,
                             primaryUnit: farmAreaUnitOrig,
                             color: const Color(0xFFE65100),
+                            range: rangeP,
                           ),
                           const SizedBox(height: 8),
                           _nutrientCard(
@@ -912,7 +1057,35 @@ class _NpkRequirementScreenState extends State<NpkRequirementScreen> {
                             total: totK,
                             primaryUnit: farmAreaUnitOrig,
                             color: const Color(0xFF6A1B9A),
+                            range: rangeK,
                           ),
+                          const SizedBox(height: 14),
+
+                          // Sampling Note
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.blueGrey.shade50,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.blueGrey.shade200),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.info_outline_rounded, size: 16, color: Colors.blueGrey.shade700),
+                                const SizedBox(width: 8),
+                                const Expanded(
+                                  child: Text(
+                                    'Valid for this sample; sample several spots of the field for representative accuracy.',
+                                    style: TextStyle(fontSize: 11, color: Colors.blueGrey),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+
+                          // Secondary & Micronutrient Advisory
+                          _buildMicronutrientSection(p5, l10n),
                           const SizedBox(height: 16),
                         ],
 

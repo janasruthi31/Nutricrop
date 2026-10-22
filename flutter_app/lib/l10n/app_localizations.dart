@@ -137,8 +137,8 @@ class AppLocalizations {
 
       // Yield Prediction
       'yield_title': 'District Crop Yield Benchmark',
-      'yield_disclaimer': 'Statistical benchmark from official Tamil Nadu crop reports. Not a farm guarantee.',
-      'estimated_district_yield': 'Estimated District Average Yield',
+      'yield_disclaimer': 'District benchmark, not a prediction for your field. Derived from historical Season & Crop Reports.',
+      'estimated_district_yield': 'District Benchmark (not a prediction for your field)',
       'rainfall_features': 'Seasonal Rainfall (mm)',
 
       // Weather & Sustainability
@@ -288,9 +288,9 @@ class AppLocalizations {
       'download_pdf': 'அதிகாரப்பூர்வ PDF அறிக்கை பதிவிறக்கு',
 
       // Yield Prediction
-      'yield_title': 'மாவட்ட சராசரி மகசூல் மதிப்பீடு',
-      'yield_disclaimer': 'அரசுப் புள்ளிவிவரங்களின் அடிப்படையிலான மாவட்ட சராசரி. தனிப்பட்ட பண்ணைக்கான உத்தரவாதமல்ல.',
-      'estimated_district_yield': 'மதிப்பிடப்பட்ட மாவட்ட சராசரி மகசூல்',
+      'yield_title': 'மாவட்ட சராசரி மகசூல் அளவுகோல்',
+      'yield_disclaimer': 'மாவட்ட அளவுகோல், உங்கள் நிலத்திற்கான நேரடி முன்கணிப்பு அல்ல. வரலாற்றுப் புள்ளிவிவரங்களின் அடிப்படையிலானது.',
+      'estimated_district_yield': 'மாவட்ட அளவுகோல் (உங்கள் நிலத்திற்கான முன்கணிப்பு அல்ல)',
       'rainfall_features': 'பருவமழை அளவு (மி.மீ)',
 
       // Weather & Sustainability
@@ -441,8 +441,8 @@ class AppLocalizations {
 
       // Yield Prediction
       'yield_title': 'ज़िला औसत फसल उपज मानक',
-      'yield_disclaimer': 'आधिकारिक रिपोर्टों से सांख्यिकीय ज़िला बेंचमार्क। यह व्यक्तिगत खेत की गारंटी नहीं है।',
-      'estimated_district_yield': 'अनुमानित ज़िला औसत उपज',
+      'yield_disclaimer': 'ज़िला बेंचमार्क, आपके खेत का सटीक पूर्वानुमान नहीं। ऐतिहासिक ज़िला फसल रिपोर्टों पर आधारित।',
+      'estimated_district_yield': 'ज़िला बेंचमार्क (आपके खेत का सटीक पूर्वानुमान नहीं)',
       'rainfall_features': 'मौसमी वर्षा (मिमी)',
 
       // Weather & Sustainability
