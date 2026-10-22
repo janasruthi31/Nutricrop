@@ -23,25 +23,13 @@ class _NpkRequirementScreenState extends State<NpkRequirementScreen> {
   Map<String, dynamic>? _recommendationResponse;
   bool _isLoading = true;
   String? _error;
-  String _recommendationMode = 'SOIL_HEALTH_CARD';
+  String _recommendationMode = 'CALCULATED_AGRONOMIC';
 
   @override
   void initState() {
     super.initState();
-    // Default mode: If printed chemical NPK recommendations exist on report,
-    // start with 'SOIL_HEALTH_CARD' mode, otherwise 'GENERAL_BLANKET'
-    final prec = widget.soilProfile?['printed_recommendation'] ?? widget.flowData['printed_recommendation'];
-    final bool hasPrintedDose = prec is Map &&
-        (prec['n'] != null ||
-            prec['p2o5'] != null ||
-            prec['k2o'] != null ||
-            prec['n_kg_per_acre'] != null ||
-            prec['nitrogen_kg_per_acre'] != null);
-    if (hasPrintedDose) {
-      _recommendationMode = 'SOIL_HEALTH_CARD';
-    } else {
-      _recommendationMode = 'GENERAL_BLANKET';
-    }
+    // Task 1d: Make CALCULATED_AGRONOMIC the default recommendation mode
+    _recommendationMode = 'CALCULATED_AGRONOMIC';
     _calculateNpk();
   }
 
@@ -195,7 +183,9 @@ class _NpkRequirementScreenState extends State<NpkRequirementScreen> {
         'organic_carbon': organicCarbon,
         'ph': ph,
         'ec': ec,
-        'fym_applied_t_per_ha': widget.flowData['fym_applied_t_per_ha'],
+        'fym_applied_t_per_ha': widget.flowData['fym_applied_t_per_ha'] ?? 0.0,
+        'previous_crop': widget.flowData['previous_crop'],
+        'previous_fertilizers': widget.flowData['previous_fertilizers'] ?? [],
         'farm_area': farmArea,
         'farm_area_unit': farmAreaUnit,
         'soil_profile': widget.soilProfile,
@@ -225,6 +215,258 @@ class _NpkRequirementScreenState extends State<NpkRequirementScreen> {
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  Widget _buildCardComparisonSection(Map<String, dynamic> cardComp, AppLocalizations l10n) {
+    final table = cardComp['comparison_table'] as Map<String, dynamic>? ?? {};
+    final warning = cardComp['warning']?.toString();
+    final differs30 = cardComp['differs_more_than_30_pct'] == true;
+
+    return Card(
+      elevation: 1.5,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: differs30 ? Colors.amber.shade700 : AppTheme.primaryGreen.withOpacity(0.5)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  differs30 ? Icons.warning_amber_rounded : Icons.compare_arrows_rounded,
+                  color: differs30 ? Colors.amber.shade900 : AppTheme.primaryGreen,
+                  size: 22,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    l10n.text('card_comparison_title'),
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppTheme.textDark),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            if (warning != null && differs30) ...[
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.amber.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.amber.shade300),
+                ),
+                child: Text(
+                  warning,
+                  style: TextStyle(fontSize: 12, color: Colors.brown.shade900, height: 1.3),
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+            Table(
+              columnWidths: const {
+                0: FlexColumnWidth(1.2),
+                1: FlexColumnWidth(1.5),
+                2: FlexColumnWidth(1.5),
+                3: FlexColumnWidth(1.2),
+              },
+              border: TableBorder(
+                horizontalInside: BorderSide(color: Colors.grey.shade200, width: 1),
+              ),
+              children: [
+                TableRow(
+                  decoration: BoxDecoration(color: Colors.grey.shade100),
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                      child: Text('Nutrient', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                      child: Text(l10n.text('card_prints'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                      child: Text(l10n.text('calculated_need'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                      child: Text(l10n.text('difference'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                    ),
+                  ],
+                ),
+                ...['nitrogen', 'phosphorus', 'potassium'].map((nutrientKey) {
+                  final row = table[nutrientKey] as Map<String, dynamic>? ?? {};
+                  final cardVal = row['card_printed_kg_per_acre'];
+                  final calcVal = row['calculated_need_kg_per_acre'];
+                  final diffPct = row['difference_pct'];
+                  final label = nutrientKey == 'nitrogen'
+                      ? 'N'
+                      : (nutrientKey == 'phosphorus' ? 'P₂O₅' : 'K₂O');
+
+                  return TableRow(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                        child: Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                        child: Text(
+                          cardVal != null ? '$cardVal kg/ac' : l10n.text('not_printed_on_card'),
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: cardVal != null ? AppTheme.textDark : AppTheme.textMuted,
+                            fontStyle: cardVal != null ? FontStyle.normal : FontStyle.italic,
+                          ),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                        child: Text(
+                          calcVal != null ? '$calcVal kg/ac' : '—',
+                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppTheme.primaryGreen),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                        child: Text(
+                          diffPct != null ? '${diffPct.toString()}%' : '—',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: (diffPct != null && (diffPct as num) > 30) ? Colors.orange.shade900 : AppTheme.textDark,
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                }),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAgronomicBreakdownSection(Map<String, dynamic> p5, AppLocalizations l10n) {
+    final breakdown = p5['nutrient_breakdown'] as Map<String, dynamic>?;
+    if (breakdown == null || breakdown.isEmpty) return const SizedBox.shrink();
+
+    Widget buildBreakdownItem(String label, String value, {bool isDeduction = false, bool isFinal = false}) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 3.0),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: isFinal ? 13 : 12,
+                  fontWeight: isFinal ? FontWeight.bold : FontWeight.normal,
+                  color: isFinal ? AppTheme.darkGreen : AppTheme.textDark,
+                ),
+              ),
+            ),
+            Text(
+              isDeduction ? '- $value' : (isFinal ? '= $value' : value),
+              style: TextStyle(
+                fontSize: isFinal ? 13 : 12,
+                fontWeight: isFinal ? FontWeight.bold : FontWeight.w600,
+                color: isFinal
+                    ? AppTheme.primaryGreen
+                    : (isDeduction ? Colors.red.shade700 : AppTheme.textDark),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    Widget buildNutrientColumn(String title, String symbol, Color color, Map<String, dynamic>? data) {
+      if (data == null) return const SizedBox.shrink();
+      final reqHa = data['crop_requirement_kg_per_ha'] ?? 0.0;
+      final soilHa = data['soil_supply_kg_per_ha'] ?? 0.0;
+      final fymHa = data['fym_credit_kg_per_ha'] ?? 0.0;
+      final prevCropHa = data['previous_crop_credit_kg_per_ha'] ?? 0.0;
+      final prevFertHa = data['previous_fertilizer_residual_kg_per_ha'] ?? 0.0;
+      final finalHa = data['final_net_dose_kg_per_ha'] ?? 0.0;
+
+      return Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: color.withOpacity(0.3), width: 1.2),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 12,
+                  backgroundColor: color.withOpacity(0.15),
+                  child: Text(symbol, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color)),
+                ),
+                const SizedBox(width: 8),
+                Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color)),
+              ],
+            ),
+            const Divider(height: 16),
+            buildBreakdownItem(l10n.text('crop_requirement'), '$reqHa kg/ha'),
+            buildBreakdownItem(l10n.text('soil_supply_credit'), '$soilHa kg/ha', isDeduction: true),
+            if ((fymHa as num) > 0)
+              buildBreakdownItem(l10n.text('fym_credit'), '$fymHa kg/ha', isDeduction: true),
+            if ((prevCropHa as num) > 0)
+              buildBreakdownItem(l10n.text('previous_crop_credit'), '$prevCropHa kg/ha', isDeduction: true),
+            if ((prevFertHa as num) > 0)
+              buildBreakdownItem(l10n.text('previous_fertilizer_residual'), '$prevFertHa kg/ha', isDeduction: true),
+            const Divider(height: 12),
+            buildBreakdownItem(l10n.text('final_net_dose'), '$finalHa kg/ha', isFinal: true),
+          ],
+        ),
+      );
+    }
+
+    return Card(
+      elevation: 1.0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.calculate_outlined, color: AppTheme.primaryGreen, size: 22),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    l10n.text('nutrient_breakdown_title'),
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Net Dose = Crop Need - Soil Supply - FYM Credit - Prev Crop Credit - Prev Fertilizer Residual (clamped at 0)',
+              style: TextStyle(fontSize: 11, color: AppTheme.textMuted),
+            ),
+            const SizedBox(height: 12),
+            buildNutrientColumn('Nitrogen (N)', 'N', const Color(0xFF1976D2), breakdown['nitrogen'] as Map<String, dynamic>?),
+            buildNutrientColumn('Phosphorus (P₂O₅)', 'P', const Color(0xFFE65100), breakdown['phosphorus'] as Map<String, dynamic>?),
+            buildNutrientColumn('Potassium (K₂O)', 'K', const Color(0xFF6A1B9A), breakdown['potassium'] as Map<String, dynamic>?),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _nutrientCard({
@@ -634,6 +876,13 @@ class _NpkRequirementScreenState extends State<NpkRequirementScreen> {
                           ),
                           const SizedBox(height: 16),
                         ] else ...[
+                          if (p5['card_comparison'] is Map && (p5['card_comparison'] as Map)['has_comparison'] == true) ...[
+                            _buildCardComparisonSection(p5['card_comparison'] as Map<String, dynamic>, l10n),
+                            const SizedBox(height: 14),
+                          ],
+                          _buildAgronomicBreakdownSection(p5, l10n),
+                          const SizedBox(height: 14),
+
                           // Nutrient Requirement Cards
                           _nutrientCard(
                             name: 'Nitrogen Requirement (N)',

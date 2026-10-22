@@ -184,6 +184,9 @@ class FullRecommendationService:
         # allow_unverified is False by default to strictly enforce agronomic validation!
         allow_unverified = req.get("allow_unverified", False)
 
+        previous_crop = req.get("previous_crop")
+        previous_fertilizers = req.get("previous_fertilizers") or []
+
         p5_req = NutrientCalculationRequest(
             crop=crop,
             variety=variety,
@@ -204,6 +207,8 @@ class FullRecommendationService:
             farm_area=farm_area,
             farm_area_unit=farm_area_unit,
             phase4_result=p4_res.model_dump(),
+            previous_crop=previous_crop,
+            previous_fertilizers=previous_fertilizers,
             recommendation_mode=rec_mode,
             recommendation_type=req.get("recommendation_type"),
             printed_n_rate=printed_n,

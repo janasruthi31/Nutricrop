@@ -6,6 +6,13 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
 
+class PreviousFertilizerItem(BaseModel):
+    product: str = Field(..., description="Commercial fertilizer product name or ID e.g. DAP, Urea, MOP, SSP")
+    quantity: float = Field(..., description="Quantity applied")
+    unit: str = Field("kg", description="Unit of quantity: kg, bags, tonnes, kg/acre, kg/ha")
+    months_ago: Optional[float] = Field(None, description="Months elapsed since application")
+
+
 class NutrientCalculationRequest(BaseModel):
     crop: Optional[str] = Field(None, description="Crop name e.g. Rice, Cotton (lint), Blackgram, Groundnut")
     variety: Optional[str] = Field(None, description="Crop variety e.g. ADT 43, MCU 5, CO 51")
@@ -25,10 +32,14 @@ class NutrientCalculationRequest(BaseModel):
     organic_carbon: Optional[Any] = Field(None, description="Organic Carbon %")
     ph: Optional[Any] = Field(None, description="Soil pH value")
     ec: Optional[Any] = Field(None, description="Electrical Conductivity in dS/m")
-    fym_applied_t_per_ha: Optional[Any] = Field(None, description="FYM applied in t/ha (default 12.5 for IPNS)")
+    fym_applied_t_per_ha: Optional[Any] = Field(0.0, description="FYM applied in t/ha (default 0.0)")
     farm_area: Optional[Any] = Field(None, description="Farm area size")
     farm_area_unit: Optional[str] = Field("hectare", description="hectare, acre, cent, sq_meter")
     phase4_result: Optional[Dict[str, Any]] = Field(None, description="Direct Phase 4 selection output")
+
+    # Previous agronomic history inputs
+    previous_crop: Optional[str] = Field(None, description="Previous crop grown e.g. Blackgram, Groundnut, Rice, Green Manure")
+    previous_fertilizers: Optional[List[PreviousFertilizerItem]] = Field(default_factory=list, description="List of previous fertilizers applied")
 
     # Dual recommendation mode parameters
     recommendation_mode: Optional[str] = Field("CALCULATED_AGRONOMIC", description="'SOIL_HEALTH_CARD' or 'CALCULATED_AGRONOMIC'")
@@ -88,6 +99,16 @@ class NutrientCalculationResponse(BaseModel):
     soil_nutrient_status: Optional[Dict[str, Any]] = Field(default=None, description="Soil test nutrient status (Deficient / Sufficient / Excessive) against verified TNAU thresholds")
     derivation_explanation: Optional[str] = Field(default=None, description="Human-readable step-by-step agronomic explanation of how requirements were derived")
     authoritative_reference: Optional[Dict[str, Any]] = Field(default=None, description="Official reference citation, source document, title, and URL")
+
+    # Agronomic Breakdown per nutrient
+    previous_crop: Optional[str] = None
+    crop_requirement_kg_per_ha: Optional[Dict[str, float]] = None
+    soil_supply_kg_per_ha: Optional[Dict[str, float]] = None
+    fym_credit_kg_per_ha: Optional[Dict[str, float]] = None
+    previous_crop_credit_kg_per_ha: Optional[Dict[str, float]] = None
+    previous_fertilizer_residual_kg_per_ha: Optional[Dict[str, float]] = None
+    nutrient_breakdown: Optional[Dict[str, Any]] = None
+
     warnings: List[str] = Field(default_factory=list)
     missing_inputs: List[str] = Field(default_factory=list)
     validation_errors: List[str] = Field(default_factory=list)

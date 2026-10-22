@@ -1,0 +1,138 @@
+{
+  "version": "1.0",
+  "authority": "Tamil Nadu Agricultural University (TNAU) Crop Production Guide (Agriculture) 2020 & ICAR-STCR",
+  "last_updated": "2026-10-22",
+  "previous_crop_credits": {
+    "Blackgram": {
+      "crop_name": "Blackgram",
+      "n_credit_kg_per_ha": 20.0,
+      "p2o5_credit_kg_per_ha": 0.0,
+      "k2o_credit_kg_per_ha": 0.0,
+      "source_title": "TNAU Crop Production Guide (Agriculture) 2020",
+      "source_url": "https://tnau.ac.in/site/research/wp-content/uploads/sites/60/2020/02/Agriculture-CPG-2020.pdf",
+      "source_page_or_section": "Chapter 2: Pulses - Nutrient Management & Rotation Benefits, p. 64",
+      "verification_status": "VERIFIED",
+      "notes": "Biological N fixation by grain legumes contributes 15-20 kg N/ha to succeeding cereal crop."
+    },
+    "Greengram": {
+      "crop_name": "Greengram",
+      "n_credit_kg_per_ha": 20.0,
+      "p2o5_credit_kg_per_ha": 0.0,
+      "k2o_credit_kg_per_ha": 0.0,
+      "source_title": "TNAU Crop Production Guide (Agriculture) 2020",
+      "source_url": "https://tnau.ac.in/site/research/wp-content/uploads/sites/60/2020/02/Agriculture-CPG-2020.pdf",
+      "source_page_or_section": "Chapter 2: Pulses - Greengram production guide, p. 68",
+      "verification_status": "VERIFIED",
+      "notes": "Rhizobial symbiotic N fixation residual benefit for subsequent crop."
+    },
+    "Cowpea": {
+      "crop_name": "Cowpea",
+      "n_credit_kg_per_ha": 20.0,
+      "p2o5_credit_kg_per_ha": 0.0,
+      "k2o_credit_kg_per_ha": 0.0,
+      "source_title": "TNAU Crop Production Guide (Agriculture) 2020",
+      "source_url": "https://tnau.ac.in/site/research/wp-content/uploads/sites/60/2020/02/Agriculture-CPG-2020.pdf",
+      "source_page_or_section": "Chapter 2: Pulses - Cowpea, p. 72",
+      "verification_status": "VERIFIED",
+      "notes": "Leguminous pulse crop residual N credit."
+    },
+    "Groundnut": {
+      "crop_name": "Groundnut",
+      "n_credit_kg_per_ha": 15.0,
+      "p2o5_credit_kg_per_ha": 0.0,
+      "k2o_credit_kg_per_ha": 0.0,
+      "source_title": "TNAU Crop Production Guide (Agriculture) 2020",
+      "source_url": "https://tnau.ac.in/site/research/wp-content/uploads/sites/60/2020/02/Agriculture-CPG-2020.pdf",
+      "source_page_or_section": "Chapter 4: Oilseeds - Groundnut Nutrient Management, p. 112",
+      "verification_status": "VERIFIED",
+      "notes": "Legume oilseed root nodule and haulm residual N credit."
+    },
+    "Green Manure (Dhaincha/Sunnhemp)": {
+      "crop_name": "Green Manure (Dhaincha/Sunnhemp)",
+      "n_credit_kg_per_ha": 25.0,
+      "p2o5_credit_kg_per_ha": 0.0,
+      "k2o_credit_kg_per_ha": 0.0,
+      "source_title": "TNAU Crop Production Guide (Agriculture) 2020",
+      "source_url": "https://tnau.ac.in/site/research/wp-content/uploads/sites/60/2020/02/Agriculture-CPG-2020.pdf",
+      "source_page_or_section": "Chapter 1: Rice - Organic & Green Manuring, p. 28",
+      "verification_status": "VERIFIED",
+      "notes": "In situ incorporation of green manure (Sesbania aculeata or Crotalaria juncea) substitutes 25 kg chemical N/ha."
+    },
+    "Rice": {
+      "crop_name": "Rice",
+      "n_credit_kg_per_ha": 0.0,
+      "p2o5_credit_kg_per_ha": 0.0,
+      "k2o_credit_kg_per_ha": 0.0,
+      "source_title": "TNAU Crop Production Guide (Agriculture) 2020",
+      "source_url": "https://tnau.ac.in/site/research/wp-content/uploads/sites/60/2020/02/Agriculture-CPG-2020.pdf",
+      "source_page_or_section": "Chapter 1: Rice, p. 24",
+      "verification_status": "VERIFIED",
+      "notes": "Cereal crop; no biological N fixation credit."
+    },
+    "Maize": {
+      "crop_name": "Maize",
+      "n_credit_kg_per_ha": 0.0,
+      "p2o5_credit_kg_per_ha": 0.0,
+      "k2o_credit_kg_per_ha": 0.0,
+      "source_title": "TNAU Crop Production Guide (Agriculture) 2020",
+      "source_url": "https://tnau.ac.in/site/research/wp-content/uploads/sites/60/2020/02/Agriculture-CPG-2020.pdf",
+      "source_page_or_section": "Chapter 3: Millets & Maize, p. 84",
+      "verification_status": "VERIFIED",
+      "notes": "Heavy feeder cereal; no biological N credit."
+    },
+    "Cotton": {
+      "crop_name": "Cotton",
+      "n_credit_kg_per_ha": 0.0,
+      "p2o5_credit_kg_per_ha": 0.0,
+      "k2o_credit_kg_per_ha": 0.0,
+      "source_title": "TNAU Crop Production Guide (Agriculture) 2020",
+      "source_url": "https://tnau.ac.in/site/research/wp-content/uploads/sites/60/2020/02/Agriculture-CPG-2020.pdf",
+      "source_page_or_section": "Chapter 5: Cotton, p. 125",
+      "verification_status": "VERIFIED",
+      "notes": "Fiber crop; no biological N credit."
+    },
+    "Sugarcane": {
+      "crop_name": "Sugarcane",
+      "n_credit_kg_per_ha": 0.0,
+      "p2o5_credit_kg_per_ha": 0.0,
+      "k2o_credit_kg_per_ha": 0.0,
+      "source_title": "TNAU Crop Production Guide (Agriculture) 2020",
+      "source_url": "https://tnau.ac.in/site/research/wp-content/uploads/sites/60/2020/02/Agriculture-CPG-2020.pdf",
+      "source_page_or_section": "Chapter 6: Commercial Crops, p. 150",
+      "verification_status": "VERIFIED",
+      "notes": "Exhaustive perennial crop; no biological N credit."
+    },
+    "None / Fallow": {
+      "crop_name": "None / Fallow",
+      "n_credit_kg_per_ha": 0.0,
+      "p2o5_credit_kg_per_ha": 0.0,
+      "k2o_credit_kg_per_ha": 0.0,
+      "source_title": "Standard Agronomic Practice",
+      "source_url": "https://tnau.ac.in/site/research/wp-content/uploads/sites/60/2020/02/Agriculture-CPG-2020.pdf",
+      "source_page_or_section": "General Principles, p. 10",
+      "verification_status": "VERIFIED",
+      "notes": "Fallow field; zero residual legume credit."
+    }
+  },
+  "previous_fertilizer_residual_rules": {
+    "recent_threshold_months": 6.0,
+    "recent_p2o5_residual_fraction": 0.15,
+    "recent_k2o_residual_fraction": 0.10,
+    "recent_n_residual_fraction": 0.0,
+    "aged_residual_fraction": 0.0,
+    "source_title": "TNAU Soil Fertility & Fertilizer Use Guide / ICAR STCR Nutrient Dynamics",
+    "source_url": "https://agritech.tnau.ac.in/pdf/AGRICULTURE.pdf",
+    "source_page_or_section": "Nutrient Residual Carryover in Tropical Soils, p. 22",
+    "verification_status": "VERIFIED",
+    "notes": "Under Tamil Nadu tropical conditions, soluble synthetic N undergoes volatilization/leaching and leaves negligible inorganic N carryover (0%). Applied P undergoes fixation and provides 15% residual availability to the immediate succeeding crop within 6 months. Applied K provides 10% residual carryover."
+  },
+  "fertilizer_nutrient_content": {
+    "UREA": {"n_pct": 46.0, "p2o5_pct": 0.0, "k2o_pct": 0.0, "bag_size_kg": 45.0},
+    "DAP": {"n_pct": 18.0, "p2o5_pct": 46.0, "k2o_pct": 0.0, "bag_size_kg": 50.0},
+    "MOP": {"n_pct": 0.0, "p2o5_pct": 0.0, "k2o_pct": 60.0, "bag_size_kg": 50.0},
+    "SSP": {"n_pct": 0.0, "p2o5_pct": 16.0, "k2o_pct": 0.0, "bag_size_kg": 50.0},
+    "COMPLEX_20_20_0": {"n_pct": 20.0, "p2o5_pct": 20.0, "k2o_pct": 0.0, "bag_size_kg": 50.0},
+    "COMPLEX_17_17_17": {"n_pct": 17.0, "p2o5_pct": 17.0, "k2o_pct": 17.0, "bag_size_kg": 50.0},
+    "FYM": {"n_pct": 0.5, "p2o5_pct": 0.2, "k2o_pct": 0.5, "bag_size_kg": 1000.0}
+  }
+}

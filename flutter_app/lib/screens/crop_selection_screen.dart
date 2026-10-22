@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
+import '../services/api_client.dart';
 import '../theme/app_theme.dart';
 import 'npk_requirement_screen.dart';
 import 'previous_fertilizer_screen.dart';
@@ -22,6 +23,22 @@ class _CropSelectionScreenState extends State<CropSelectionScreen> {
   String _selectedCrop = 'Rice';
   String _selectedSeason = 'Kharif';
   final _targetYieldCtrl = TextEditingController(text: '6.0');
+  String _previousCrop = 'None / Fallow';
+  final _fymAppliedCtrl = TextEditingController(text: '0.0');
+  final List<Map<String, dynamic>> _previousFertilizers = [];
+
+  final List<String> _previousCropOptions = [
+    'None / Fallow',
+    'Blackgram',
+    'Greengram',
+    'Cowpea',
+    'Groundnut',
+    'Green Manure (Dhaincha/Sunnhemp)',
+    'Rice',
+    'Maize',
+    'Cotton',
+    'Sugarcane',
+  ];
 
   final List<Map<String, dynamic>> _supportedCrops = [
     {
@@ -97,6 +114,39 @@ class _CropSelectionScreenState extends State<CropSelectionScreen> {
       _selectedCrop = match['name'];
     }
     _updateYieldDefault();
+    _syncHistoryFromStorage();
+  }
+
+  Future<void> _syncHistoryFromStorage() async {
+    try {
+      final list = await ApiClient.instance.getFertilizerHistory();
+      if (list.isNotEmpty && mounted) {
+        setState(() {
+          for (final item in list) {
+            final prod = item['fertilizer_product']?.toString() ?? item['product']?.toString() ?? '';
+            final qty = (item['quantity'] is num)
+                ? (item['quantity'] as num).toDouble()
+                : (double.tryParse(item['quantity']?.toString() ?? '0') ?? 0.0);
+            final unit = item['unit']?.toString() ?? 'kg';
+            if (qty > 0) {
+              if (prod.toLowerCase().contains('fym') || prod.toLowerCase().contains('manure')) {
+                _fymAppliedCtrl.text = qty.toString();
+              } else {
+                final already = _previousFertilizers.any((f) => f['product'] == prod);
+                if (!already) {
+                  _previousFertilizers.add({
+                    'product': prod,
+                    'quantity': qty,
+                    'unit': unit,
+                    'months_ago': 2.0,
+                  });
+                }
+              }
+            }
+          }
+        });
+      }
+    } catch (_) {}
   }
 
   void _updateYieldDefault() {
@@ -110,6 +160,7 @@ class _CropSelectionScreenState extends State<CropSelectionScreen> {
   @override
   void dispose() {
     _targetYieldCtrl.dispose();
+    _fymAppliedCtrl.dispose();
     super.dispose();
   }
 
@@ -119,12 +170,16 @@ class _CropSelectionScreenState extends State<CropSelectionScreen> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a valid target yield.')));
       return;
     }
+    final fymVal = double.tryParse(_fymAppliedCtrl.text.trim()) ?? 0.0;
 
     final selectionData = {
       ...widget.farmDetails,
       'crop': _selectedCrop,
       'season': _selectedSeason,
       'target_yield': yVal,
+      'previous_crop': _previousCrop,
+      'fym_applied_t_per_ha': fymVal,
+      'previous_fertilizers': _previousFertilizers,
     };
 
     Navigator.push(
@@ -133,6 +188,97 @@ class _CropSelectionScreenState extends State<CropSelectionScreen> {
         builder: (_) => NpkRequirementScreen(
           flowData: selectionData,
           soilProfile: widget.soilProfile,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showAddFertilizerDialog() async {
+    String prod = 'DAP';
+    final qtyCtrl = TextEditingController(text: '1.0');
+    String unit = 'bags';
+    final monthsCtrl = TextEditingController(text: '2.0');
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setD) => AlertDialog(
+          title: const Text('Add Previous Fertilizer Record'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<String>(
+                  value: prod,
+                  decoration: const InputDecoration(labelText: 'Fertilizer Product'),
+                  items: const [
+                    DropdownMenuItem(value: 'DAP', child: Text('DAP (18-46-0)')),
+                    DropdownMenuItem(value: 'Urea', child: Text('Urea (46-0-0)')),
+                    DropdownMenuItem(value: 'MOP', child: Text('MOP / Potash (0-0-60)')),
+                    DropdownMenuItem(value: 'SSP', child: Text('SSP (0-16-0)')),
+                    DropdownMenuItem(value: 'Complex 20:20:0', child: Text('Complex 20:20:0')),
+                    DropdownMenuItem(value: 'Complex 17:17:17', child: Text('Complex 17:17:17')),
+                  ],
+                  onChanged: (v) => setD(() => prod = v ?? 'DAP'),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      flex: 2,
+                      child: TextField(
+                        controller: qtyCtrl,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: const InputDecoration(labelText: 'Quantity'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        value: unit,
+                        items: const [
+                          DropdownMenuItem(value: 'bags', child: Text('Bags')),
+                          DropdownMenuItem(value: 'kg', child: Text('kg')),
+                          DropdownMenuItem(value: 'tonnes', child: Text('Tonnes')),
+                        ],
+                        onChanged: (v) => setD(() => unit = v ?? 'bags'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: monthsCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(
+                    labelText: 'Months Ago',
+                    helperText: 'Recent applications (≤6 mo) carry residual credit',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            FilledButton(
+              onPressed: () {
+                final q = double.tryParse(qtyCtrl.text.trim()) ?? 0.0;
+                final m = double.tryParse(monthsCtrl.text.trim()) ?? 2.0;
+                if (q > 0) {
+                  setState(() {
+                    _previousFertilizers.add({
+                      'product': prod,
+                      'quantity': q,
+                      'unit': unit,
+                      'months_ago': m,
+                    });
+                  });
+                  Navigator.pop(ctx);
+                }
+              },
+              child: const Text('Add'),
+            ),
+          ],
         ),
       ),
     );
@@ -197,7 +343,7 @@ class _CropSelectionScreenState extends State<CropSelectionScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Season & Target Yield', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                      const Text('Season & Target Yield', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                       const SizedBox(height: 14),
                       DropdownButtonFormField<String>(
                         value: (activeCropInfo['seasons'] as List<String>).contains(_selectedSeason)
@@ -224,14 +370,90 @@ class _CropSelectionScreenState extends State<CropSelectionScreen> {
                 ),
               ),
               const SizedBox(height: 16),
+
+              // Agronomic History Card (Previous Crop, FYM, Previous Fertilizer Records)
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Agronomic History & Manure',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Biological N fixation from previous legumes and residual manure reduce your chemical fertilizer need.',
+                        style: TextStyle(fontSize: 12, color: AppTheme.textMuted),
+                      ),
+                      const SizedBox(height: 14),
+                      DropdownButtonFormField<String>(
+                        value: _previousCrop,
+                        decoration: InputDecoration(labelText: l10n.text('previous_crop')),
+                        items: _previousCropOptions
+                            .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                            .toList(),
+                        onChanged: (v) => setState(() => _previousCrop = v ?? 'None / Fallow'),
+                      ),
+                      const SizedBox(height: 14),
+                      TextField(
+                        controller: _fymAppliedCtrl,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: InputDecoration(
+                          labelText: l10n.text('fym_applied'),
+                          helperText: 'Default: 0.0 tonnes/ha (zero deduction if none applied)',
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              l10n.text('previous_fertilizer'),
+                              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                            ),
+                          ),
+                          TextButton.icon(
+                            onPressed: _showAddFertilizerDialog,
+                            icon: const Icon(Icons.add_circle_outline, size: 18),
+                            label: Text(l10n.text('add_fertilizer_record')),
+                          ),
+                        ],
+                      ),
+                      if (_previousFertilizers.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 6,
+                          children: [
+                            for (int i = 0; i < _previousFertilizers.length; i++)
+                              Chip(
+                                label: Text(
+                                  '${_previousFertilizers[i]['product']}: ${_previousFertilizers[i]['quantity']} ${_previousFertilizers[i]['unit']} (${_previousFertilizers[i]['months_ago']} mo ago)',
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                                deleteIcon: const Icon(Icons.close, size: 16),
+                                onDeleted: () => setState(() => _previousFertilizers.removeAt(i)),
+                              ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
               OutlinedButton.icon(
-                onPressed: () {
-                  Navigator.push(
+                onPressed: () async {
+                  await Navigator.push(
                     context,
                     MaterialPageRoute(
                       builder: (_) => PreviousFertilizerScreen(crop: _selectedCrop),
                     ),
                   );
+                  _syncHistoryFromStorage();
                 },
                 icon: const Icon(Icons.history_rounded),
                 label: Text(l10n.text('previous_fertilizer')),
@@ -248,3 +470,4 @@ class _CropSelectionScreenState extends State<CropSelectionScreen> {
     );
   }
 }
+
