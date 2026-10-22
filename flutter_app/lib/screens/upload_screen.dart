@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../config.dart';
 import '../l10n/app_localizations.dart';
+import '../theme/app_theme.dart';
 import 'processing_screen.dart';
 import 'verify_screen.dart';
 
@@ -46,7 +47,40 @@ class UploadScreen extends StatelessWidget {
         Text(l10n.text('upload_soil_title'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
         const SizedBox(height: 6),
         Text(l10n.text('upload_instruction'), style: const TextStyle(color: Colors.grey)),
-        const SizedBox(height: 20),
+        const SizedBox(height: 14),
+
+        // Privacy Consent Notice (Task 5b)
+        Card(
+          elevation: 1,
+          color: const Color(0xFFE8F5E9),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: const BorderSide(color: Color(0xFFA5D6A7)),
+          ),
+          child: const Padding(
+            padding: EdgeInsets.all(14.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.shield_outlined, color: AppTheme.darkGreen, size: 20),
+                    SizedBox(width: 8),
+                    Text('Farmer Privacy Consent (தனியுரிமை ஒப்புதல்)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.darkGreen)),
+                  ],
+                ),
+                SizedBox(height: 6),
+                Text(
+                  '• We collect only the soil nutrients and crop data necessary to compute your fertilizer recommendation.\n'
+                  '• Uploaded soil card photos and PDFs are processed temporarily and deleted immediately from disk after OCR text extraction.\n'
+                  '• No bank details, survey numbers, or personal biometric data are ever retained.',
+                  style: TextStyle(fontSize: 11.5, color: AppTheme.textDark, height: 1.35),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
         FilledButton.icon(onPressed: () => _pickFile(context, ['pdf']), icon: const Icon(Icons.picture_as_pdf), label: Text(l10n.text('upload_pdf'))),
         const SizedBox(height: 12),
         FilledButton.icon(onPressed: () => _pickFile(context, ['jpg', 'jpeg', 'png']), icon: const Icon(Icons.image), label: Text(l10n.text('upload_image'))),

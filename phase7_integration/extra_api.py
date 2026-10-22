@@ -708,7 +708,7 @@ def download_recommendation_pdf(
 
     # Title & Header
     elements.append(Paragraph("AI-BASED SOIL-SPECIFIC FERTILIZER RECOMMENDATION REPORT", title_style))
-    elements.append(Paragraph("Tamil Nadu State Agricultural Decision Support System (SIH1639)", sub_style))
+    elements.append(Paragraph("AgroWise AI (SIH1639) — Based on TNAU Guidelines (Not an official Government / TNAU tool)", sub_style))
     elements.append(Spacer(1, 12))
 
     # Meta Info Table
@@ -813,8 +813,11 @@ def download_recommendation_pdf(
     elements.append(Spacer(1, 14))
 
     # Footer Disclaimer
-    disclaimer = "<i>Disclaimer: Confirm with your local agriculture officer. Recommendations are based on TNAU guidelines and commercial bag sizes. Yield prediction is a district benchmark, not a prediction for your field.</i>"
-    elements.append(Paragraph(disclaimer, ParagraphStyle('Disc', parent=styles['Normal'], fontSize=8, leading=10, textColor=colors.dimgrey)))
+    disclaimer = "<b>IMPORTANT NOTICE:</b> Confirm with your local agriculture officer before applying fertilizers. " \
+                 "This application is based on TNAU guidelines, not an official TNAU or government tool. " \
+                 "Yield prediction is a regional district benchmark, not an individual field guarantee. " \
+                 "Recommendations are calibrated for this specific soil sample; representative sampling across multiple spots of the field is advised."
+    elements.append(Paragraph(disclaimer, ParagraphStyle('Disc', parent=styles['Normal'], fontSize=7.5, leading=10, textColor=colors.dimgrey)))
 
     doc.build(elements)
     buffer.seek(0)

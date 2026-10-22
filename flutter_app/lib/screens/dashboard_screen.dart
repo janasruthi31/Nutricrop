@@ -336,6 +336,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 '$district District, Tamil Nadu',
                                 style: const TextStyle(color: Color(0xFFE8F5E9), fontSize: 12),
                               ),
+                              const SizedBox(height: 4),
+                              const Text(
+                                'Based on TNAU guidelines • Not an official government tool',
+                                style: TextStyle(color: Color(0xFFC8E6C9), fontSize: 10.5, fontStyle: FontStyle.italic),
+                              ),
                             ],
                           ),
                         ),

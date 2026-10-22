@@ -137,7 +137,29 @@ class _RecommendationDetailsScreenState extends State<RecommendationDetailsScree
                 ),
                 const SizedBox(height: 6),
               ],
-              const SizedBox(height: 24),
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF8E1),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.amber.shade700, width: 1.2),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.verified_user_outlined, size: 20, color: Colors.amber.shade900),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Disclaimer: Confirm with your local agriculture officer. This recommendation is based on TNAU guidelines and is not an official government certificate.',
+                        style: TextStyle(fontSize: 11, color: Colors.brown.shade800, height: 1.3),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 18),
               FilledButton.icon(
                 onPressed: () {
                   Navigator.push(

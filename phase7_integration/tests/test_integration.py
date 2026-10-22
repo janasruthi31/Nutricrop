@@ -326,3 +326,70 @@ def test_13_task4_seasonal_weather_estimate_fallback(monkeypatch):
     assert guidance["rainfall_mm_24h"] is not None
 
 
+# 14. Task 5: Legal disclaimers, TNAU guidelines description, and file deletion privacy
+def test_14_task5_legal_responsibility_and_privacy(tmp_path):
+    import io
+    import os
+    from pypdf import PdfReader
+    from phase3_soil import service as soil_svc, config as soil_cfg
+    from phase3_soil import db as soil_db
+
+    # 1. Verify PDF report contains legal disclaimer and based on TNAU guidelines
+    headers = {"Authorization": "Bearer test_farmer_e2e"}
+    rec_payload = {
+        "crop": "Rice",
+        "district": "Thanjavur",
+        "soil_nitrogen": 220.0,
+        "soil_phosphorus": 16.0,
+        "soil_potassium": 190.0,
+        "farm_area": 1.0,
+        "farm_area_unit": "ha"
+    }
+    rec_res = client.post("/api/full-recommendation", json=rec_payload)
+    assert rec_res.status_code == 200
+    save_res = client.post("/api/recommendations", headers=headers, json=rec_res.json())
+    assert save_res.status_code == 200
+    rec_id = save_res.json()["recommendation_id"]
+
+    pdf_res = client.get(f"/api/recommendations/{rec_id}/pdf", headers=headers)
+    assert pdf_res.status_code == 200
+    pdf_reader = PdfReader(io.BytesIO(pdf_res.content))
+    extracted_text = " ".join([page.extract_text() for page in pdf_reader.pages])
+
+    assert "Confirm with your local agriculture officer" in extracted_text
+    assert "Based on TNAU Guidelines" in extracted_text or "based on TNAU guidelines" in extracted_text.lower()
+    assert "Not an official Government / TNAU tool" in extracted_text
+
+    # 2. Verify uploaded raw file deletion after processing (Task 5b privacy)
+    # Upload a valid dummy image file and check that run_ocr cleans it from disk
+    from PIL import Image
+    test_db = str(tmp_path / "privacy_test.db")
+    soil_db.init_db(test_db)
+    img = Image.new("RGB", (400, 200), color=(255, 255, 255))
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG")
+    img_bytes = buf.getvalue()
+
+    upload_res = soil_svc.upload("test_farmer_privacy", img_bytes, db_path=test_db)
+    doc_id = upload_res["document_id"]
+
+    # Verify file was saved on disk initially
+    with soil_db.connect(test_db) as con:
+        doc = con.execute("SELECT file_path FROM soil_documents WHERE document_id=?", (doc_id,)).fetchone()
+        assert doc is not None
+        file_path = doc["file_path"]
+
+    # File exists after upload
+    assert os.path.exists(file_path)
+
+    # Now run_ocr (mock OCR so it finishes fast or raises OCR_EMPTY)
+    try:
+        soil_svc.run_ocr("test_farmer_privacy", doc_id, db_path=test_db)
+    except Exception:
+        pass
+
+    # The file MUST be deleted from disk by the finally block
+    assert not os.path.exists(file_path)
+
+
+

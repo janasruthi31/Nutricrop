@@ -590,22 +590,36 @@ class _FinalRecommendationScreenState extends State<FinalRecommendationScreen> {
                 ),
               ],
 
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
+              // Prominent Legal & Agronomic Responsibility Card (Task 5a & 5c)
               Container(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey.shade300),
+                  color: const Color(0xFFFFF8E1),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.amber.shade700, width: 1.2),
                 ),
-                child: const Row(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.gavel_rounded, size: 16, color: AppTheme.textMuted),
-                    SizedBox(width: 8),
+                    Icon(Icons.verified_user_outlined, size: 22, color: Colors.amber.shade900),
+                    const SizedBox(width: 10),
                     Expanded(
-                      child: Text(
-                        'Disclaimer: Confirm with your local agriculture officer. Recommendations are based on TNAU guidelines.',
-                        style: TextStyle(fontSize: 11, color: AppTheme.textMuted),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Legal Advisory & Responsibility (சட்ட ஆலோசனை)',
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.brown.shade900),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '• Confirm with your local agriculture officer (உங்கள் வட்டார வேளாண்மை அலுவலரிடம் சரிபார்க்கவும்).\n'
+                            '• This application is based on TNAU guidelines, not an official TNAU or government tool.\n'
+                            '• Recommendation is valid for this soil sample; sample several spots of the field for representative accuracy.',
+                            style: TextStyle(fontSize: 11, color: Colors.brown.shade800, height: 1.35),
+                          ),
+                        ],
                       ),
                     ),
                   ],

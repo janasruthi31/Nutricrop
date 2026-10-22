@@ -45,3 +45,7 @@ ENV/
 *~
 .DS_Store
 Thumbs.db
+
+# Storage and uploads
+phase3_soil/private_storage/
+scratch/

@@ -26,17 +26,27 @@ class AboutScreen extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             const Text(
-              'AI-Based Soil-Specific Fertilizer Recommendation & Crop Yield Prediction System for Tamil Nadu Farmers',
+              'AgroWise AI (SIH1639) — Fertilizer Optimizer',
               textAlign: TextAlign.center,
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.textDark),
             ),
             const SizedBox(height: 6),
-            const Text(
-              'Project Reference: SIH1639',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 13, color: AppTheme.primaryGreen, fontWeight: FontWeight.w600),
+            Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE8F5E9),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFA5D6A7)),
+                ),
+                child: const Text(
+                  'Based on TNAU guidelines • Not an official TNAU or government tool',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 11, color: Color(0xFF2E7D32), fontWeight: FontWeight.bold),
+                ),
+              ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
             const Card(
               child: Padding(
                 padding: EdgeInsets.all(16.0),
@@ -85,7 +95,7 @@ class AboutScreen extends StatelessWidget {
               child: Padding(
                 padding: EdgeInsets.all(14.0),
                 child: Text(
-                  'Disclaimer: Fertilizer recommendations and bag counts are calculated using verified scientific models for educational and advisory support. Yield predictions represent regional district benchmarks, not individual field guarantees.',
+                  'Disclaimer: Confirm with your local agriculture officer before applying fertilizers. This application is based on TNAU guidelines and is not an official TNAU or government tool. Yield predictions represent regional district benchmarks, not individual field guarantees.',
                   style: TextStyle(fontSize: 12, color: AppTheme.darkGreen, height: 1.35),
                 ),
               ),

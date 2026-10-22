@@ -17,7 +17,8 @@ class AppLocalizations {
     'en': {
       // General & Navigation
       'app_title': 'TN Fertilizer Optimizer',
-      'app_subtitle': 'AI-Based Soil-Specific Fertilizer Recommendation & Yield Prediction',
+      'app_subtitle': 'Based on TNAU guidelines • Soil-Specific Fertilizer Advisory & Yield Benchmark',
+      'disclaimer_officer': 'Confirm with your local agriculture officer. Based on TNAU guidelines, not an official TNAU or government tool.',
       'home': 'Home',
       'soil_reports': 'Soil Reports',
       'fertilizer': 'Fertilizer',
@@ -168,7 +169,8 @@ class AppLocalizations {
     'ta': {
       // General & Navigation
       'app_title': 'தமிழ்நாடு உர பரிந்துரை',
-      'app_subtitle': 'மண் பரிசோதனை அடிப்படையிலான உகந்த உர பரிந்துரை மற்றும் விளைச்சல் கணிப்பு',
+      'app_subtitle': 'TNAU வழிகாட்டுதல்களின் அடிப்படையில் • மண் சார்ந்த உரப் பரிந்துரை',
+      'disclaimer_officer': 'உங்கள் வட்டார வேளாண்மை அலுவலரிடம் சரிபார்க்கவும். TNAU வழிகாட்டுதல்களின் அடிப்படையில் உருவாக்கப்பட்டது; அதிகாரப்பூர்வ அரசு சான்றிதழ் அல்ல.',
       'home': 'முகப்பு',
       'soil_reports': 'மண் அறிக்கை',
       'fertilizer': 'உர பரிந்துரை',
@@ -320,7 +322,8 @@ class AppLocalizations {
     'hi': {
       // General & Navigation
       'app_title': 'तमिलनाडु उर्वरक अनुकूलक',
-      'app_subtitle': 'मृदा-विशिष्ट उर्वरक सिफारिश एवं फसल उपज पूर्वानुमान',
+      'app_subtitle': 'TNAU दिशानिर्देशों पर आधारित • मिट्टी-विशिष्ट उर्वरक सलाह',
+      'disclaimer_officer': 'अपने स्थानीय कृषि अधिकारी से पुष्टि करें। TNAU दिशानिर्देशों पर आधारित; आधिकारिक सरकारी उपकरण नहीं।',
       'home': 'होम',
       'soil_reports': 'मृदा रिपोर्ट',
       'fertilizer': 'उर्वरक',

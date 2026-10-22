@@ -150,6 +150,13 @@ def run_ocr(farmer_id, document_id, db_path=None):
         raise SoilError("OCR_FAILED", MSG_UNREADABLE, 422, {"reason": type(e).__name__})
     except Exception as e:  # pdf2image/poppler errors for damaged files
         raise SoilError("OCR_FAILED", MSG_UNREADABLE, 422, {"reason": type(e).__name__})
+    finally:
+        # Farmer Privacy (Task 5b): Delete raw uploaded card files immediately after OCR processing
+        try:
+            if os.path.exists(path):
+                os.remove(path)
+        except Exception:
+            pass
 
     words = sum(len(l["words"]) for l in res["lines"])
     if not res["text"].strip() or words < config.MIN_WORDS_FOR_TEXT:
