@@ -15,6 +15,8 @@ class AppConfig {
     }
     const envUrl = String.fromEnvironment('SOIL_API_BASE');
     if (envUrl.isNotEmpty) return envUrl;
+    const altEnvUrl = String.fromEnvironment('API_BASE');
+    if (altEnvUrl.isNotEmpty) return altEnvUrl;
     if (kIsWeb) return 'http://127.0.0.1:8000';
     return 'http://127.0.0.1:8000'; // Works seamlessly with ADB reverse port forwarding (and local testing)
   }

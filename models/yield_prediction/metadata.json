@@ -173,11 +173,11 @@
   },
   "library_versions": {
     "xgboost": "3.2.0",
-    "scikit-learn": "1.5.2",
-    "pandas": "2.2.3"
+    "scikit-learn": "1.9.1",
+    "pandas": "3.0.6"
   },
   "random_state": 42,
   "model_version": "v1",
-  "training_date": "2026-10-22",
+  "training_date": "2026-10-29",
   "disclaimer": "District-average yield estimate - NOT FARM-SPECIFIC. Not a guaranteed yield."
 }

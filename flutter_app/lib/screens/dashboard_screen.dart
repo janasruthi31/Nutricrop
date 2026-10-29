@@ -62,38 +62,42 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }) {
     return Card(
       elevation: 2.0,
+      margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.all(14.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Container(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: color.withOpacity(0.14),
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(icon, color: color, size: 34),
+                child: Icon(icon, color: color, size: 26),
               ),
               const SizedBox(height: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppTheme.textDark),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: const TextStyle(fontSize: 11, color: AppTheme.textMuted),
-                  ),
-                ],
+              Text(
+                title,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13.5,
+                  color: AppTheme.textDark,
+                  height: 1.25,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                subtitle,
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: AppTheme.textMuted,
+                  height: 1.2,
+                ),
               ),
             ],
           ),
@@ -186,18 +190,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   // Step 2: Farm Area
                   const Text('Step 2: Farm Area (நிலப் பரப்பு)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                   const SizedBox(height: 6),
-                  Row(
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
                     children: [
                       for (final a in [0.5, 1.0, 2.0, 5.0])
-                        Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: ChoiceChip(
-                            label: Text('$a acre'),
-                            selected: selectedArea == a,
-                            onSelected: (sel) {
-                              if (sel) setModalState(() => selectedArea = a);
-                            },
-                          ),
+                        ChoiceChip(
+                          label: Text('$a acre'),
+                          selected: selectedArea == a,
+                          onSelected: (sel) {
+                            if (sel) setModalState(() => selectedArea = a);
+                          },
                         ),
                     ],
                   ),
@@ -269,11 +272,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        centerTitle: false,
         title: Row(
           children: [
-            const Icon(Icons.eco_rounded, color: AppTheme.primaryGreen),
+            const Icon(Icons.eco_rounded, color: AppTheme.primaryGreen, size: 24),
             const SizedBox(width: 8),
-            Text(l10n.text('app_title'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
+            Expanded(
+              child: Text(
+                l10n.text('app_title'),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16.5),
+              ),
+            ),
           ],
         ),
         actions: [
@@ -385,29 +396,36 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     borderRadius: BorderRadius.circular(16),
                     onTap: () => _openShortFlowModal(context, district),
                     child: Padding(
-                      padding: const EdgeInsets.all(16.0),
+                      padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 12.0),
                       child: Row(
                         children: [
                           Container(
-                            padding: const EdgeInsets.all(12),
+                            padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
                               color: Colors.amber.shade800,
-                              borderRadius: BorderRadius.circular(14),
+                              borderRadius: BorderRadius.circular(12),
                             ),
-                            child: const Icon(Icons.flash_on_rounded, color: Colors.white, size: 32),
+                            child: const Icon(Icons.flash_on_rounded, color: Colors.white, size: 28),
                           ),
-                          const SizedBox(width: 14),
+                          const SizedBox(width: 12),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
                               children: [
-                                Row(
+                                Wrap(
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  spacing: 8,
+                                  runSpacing: 4,
                                   children: [
                                     Text(
                                       'Short Flow / விரைவு முறை',
-                                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.brown.shade900),
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 14,
+                                        color: Colors.brown.shade900,
+                                      ),
                                     ),
-                                    const SizedBox(width: 6),
                                     Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                       decoration: BoxDecoration(
@@ -421,12 +439,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 const SizedBox(height: 4),
                                 Text(
                                   'Instant fertilizer dose & cheapest bags in 30 seconds. No card upload needed.',
-                                  style: TextStyle(fontSize: 11, color: Colors.brown.shade800, height: 1.2),
+                                  style: TextStyle(fontSize: 11, color: Colors.brown.shade800, height: 1.25),
                                 ),
                               ],
                             ),
                           ),
-                          const Icon(Icons.arrow_forward_ios_rounded, size: 16, color: Colors.brown),
+                          const SizedBox(width: 8),
+                          const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Colors.brown),
                         ],
                       ),
                     ),
@@ -440,15 +459,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.textDark),
                 ),
                 const SizedBox(height: 12),
-                GridView.count(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                  childAspectRatio: 1.15,
-                  children: [
-                    _actionCard(
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final isNarrow = constraints.maxWidth < 320;
+                    final card0 = _actionCard(
                       context: context,
                       title: l10n.text('upload_card'),
                       subtitle: 'PDF / Camera OCR',
@@ -471,8 +485,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           ),
                         );
                       },
-                    ),
-                    _actionCard(
+                    );
+                    final card1 = _actionCard(
                       context: context,
                       title: l10n.text('get_recommendation'),
                       subtitle: 'TNAU STCR + LP Cost',
@@ -481,8 +495,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       onTap: () {
                         Navigator.push(context, MaterialPageRoute(builder: (_) => const FarmDetailsScreen()));
                       },
-                    ),
-                    _actionCard(
+                    );
+                    final card2 = _actionCard(
                       context: context,
                       title: l10n.text('predict_yield'),
                       subtitle: 'XGBoost ML Benchmark',
@@ -491,8 +505,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       onTap: () {
                         Navigator.push(context, MaterialPageRoute(builder: (_) => const YieldPredictionInputScreen()));
                       },
-                    ),
-                    _actionCard(
+                    );
+                    final card3 = _actionCard(
                       context: context,
                       title: l10n.text('weather_advisory'),
                       subtitle: 'Fertilizer Timing',
@@ -501,8 +515,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       onTap: () {
                         Navigator.push(context, MaterialPageRoute(builder: (_) => WeatherScreen(initialDistrict: district)));
                       },
-                    ),
-                    _actionCard(
+                    );
+                    final card4 = _actionCard(
                       context: context,
                       title: l10n.text('history'),
                       subtitle: 'Past Recommendations',
@@ -511,8 +525,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       onTap: () {
                         Navigator.push(context, MaterialPageRoute(builder: (_) => const RecommendationHistoryScreen()));
                       },
-                    ),
-                    _actionCard(
+                    );
+                    final card5 = _actionCard(
                       context: context,
                       title: 'Download Reports',
                       subtitle: 'Official PDF Copies',
@@ -521,8 +535,65 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       onTap: () {
                         Navigator.push(context, MaterialPageRoute(builder: (_) => const RecommendationHistoryScreen()));
                       },
-                    ),
-                  ],
+                    );
+
+                    if (isNarrow) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          card0,
+                          const SizedBox(height: 12),
+                          card1,
+                          const SizedBox(height: 12),
+                          card2,
+                          const SizedBox(height: 12),
+                          card3,
+                          const SizedBox(height: 12),
+                          card4,
+                          const SizedBox(height: 12),
+                          card5,
+                        ],
+                      );
+                    }
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        IntrinsicHeight(
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Expanded(child: card0),
+                              const SizedBox(width: 12),
+                              Expanded(child: card1),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        IntrinsicHeight(
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Expanded(child: card2),
+                              const SizedBox(width: 12),
+                              Expanded(child: card3),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        IntrinsicHeight(
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Expanded(child: card4),
+                              const SizedBox(width: 12),
+                              Expanded(child: card5),
+                            ],
+                          ),
+                        ),
+                      ],
+                    );
+                  },
                 ),
                 const SizedBox(height: 22),
 

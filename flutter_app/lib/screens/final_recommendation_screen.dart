@@ -6,6 +6,7 @@ import '../widgets/common_widgets.dart';
 import 'application_schedule_screen.dart';
 import 'report_generation_screen.dart';
 import 'sustainability_screen.dart';
+import 'main_navigation_shell.dart';
 
 class FinalRecommendationScreen extends StatefulWidget {
   final Map<String, dynamic> recommendationData;
@@ -122,9 +123,20 @@ class _FinalRecommendationScreenState extends State<FinalRecommendationScreen> {
     final yp = rec['district_yield_prediction'] ?? {};
     final estYield = yp['estimated_yield_kg_per_ha'];
 
-    final recType = rec['recommendation_type'] ?? p6['recommendation_type'] ?? p5['recommendation_type'] ?? 'SOIL_SPECIFIC_STCR';
+    final unifiedRec = rec['unified_recommendation'] as Map<String, dynamic>?;
+    final priorityTier = (unifiedRec?['priority_tier'] as num?)?.toInt() ?? (p5['priority_tier'] as num?)?.toInt() ?? 3;
+    final rulePriority = unifiedRec?['rule_priority']?.toString() ?? p5['rule_priority']?.toString() ?? 'TNAU Verified Recommendation';
+    final selectionReason = unifiedRec?['selection_reason']?.toString() ??
+        p5['selection_reason']?.toString() ??
+        'Selected automatically using crop, soil report, and verified agricultural rules.';
+    final recType = unifiedRec?['recommendation_type'] ?? rec['recommendation_type'] ?? p6['recommendation_type'] ?? p5['recommendation_type'] ?? 'TNAU_BLANKET';
     final isVerified = rec['is_verified'] == true && p6['is_verified'] != false;
     final isProvisional = rec['is_provisional'] == true || p6['is_provisional'] == true || !isVerified || recType == 'PROVISIONAL_UNVERIFIED';
+
+    final totalCostStatus = rec['total_cost_status']?.toString() ??
+        p6['total_cost_status']?.toString() ??
+        (totalCost > 0.0 ? 'AVAILABLE' : (products.isEmpty ? 'AVAILABLE' : 'UNAVAILABLE'));
+    final isCostAvailable = totalCostStatus == 'AVAILABLE' && (totalCost > 0 || products.isEmpty);
 
     final pricesDate = rec['prices_last_updated'] ?? p6['prices_last_updated'] ?? '2026-10-22';
     final rulesDate = rec['rules_last_updated'] ?? p6['rules_last_updated'] ?? '2026-10-22';
@@ -134,8 +146,40 @@ class _FinalRecommendationScreenState extends State<FinalRecommendationScreen> {
     final surplusDict = (p6['nutrient_surplus_kg'] as Map? ?? {});
     final hasSurplus = p6['has_surplus'] == true || surplusDict.values.any((v) => (v as num) > 0.05);
 
+    // Soil Fertility Diagnostics & Low NPK Detection
+    final soilSummary = rec['soil_test_summary'] as Map<String, dynamic>? ?? {};
+    final soilStatus = rec['soil_nutrient_status'] as Map<String, dynamic>? ?? (p5['soil_nutrient_status'] as Map<String, dynamic>? ?? {});
+    final highlights = rec['soil_fertility_highlights'] as Map<String, dynamic>? ?? (rec['low_nutrients_highlight'] as Map<String, dynamic>? ?? {});
+    final lowNutrients = (highlights['low_nutrients'] as List? ?? []);
+
+    final nVal = (soilSummary['nitrogen_kg_per_ha'] as num?)?.toDouble() ?? (soilStatus['nitrogen']?['value_kg_per_ha'] as num?)?.toDouble() ?? (p5['soil_nitrogen'] as num?)?.toDouble();
+    final pVal = (soilSummary['phosphorus_kg_per_ha'] as num?)?.toDouble() ?? (soilStatus['phosphorus']?['value_kg_per_ha'] as num?)?.toDouble() ?? (p5['soil_phosphorus'] as num?)?.toDouble();
+    final kVal = (soilSummary['potassium_kg_per_ha'] as num?)?.toDouble() ?? (soilStatus['potassium']?['value_kg_per_ha'] as num?)?.toDouble() ?? (p5['soil_potassium'] as num?)?.toDouble();
+    final pMethod = soilSummary['phosphorus_method']?.toString() ?? soilStatus['phosphorus']?['method']?.toString() ?? 'Olsen';
+
+    final nRating = soilStatus['nitrogen']?['rating']?.toString() ?? (nVal != null && nVal < 280 ? 'Low' : 'Medium');
+    final pRating = soilStatus['phosphorus']?['rating']?.toString() ?? (pVal != null && (pMethod == 'Bray' ? pVal < 24.2 : pVal < 11.0) ? 'Low' : 'Medium');
+    final kRating = soilStatus['potassium']?['rating']?.toString() ?? (kVal != null && kVal < 118 ? 'Low' : 'Medium');
+
+    final isNLow = nRating == 'Low' || (nVal != null && nVal < 280);
+    final isPLow = pRating == 'Low' || (pVal != null && (pMethod == 'Bray' ? pVal < 24.2 : pVal < 11.0));
+    final isKLow = kRating == 'Low' || (kVal != null && kVal < 118);
+    final hasLowNutrient = isNLow || isPLow || isKLow || lowNutrients.isNotEmpty;
+
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.text('optimal_plan_title'))),
+      appBar: AppBar(
+        title: Text(l10n.text('optimal_plan_title')),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.home_rounded),
+            tooltip: 'Home',
+            onPressed: () => Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(builder: (_) => const MainNavigationShell(initialIndex: 0)),
+              (route) => false,
+            ),
+          ),
+        ],
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(20.0),
@@ -160,33 +204,33 @@ class _FinalRecommendationScreenState extends State<FinalRecommendationScreen> {
               ),
               const SizedBox(height: 14),
 
-              // Provisional Disclaimer or General Blanket Banner
-              if (isProvisional) ...[
+              // Incompatible Soil Test Method Banner
+              if (status == 'INCOMPATIBLE_SOIL_TEST_METHOD' || p6['status'] == 'INCOMPATIBLE_SOIL_TEST_METHOD' || rec['status'] == 'INCOMPATIBLE_SOIL_TEST_METHOD') ...[
                 Container(
                   padding: const EdgeInsets.all(14),
                   margin: const EdgeInsets.only(bottom: 16),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFFF3E0),
+                    color: const Color(0xFFFFEBEE),
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.orange.shade800, width: 1.5),
+                    border: Border.all(color: Colors.red.shade800, width: 1.5),
                   ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(Icons.warning_amber_rounded, color: Colors.orange.shade900, size: 24),
+                      Icon(Icons.error_outline_rounded, color: Colors.red.shade900, size: 24),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'This rule has not yet been agronomically validated. A confirmed soil-specific recommendation is unavailable.',
-                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.brown.shade900),
+                              'Incompatible Soil Test Method (Bray-1 P)',
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.red.shade900),
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              'PROVISIONAL ONLY: The quantities and costs shown below are provisional estimates awaiting official TNAU STCR calibration. Do not present or apply as a confirmed soil-specific recommendation.',
-                              style: TextStyle(fontSize: 11, color: Colors.brown.shade800, height: 1.4),
+                              rec['actionable_message']?.toString() ?? 'The uploaded report uses Bray-1 phosphorus, which cannot be converted to Olsen-P using generic multipliers. Please confirm your phosphorus test method from your Soil Health Card or select a standard fertilizer recommendation.',
+                              style: TextStyle(fontSize: 11, color: Colors.brown.shade900, height: 1.4),
                             ),
                           ],
                         ),
@@ -194,45 +238,116 @@ class _FinalRecommendationScreenState extends State<FinalRecommendationScreen> {
                     ],
                   ),
                 ),
-              ] else if (recType == 'GENERAL_BLANKET') ...[
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFE1F5FE),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFF0288D1), width: 1.2),
+              ],
+
+              // Unified Recommendation Source & Explanation Banner
+              Card(
+                elevation: 1.0,
+                color: isProvisional
+                    ? const Color(0xFFFFF3E0)
+                    : (priorityTier == 1
+                        ? const Color(0xFFE8F5E9)
+                        : (priorityTier == 2 ? const Color(0xFFE3F2FD) : const Color(0xFFE0F2F1))),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(
+                    color: isProvisional
+                        ? Colors.orange.shade800
+                        : (priorityTier == 1
+                            ? const Color(0xFF2E7D32)
+                            : (priorityTier == 2 ? const Color(0xFF1565C0) : const Color(0xFF00796B))),
+                    width: 1.2,
                   ),
-                  child: const Row(
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(14.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(Icons.assignment_turned_in_rounded, color: Color(0xFF0277BD), size: 22),
-                      SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          'General recommendation (lower confidence): Based on TNAU Blanket RDF adjusted by soil nutrient ratings.',
-                          style: TextStyle(fontSize: 12, color: Color(0xFF01579B), fontWeight: FontWeight.w600),
-                        ),
+                      Row(
+                        children: [
+                          Icon(
+                            isProvisional ? Icons.warning_amber_rounded : Icons.verified_rounded,
+                            color: isProvisional
+                                ? Colors.orange.shade900
+                                : (priorityTier == 1
+                                    ? const Color(0xFF2E7D32)
+                                    : (priorityTier == 2 ? const Color(0xFF1565C0) : const Color(0xFF00796B))),
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              isProvisional
+                                  ? 'Provisional Rule (Pending Agronomic Validation)'
+                                  : 'Unified Recommendation • Priority $priorityTier',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                                color: isProvisional
+                                    ? Colors.brown.shade900
+                                    : (priorityTier == 1
+                                        ? const Color(0xFF1B5E20)
+                                        : (priorityTier == 2 ? const Color(0xFF0D47A1) : const Color(0xFF004D40))),
+                              ),
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: isProvisional
+                                  ? Colors.orange.shade800
+                                  : (priorityTier == 1
+                                      ? const Color(0xFF2E7D32)
+                                      : (priorityTier == 2 ? const Color(0xFF1565C0) : const Color(0xFF00796B))),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              isVerified ? 'VERIFIED' : 'PROVISIONAL',
+                              style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        selectionReason,
+                        style: const TextStyle(fontSize: 12, color: AppTheme.textDark, height: 1.35),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Rule: ${unifiedRec?['selected_rule_id'] ?? p5['selected_rule_id'] ?? 'TNAU'} • $rulePriority',
+                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppTheme.textMuted),
                       ),
                     ],
                   ),
                 ),
-              ],
+              ),
+              const SizedBox(height: 14),
 
               // Summary Banner
               Card(
-                color: isProvisional ? Colors.brown.shade800 : AppTheme.darkGreen,
+                color: !isCostAvailable
+                    ? const Color(0xFF37474F)
+                    : (isProvisional ? Colors.brown.shade800 : AppTheme.darkGreen),
                 child: Padding(
                   padding: const EdgeInsets.all(20.0),
                   child: Column(
                     children: [
                       Text(
-                        isProvisional ? 'Provisional Estimated Cost (Unverified)' : l10n.text('estimated_cost'),
+                        !isCostAvailable
+                            ? 'Estimated Fertilizer Cost (Prices Unavailable)'
+                            : (isProvisional ? 'Provisional Estimated Cost (Unverified)' : l10n.text('estimated_cost')),
                         style: const TextStyle(color: Color(0xFFC8E6C9), fontSize: 13),
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        '₹${totalCost.toStringAsFixed(0)}',
-                        style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold),
+                        isCostAvailable ? '₹${totalCost.toStringAsFixed(0)}' : 'Cost Unavailable',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: isCostAvailable ? 32 : 24,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       const SizedBox(height: 8),
                       Container(
@@ -242,7 +357,7 @@ class _FinalRecommendationScreenState extends State<FinalRecommendationScreen> {
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
-                          '$crop • $district • ${p5['farm_area_hectares'] ?? 1.0} ha',
+                          '$crop • $district • ${p5['farm_area_original'] ?? p5['farm_area_hectares'] ?? 1.0} ${p5['farm_area_unit_original'] ?? 'ha'}',
                           style: const TextStyle(color: Colors.white, fontSize: 12),
                         ),
                       ),
@@ -294,7 +409,7 @@ class _FinalRecommendationScreenState extends State<FinalRecommendationScreen> {
                             children: [
                               const Icon(Icons.calendar_today_rounded, size: 12, color: AppTheme.textMuted),
                               const SizedBox(width: 4),
-                              Text('Prices updated: $pricesDate', style: const TextStyle(fontSize: 11, color: AppTheme.textMuted)),
+                              Flexible(child: Text('Prices updated: $pricesDate', style: const TextStyle(fontSize: 11, color: AppTheme.textMuted))),
                             ],
                           ),
                           Row(
@@ -302,8 +417,360 @@ class _FinalRecommendationScreenState extends State<FinalRecommendationScreen> {
                             children: [
                               const Icon(Icons.verified_outlined, size: 12, color: AppTheme.textMuted),
                               const SizedBox(width: 4),
-                              Text('Rules updated: $rulesDate', style: const TextStyle(fontSize: 11, color: AppTheme.textMuted)),
+                              Flexible(child: Text('Rules updated: $rulesDate', style: const TextStyle(fontSize: 11, color: AppTheme.textMuted))),
                             ],
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // =========================================================
+              // Soil Fertility Diagnostic & Low NPK Highlight Card
+              // =========================================================
+              Card(
+                elevation: 1.5,
+                color: hasLowNutrient ? const Color(0xFFFFF8E1) : const Color(0xFFF1F8E9),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(
+                    color: hasLowNutrient ? Colors.amber.shade800 : const Color(0xFFA5D6A7),
+                    width: 1.5,
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            hasLowNutrient ? Icons.warning_amber_rounded : Icons.check_circle_outline_rounded,
+                            color: hasLowNutrient ? Colors.orange.shade900 : const Color(0xFF2E7D32),
+                            size: 22,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              hasLowNutrient
+                                  ? 'Soil Fertility Diagnostic: Low Nutrient(s) Highlighted'
+                                  : 'Soil Fertility Diagnostic: Balanced Reserves',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13.5,
+                                color: hasLowNutrient ? Colors.brown.shade900 : const Color(0xFF1B5E20),
+                              ),
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: hasLowNutrient ? Colors.orange.shade800 : const Color(0xFF2E7D32),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              hasLowNutrient ? 'DEFICIT DETECTED' : 'OPTIMAL',
+                              style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        hasLowNutrient
+                            ? (highlights['summary_en']?.toString() ??
+                                'Your soil test indicates deficient nutrient reserves. Fertilizer requirements have been adjusted upwards to build soil fertility and sustain crop yield.')
+                            : 'All primary nutrients (N, P, K) are in the Medium to High fertility range.',
+                        style: const TextStyle(fontSize: 12, color: AppTheme.textDark, height: 1.35),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Nutrient Status Grid
+                      Row(
+                        children: [
+                          // Nitrogen Pill
+                          Expanded(
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: isNLow ? const Color(0xFFFFEBEE) : Colors.white,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: isNLow ? Colors.red.shade400 : Colors.grey.shade300,
+                                  width: isNLow ? 1.5 : 1.0,
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      const Text('Nitrogen (N)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                      if (isNLow)
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                          decoration: BoxDecoration(color: Colors.red.shade700, borderRadius: BorderRadius.circular(4)),
+                                          child: const Text('LOW', style: TextStyle(color: Colors.white, fontSize: 8.5, fontWeight: FontWeight.bold)),
+                                        )
+                                      else
+                                        Text(nRating, style: const TextStyle(fontSize: 10, color: Color(0xFF2E7D32), fontWeight: FontWeight.w600)),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    nVal != null ? '${nVal.toStringAsFixed(1)} kg/ha' : '—',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                      color: isNLow ? Colors.red.shade900 : AppTheme.textDark,
+                                    ),
+                                  ),
+                                  Text(
+                                    '< 280 kg/ha',
+                                    style: TextStyle(fontSize: 9, color: Colors.grey.shade600),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+
+                          // Phosphorus Pill
+                          Expanded(
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: isPLow ? const Color(0xFFFFEBEE) : Colors.white,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: isPLow ? Colors.red.shade400 : Colors.grey.shade300,
+                                  width: isPLow ? 1.5 : 1.0,
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      const Text('Phosphorus', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                      if (isPLow)
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                          decoration: BoxDecoration(color: Colors.red.shade700, borderRadius: BorderRadius.circular(4)),
+                                          child: const Text('LOW', style: TextStyle(color: Colors.white, fontSize: 8.5, fontWeight: FontWeight.bold)),
+                                        )
+                                      else
+                                        Text(pRating, style: const TextStyle(fontSize: 10, color: Color(0xFF2E7D32), fontWeight: FontWeight.w600)),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    pVal != null ? '${pVal.toStringAsFixed(1)} kg/ha' : '—',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                      color: isPLow ? Colors.red.shade900 : AppTheme.textDark,
+                                    ),
+                                  ),
+                                  Text(
+                                    pMethod == 'Bray' ? '< 24.2 kg/ha' : '< 11.0 kg/ha',
+                                    style: TextStyle(fontSize: 9, color: Colors.grey.shade600),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+
+                          // Potassium Pill
+                          Expanded(
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: isKLow ? const Color(0xFFFFEBEE) : Colors.white,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: isKLow ? Colors.red.shade400 : Colors.grey.shade300,
+                                  width: isKLow ? 1.5 : 1.0,
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      const Text('Potassium (K)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                      if (isKLow)
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                          decoration: BoxDecoration(color: Colors.red.shade700, borderRadius: BorderRadius.circular(4)),
+                                          child: const Text('LOW', style: TextStyle(color: Colors.white, fontSize: 8.5, fontWeight: FontWeight.bold)),
+                                        )
+                                      else
+                                        Text(kRating, style: const TextStyle(fontSize: 10, color: Color(0xFF2E7D32), fontWeight: FontWeight.w600)),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    kVal != null ? '${kVal.toStringAsFixed(1)} kg/ha' : '—',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                      color: isKLow ? Colors.red.shade900 : AppTheme.textDark,
+                                    ),
+                                  ),
+                                  Text(
+                                    '< 118 kg/ha',
+                                    style: TextStyle(fontSize: 9, color: Colors.grey.shade600),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      // Agronomic impact banner for low nutrients
+                      if (hasLowNutrient) ...[
+                        const SizedBox(height: 10),
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.amber.shade400),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (isNLow) ...[
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Icon(Icons.arrow_upward_rounded, size: 14, color: Colors.red.shade800),
+                                    const SizedBox(width: 4),
+                                    Expanded(
+                                      child: Text(
+                                        'Nitrogen is LOW: Fertilizer N rate increased (+10% to +25%) to build soil fertility and sustain vegetative growth.',
+                                        style: TextStyle(fontSize: 11, color: Colors.brown.shade900, height: 1.3),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                              if (isPLow) ...[
+                                if (isNLow) const SizedBox(height: 4),
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Icon(Icons.arrow_upward_rounded, size: 14, color: Colors.red.shade800),
+                                    const SizedBox(width: 4),
+                                    Expanded(
+                                      child: Text(
+                                        'Phosphorus is LOW: Phosphatic fertilizer rate increased for strong root establishment.',
+                                        style: TextStyle(fontSize: 11, color: Colors.brown.shade900, height: 1.3),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                              if (isKLow) ...[
+                                if (isNLow || isPLow) const SizedBox(height: 4),
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Icon(Icons.arrow_upward_rounded, size: 14, color: Colors.red.shade800),
+                                    const SizedBox(width: 4),
+                                    Expanded(
+                                      child: Text(
+                                        'Potassium is LOW: Potash rate increased for pest resistance and grain weight.',
+                                        style: TextStyle(fontSize: 11, color: Colors.brown.shade900, height: 1.3),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // Farm Nutrient Requirements Summary
+              Card(
+                elevation: 1.0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                child: Padding(
+                  padding: const EdgeInsets.all(14.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(Icons.science_rounded, size: 18, color: AppTheme.primaryGreen),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Required Nutrients for Farm',
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.textDark),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(color: const Color(0xFFE3F2FD), borderRadius: BorderRadius.circular(8)),
+                              child: Column(
+                                children: [
+                                  const Text('Nitrogen (N)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF1565C0))),
+                                  const SizedBox(height: 2),
+                                  Text('${((p5['total_n_req_kg'] ?? p5['total_farm_n_kg']) as num?)?.toStringAsFixed(1) ?? '—'} kg', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(color: const Color(0xFFFFF3E0), borderRadius: BorderRadius.circular(8)),
+                              child: Column(
+                                children: [
+                                  const Text('Phosphate (P₂O₅)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFFE65100))),
+                                  const SizedBox(height: 2),
+                                  Text('${((p5['total_p2o5_req_kg'] ?? p5['total_farm_p2o5_kg']) as num?)?.toStringAsFixed(1) ?? '—'} kg', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(color: const Color(0xFFF3E5F5), borderRadius: BorderRadius.circular(8)),
+                              child: Column(
+                                children: [
+                                  const Text('Potash (K₂O)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF6A1B9A))),
+                                  const SizedBox(height: 2),
+                                  Text('${((p5['total_k2o_req_kg'] ?? p5['total_farm_k2o_kg']) as num?)?.toStringAsFixed(1) ?? '—'} kg', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                ],
+                              ),
+                            ),
                           ),
                         ],
                       ),
@@ -344,6 +811,8 @@ class _FinalRecommendationScreenState extends State<FinalRecommendationScreen> {
                     priceSource: prod['price_source']?.toString(),
                     priceEffectiveDate: prod['price_effective_date']?.toString(),
                     description: prod['description'],
+                    whyRecommended: prod['why_recommended']?.toString() ?? prod['selection_rationale']?.toString() ?? prod['description']?.toString(),
+                    whyRecommendedTa: prod['why_recommended_ta']?.toString(),
                   ),
                   const SizedBox(height: 8),
                 ],
@@ -369,9 +838,11 @@ class _FinalRecommendationScreenState extends State<FinalRecommendationScreen> {
                             size: 20,
                           ),
                           const SizedBox(width: 8),
-                          const Text(
-                            'Nutrient Balance & Surplus (சத்து இருப்பு)',
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.textDark),
+                          const Expanded(
+                            child: Text(
+                              'Nutrient Balance & Surplus (சத்து இருப்பு)',
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.textDark),
+                            ),
                           ),
                         ],
                       ),
@@ -510,34 +981,7 @@ class _FinalRecommendationScreenState extends State<FinalRecommendationScreen> {
                 ),
               ),
 
-              // Derivation Explanation Card
-              if (rec['derivation_explanation'] != null || p5['derivation_explanation'] != null) ...[
-                const SizedBox(height: 12),
-                Card(
-                  elevation: 1.0,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: BorderSide(color: Colors.green.shade200)),
-                  child: Padding(
-                    padding: const EdgeInsets.all(14.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Row(
-                          children: [
-                            Icon(Icons.psychology_alt_outlined, color: AppTheme.primaryGreen, size: 20),
-                            SizedBox(width: 8),
-                            Text('How This Recommendation Was Derived', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.textDark)),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          (rec['derivation_explanation'] ?? p5['derivation_explanation']).toString(),
-                          style: const TextStyle(fontSize: 12, color: AppTheme.textDark, height: 1.4),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
+
 
               // Authoritative Reference Card
               if (rec['authoritative_reference'] is Map || p5['authoritative_reference'] is Map) ...[
@@ -570,6 +1014,18 @@ class _FinalRecommendationScreenState extends State<FinalRecommendationScreen> {
                               Text('Section / Page: ${auth['section_or_page']}', style: const TextStyle(fontSize: 11, color: AppTheme.textMuted)),
                             if (auth['url'] != null)
                               Text('Source URL: ${auth['url']}', style: const TextStyle(fontSize: 11, color: Color(0xFF1565C0))),
+                            if ((rec['applicable_limitations'] is List && (rec['applicable_limitations'] as List).isNotEmpty) ||
+                                (p5['applicable_limitations'] is List && (p5['applicable_limitations'] as List).isNotEmpty)) ...[
+                              const SizedBox(height: 8),
+                              const Text('Applicable Limitations:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: AppTheme.darkGreen)),
+                              const SizedBox(height: 3),
+                              ...(((rec['applicable_limitations'] ?? p5['applicable_limitations']) as List)).map(
+                                (lim) => Padding(
+                                  padding: const EdgeInsets.only(bottom: 2.0),
+                                  child: Text('• $lim', style: const TextStyle(fontSize: 11, color: AppTheme.textDark, height: 1.3)),
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       ),
@@ -685,6 +1141,25 @@ class _FinalRecommendationScreenState extends State<FinalRecommendationScreen> {
                     ),
                   ),
                 ],
+              ),
+              const SizedBox(height: 14),
+              FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF1B5E20),
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size.fromHeight(50),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  elevation: 2,
+                ),
+                onPressed: () => Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (_) => const MainNavigationShell(initialIndex: 0)),
+                  (route) => false,
+                ),
+                icon: const Icon(Icons.home_rounded, size: 22),
+                label: const Text(
+                  'Back to Home / முகப்புக்குச் செல்க',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                ),
               ),
             ],
           ),

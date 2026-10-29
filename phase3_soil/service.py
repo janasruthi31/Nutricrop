@@ -154,8 +154,9 @@ def run_ocr(farmer_id, document_id, db_path=None):
             for f in stored_fields:
                 if f.get("field") == "phosphorus" and f.get("value") is not None and f.get("test_method") is None:
                     warnings.append(issue("p_method_unknown", "warning", "Phosphorus test method (Olsen / Bray) not found. Please select it if you know it."))
+            cached_review = {k: stored_meta[k] for k in ("farmer_name", "survey_number") if k in stored_meta}
             return {"status": "extracted", "verification_required": True, "banner": BANNER, "document_id": document_id, "ocr_id": cached["ocr_id"],
-                    "fields": stored_fields, "metadata": stored_meta, "review_only": {},
+                    "fields": stored_fields, "metadata": stored_meta, "review_only": cached_review,
                     "metadata_issues": [], "warnings": warnings,
                     "mean_ocr_confidence": None if mc is None else (round(mc / 100, 3) if mc > 1.0 else round(mc, 3)),
                     "confidence_note": "Tesseract's own word-confidence average; not a measured accuracy."}
@@ -206,7 +207,7 @@ def run_ocr(farmer_id, document_id, db_path=None):
         if f["field"] == "phosphorus" and f["value"] is not None and f["test_method"] is None:
             warnings.append(issue("p_method_unknown", "warning", "Phosphorus test method (Olsen / Bray) not found. Please select it if you know it."))
     meta = extract_metadata(res["lines"])
-    review_only = {k: meta.pop(k) for k in ("farmer_name", "survey_number") if k in meta}  # shown for review, never stored
+    review_only = {k: meta[k] for k in ("farmer_name", "survey_number") if k in meta}
     meta_issues, meta_norm = validate_metadata(meta)
     ocr_id = uuid.uuid4().hex
     try:

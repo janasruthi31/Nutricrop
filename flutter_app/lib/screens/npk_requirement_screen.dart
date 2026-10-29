@@ -4,6 +4,7 @@ import '../services/api_client.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common_widgets.dart';
 import 'final_recommendation_screen.dart';
+import 'main_navigation_shell.dart';
 
 class NpkRequirementScreen extends StatefulWidget {
   final Map<String, dynamic> flowData;
@@ -23,21 +24,10 @@ class _NpkRequirementScreenState extends State<NpkRequirementScreen> {
   Map<String, dynamic>? _recommendationResponse;
   bool _isLoading = true;
   String? _error;
-  String _recommendationMode = 'CALCULATED_AGRONOMIC';
 
   @override
   void initState() {
     super.initState();
-    // Task 1d: Make CALCULATED_AGRONOMIC the default recommendation mode
-    _recommendationMode = 'CALCULATED_AGRONOMIC';
-    _calculateNpk();
-  }
-
-  void _switchMode(String newMode) {
-    if (_recommendationMode == newMode) return;
-    setState(() {
-      _recommendationMode = newMode;
-    });
     _calculateNpk();
   }
 
@@ -228,9 +218,9 @@ class _NpkRequirementScreenState extends State<NpkRequirementScreen> {
         'farm_area': farmArea,
         'farm_area_unit': farmAreaUnit,
         'soil_profile': widget.soilProfile,
-        'recommendation_mode': _recommendationMode == 'SOIL_HEALTH_CARD' ? 'SOIL_HEALTH_CARD' : 'CALCULATED_AGRONOMIC',
-        'recommendation_type': _recommendationMode == 'GENERAL_BLANKET' ? 'GENERAL_BLANKET' : (_recommendationMode == 'SOIL_HEALTH_CARD' ? 'SOIL_HEALTH_CARD' : 'SOIL_SPECIFIC_STCR'),
-        'allow_unverified': true,
+        'recommendation_mode': 'UNIFIED',
+        'recommendation_type': null,
+        'allow_unverified': false,
       };
 
       // Check for printed recommendation in soilProfile or flowData
@@ -551,16 +541,18 @@ class _NpkRequirementScreenState extends State<NpkRequirementScreen> {
                 children: [
                   Text(name, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppTheme.textDark)),
                   const SizedBox(height: 4),
-                  Row(
+                  Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 6,
+                    runSpacing: 2,
                     children: [
                       Text(
                         '${primaryRate.toStringAsFixed(1)} $primaryRateUnit',
                         style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: color),
                       ),
-                      const SizedBox(width: 6),
                       Text(
                         '(approx ${secondaryRate.toStringAsFixed(1)} $secondaryRateUnit)',
-                        style: const TextStyle(fontSize: 12, color: AppTheme.textMuted),
+                        style: const TextStyle(fontSize: 11.5, color: AppTheme.textMuted),
                       ),
                     ],
                   ),
@@ -574,12 +566,14 @@ class _NpkRequirementScreenState extends State<NpkRequirementScreen> {
                 ],
               ),
             ),
+            const SizedBox(width: 8),
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   '${total.toStringAsFixed(1)} kg',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color),
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: color),
                 ),
                 const Text('Farm Total', style: TextStyle(fontSize: 11, color: AppTheme.textMuted)),
               ],
@@ -672,7 +666,7 @@ class _NpkRequirementScreenState extends State<NpkRequirementScreen> {
                   ],
                 ),
               );
-            }).toList(),
+            }),
           ],
         ),
       ),
@@ -696,11 +690,19 @@ class _NpkRequirementScreenState extends State<NpkRequirementScreen> {
     final totP = (p5['total_p2o5_req_kg'] as num?)?.toDouble() ?? (p5['total_farm_p2o5_kg'] as num?)?.toDouble() ?? 0.0;
     final totK = (p5['total_k2o_req_kg'] as num?)?.toDouble() ?? (p5['total_farm_k2o_kg'] as num?)?.toDouble() ?? 0.0;
 
-    final ruleId = p5['selected_rule_id']?.toString() ?? 'N/A';
+    final unifiedRec = _recommendationResponse?['unified_recommendation'] as Map<String, dynamic>?;
+    final ruleId = unifiedRec?['selected_rule_id']?.toString() ?? p5['selected_rule_id']?.toString() ?? 'N/A';
     final method = p5['calculation_method']?.toString() ?? p5['selected_method']?.toString() ?? 'Deterministic Agronomic Schedule';
     final isVerified = _recommendationResponse?['is_verified'] == true || p5['is_verified_rule'] == true;
-    final verificationStatus = p5['verification_status']?.toString() ?? (isVerified ? 'VERIFIED' : 'PENDING_AGRONOMIC_VALIDATION');
-    final recSource = p5['recommendation_source']?.toString() ?? (_recommendationMode == 'SOIL_HEALTH_CARD' ? 'Uploaded Soil Health Card' : (_recommendationMode == 'GENERAL_BLANKET' ? 'TNAU Crop Production Guide 2020' : 'TNAU Agronomic Schedule'));
+    final status = _recommendationResponse?['status']?.toString() ?? p5['status']?.toString() ?? 'UNKNOWN';
+    final isSuccess = (status == 'SUCCESS' || status == 'OPTIMAL') && isVerified;
+
+    final priorityTier = (unifiedRec?['priority_tier'] as num?)?.toInt() ?? (p5['priority_tier'] as num?)?.toInt() ?? 3;
+    final rulePriority = unifiedRec?['rule_priority']?.toString() ?? p5['rule_priority']?.toString() ?? 'Verified TNAU Recommendation';
+    final selectionReason = unifiedRec?['selection_reason']?.toString() ??
+        p5['selection_reason']?.toString() ??
+        'Selected automatically using available soil-test information, target crop, and verified TNAU rules.';
+    final recSource = p5['recommendation_source']?.toString() ?? 'TNAU Crop Production Guide 2020';
 
     final farmAreaOrig = (p5['farm_area_original'] as num?)?.toDouble() ?? (widget.flowData['area'] is num ? (widget.flowData['area'] as num).toDouble() : 1.0);
     final farmAreaUnitOrig = p5['farm_area_unit_original']?.toString() ?? (widget.flowData['area_unit']?.toString() ?? 'acre');
@@ -713,7 +715,19 @@ class _NpkRequirementScreenState extends State<NpkRequirementScreen> {
     final rangeK = rangesMap is Map ? rangesMap['K2O'] as List? : null;
 
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.text('npk_title'))),
+      appBar: AppBar(
+        title: Text(l10n.text('npk_title')),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.home_rounded),
+            tooltip: 'Home',
+            onPressed: () => Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(builder: (_) => const MainNavigationShell(initialIndex: 0)),
+              (route) => false,
+            ),
+          ),
+        ],
+      ),
       body: SafeArea(
         child: _isLoading
             ? const LoadingView(message: 'Calculating nutrient requirements and unit conversions...')
@@ -724,102 +738,25 @@ class _NpkRequirementScreenState extends State<NpkRequirementScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        // Mode Selection Toggle (3 Modes: Soil Health Card, General Blanket, Soil-Specific STCR)
-                        Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade200,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: GestureDetector(
-                                  onTap: () => _switchMode('SOIL_HEALTH_CARD'),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(vertical: 8),
-                                    decoration: BoxDecoration(
-                                      color: _recommendationMode == 'SOIL_HEALTH_CARD' ? Colors.white : Colors.transparent,
-                                      borderRadius: BorderRadius.circular(8),
-                                      boxShadow: _recommendationMode == 'SOIL_HEALTH_CARD'
-                                          ? [const BoxStyle(color: Colors.black12, blurRadius: 4)]
-                                          : null,
-                                    ),
-                                    alignment: Alignment.center,
-                                    child: Text(
-                                      'Soil Health Card\n(Printed)',
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: _recommendationMode == 'SOIL_HEALTH_CARD' ? FontWeight.bold : FontWeight.normal,
-                                        color: _recommendationMode == 'SOIL_HEALTH_CARD' ? AppTheme.darkGreen : AppTheme.textMuted,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              Expanded(
-                                child: GestureDetector(
-                                  onTap: () => _switchMode('GENERAL_BLANKET'),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(vertical: 8),
-                                    decoration: BoxDecoration(
-                                      color: _recommendationMode == 'GENERAL_BLANKET' ? Colors.white : Colors.transparent,
-                                      borderRadius: BorderRadius.circular(8),
-                                      boxShadow: _recommendationMode == 'GENERAL_BLANKET'
-                                          ? [const BoxStyle(color: Colors.black12, blurRadius: 4)]
-                                          : null,
-                                    ),
-                                    alignment: Alignment.center,
-                                    child: Text(
-                                      'General Blanket\n(TNAU Verified)',
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: _recommendationMode == 'GENERAL_BLANKET' ? FontWeight.bold : FontWeight.normal,
-                                        color: _recommendationMode == 'GENERAL_BLANKET' ? const Color(0xFF0277BD) : AppTheme.textMuted,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              Expanded(
-                                child: GestureDetector(
-                                  onTap: () => _switchMode('CALCULATED_AGRONOMIC'),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(vertical: 8),
-                                    decoration: BoxDecoration(
-                                      color: _recommendationMode == 'CALCULATED_AGRONOMIC' ? Colors.white : Colors.transparent,
-                                      borderRadius: BorderRadius.circular(8),
-                                      boxShadow: _recommendationMode == 'CALCULATED_AGRONOMIC'
-                                          ? [const BoxStyle(color: Colors.black12, blurRadius: 4)]
-                                          : null,
-                                    ),
-                                    alignment: Alignment.center,
-                                    child: Text(
-                                      'Soil-Specific STCR\n(Target Yield)',
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: _recommendationMode == 'CALCULATED_AGRONOMIC' ? FontWeight.bold : FontWeight.normal,
-                                        color: _recommendationMode == 'CALCULATED_AGRONOMIC' ? AppTheme.darkGreen : AppTheme.textMuted,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-
-                        // Header / Rule Status Banner
+                        // Unified Recommendation Header Banner
                         Card(
-                          color: _recommendationMode == 'SOIL_HEALTH_CARD'
-                              ? const Color(0xFFE8F5E9)
-                              : (_recommendationMode == 'GENERAL_BLANKET'
-                                  ? const Color(0xFFE1F5FE)
-                                  : (isVerified ? AppTheme.lightGreen : const Color(0xFFFFF8E1))),
+                          elevation: 1.5,
+                          color: isSuccess
+                              ? (priorityTier == 1
+                                  ? const Color(0xFFE8F5E9)
+                                  : (priorityTier == 2 ? const Color(0xFFE3F2FD) : const Color(0xFFE0F2F1)))
+                              : const Color(0xFFFFF3E0),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: BorderSide(
+                              color: isSuccess
+                                  ? (priorityTier == 1
+                                      ? const Color(0xFF2E7D32)
+                                      : (priorityTier == 2 ? const Color(0xFF1565C0) : const Color(0xFF00796B)))
+                                  : Colors.orange.shade800,
+                              width: 1.2,
+                            ),
+                          ),
                           child: Padding(
                             padding: const EdgeInsets.all(16.0),
                             child: Column(
@@ -828,123 +765,122 @@ class _NpkRequirementScreenState extends State<NpkRequirementScreen> {
                                 Row(
                                   children: [
                                     Icon(
-                                      _recommendationMode == 'SOIL_HEALTH_CARD'
-                                          ? Icons.description_rounded
-                                          : (_recommendationMode == 'GENERAL_BLANKET'
-                                              ? Icons.assignment_turned_in_rounded
-                                              : (isVerified ? Icons.verified_rounded : Icons.warning_amber_rounded)),
-                                      color: _recommendationMode == 'SOIL_HEALTH_CARD'
-                                          ? const Color(0xFF2E7D32)
-                                          : (_recommendationMode == 'GENERAL_BLANKET'
-                                              ? const Color(0xFF0277BD)
-                                              : (isVerified ? AppTheme.primaryGreen : Colors.amber.shade900)),
+                                      isSuccess ? Icons.verified_rounded : Icons.warning_amber_rounded,
+                                      color: isSuccess
+                                          ? (priorityTier == 1
+                                              ? const Color(0xFF2E7D32)
+                                              : (priorityTier == 2 ? const Color(0xFF1565C0) : const Color(0xFF00796B)))
+                                          : Colors.orange.shade900,
                                       size: 24,
                                     ),
                                     const SizedBox(width: 8),
                                     Expanded(
                                       child: Text(
-                                        _recommendationMode == 'SOIL_HEALTH_CARD'
-                                            ? 'Uploaded Soil Health Card Recommendation'
-                                            : (_recommendationMode == 'GENERAL_BLANKET'
-                                                ? 'General Blanket Recommendation (Rule: $ruleId)'
-                                                : (isVerified
-                                                    ? 'Soil-Specific STCR Rule: $ruleId'
-                                                    : 'Rule Pending Agronomic Validation: $ruleId')),
+                                        isSuccess ? 'Your Fertilizer Recommendation' : 'Recommendation Status: $status',
                                         style: TextStyle(
                                           fontWeight: FontWeight.bold,
-                                          fontSize: 14,
-                                          color: _recommendationMode == 'SOIL_HEALTH_CARD'
-                                              ? const Color(0xFF1B5E20)
-                                              : (_recommendationMode == 'GENERAL_BLANKET'
-                                                  ? const Color(0xFF01579B)
-                                                  : (isVerified ? AppTheme.darkGreen : Colors.brown.shade900)),
+                                          fontSize: 15,
+                                          color: isSuccess ? AppTheme.darkGreen : Colors.brown.shade900,
                                         ),
                                       ),
                                     ),
+                                    if (isSuccess)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: priorityTier == 1
+                                              ? const Color(0xFF2E7D32)
+                                              : (priorityTier == 2 ? const Color(0xFF1565C0) : const Color(0xFF00796B)),
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
+                                        child: Text(
+                                          'Priority $priorityTier',
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
                                   ],
                                 ),
-                                const SizedBox(height: 6),
-                                Text(
-                                  'Recommendation Type: ${_recommendationMode == 'SOIL_HEALTH_CARD' ? 'Uploaded Soil Health Card (Printed Dose)' : (_recommendationMode == 'GENERAL_BLANKET' ? 'Verified TNAU Blanket Recommendation (Soil Rating Adjusted)' : (isVerified ? 'Verified TNAU STCR Targeted-Yield Equation' : 'Provisional Rule (Pending Agronomic Validation)'))}',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                    color: _recommendationMode == 'GENERAL_BLANKET' ? const Color(0xFF0277BD) : (isVerified ? AppTheme.darkGreen : Colors.brown.shade900),
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  'Validation Status: $verificationStatus',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: isVerified ? AppTheme.primaryGreen : Colors.amber.shade900,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text('Recommendation Source: $recSource', style: const TextStyle(fontSize: 12, color: AppTheme.textDark)),
-                                Text('Calculation Method: $method', style: const TextStyle(fontSize: 12, color: AppTheme.textDark)),
-                                const SizedBox(height: 4),
-                                Row(
-                                  children: [
-                                    Text('Crop: ${widget.flowData['crop']}', style: const TextStyle(fontSize: 12, color: AppTheme.textMuted)),
-                                    const Text(' | ', style: TextStyle(fontSize: 12, color: AppTheme.textMuted)),
-                                    Text(
-                                      'Farm Area: $farmAreaOrig $farmAreaUnitOrig (${farmAreaHa.toStringAsFixed(2)} ha)',
-                                      style: const TextStyle(fontSize: 12, color: AppTheme.textMuted),
-                                    ),
-                                    if (_recommendationMode == 'CALCULATED_AGRONOMIC') ...[
-                                      const Text(' | ', style: TextStyle(fontSize: 12, color: AppTheme.textMuted)),
-                                      Text('Target: ${widget.flowData['target_yield']} t/ha',
-                                          style: const TextStyle(fontSize: 12, color: AppTheme.textMuted)),
-                                    ],
-                                  ],
-                                ),
-                                if (!isVerified && _recommendationMode == 'CALCULATED_AGRONOMIC') ...[
-                                  const SizedBox(height: 10),
+                                const SizedBox(height: 8),
+                                if (isSuccess) ...[
                                   Container(
-                                    padding: const EdgeInsets.all(12),
+                                    padding: const EdgeInsets.all(10),
                                     decoration: BoxDecoration(
-                                      color: Colors.amber.shade50,
+                                      color: Colors.white.withOpacity(0.8),
                                       borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(color: Colors.amber.shade700, width: 1.5),
+                                      border: Border.all(color: Colors.grey.shade300),
                                     ),
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
                                         Row(
                                           children: [
-                                            Icon(Icons.warning_amber_rounded, size: 20, color: Colors.amber.shade900),
-                                            const SizedBox(width: 8),
-                                            Expanded(
-                                              child: Text(
-                                                'This rule has not yet been agronomically validated. A confirmed soil-specific recommendation is unavailable.',
-                                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.brown.shade900),
+                                            const Icon(Icons.psychology_alt_rounded, size: 16, color: AppTheme.darkGreen),
+                                            const SizedBox(width: 6),
+                                            Text(
+                                              'Why this recommendation?',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 12,
+                                                color: Colors.green.shade900,
                                               ),
                                             ),
                                           ],
                                         ),
-                                        const SizedBox(height: 6),
+                                        const SizedBox(height: 4),
                                         Text(
-                                          'Rule $ruleId applies a standard TNAU schedule awaiting official site-specific STCR equation calibration. To use a verified schedule, switch to "General Blanket" or "Soil Health Card" above.',
-                                          style: TextStyle(fontSize: 11, color: Colors.brown.shade800, height: 1.4),
+                                          selectionReason,
+                                          style: const TextStyle(fontSize: 11.5, color: AppTheme.textDark, height: 1.3),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          'Rule: $ruleId • $rulePriority ($method)',
+                                          style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: AppTheme.textMuted),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          'Source: $recSource',
+                                          style: const TextStyle(fontSize: 10.5, color: AppTheme.textMuted),
                                         ),
                                       ],
                                     ),
                                   ),
+                                  const SizedBox(height: 8),
                                 ],
+                                Wrap(
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  spacing: 6,
+                                  runSpacing: 2,
+                                  children: [
+                                    Text('Crop: ${widget.flowData['crop']}', style: const TextStyle(fontSize: 12, color: AppTheme.textDark, fontWeight: FontWeight.w600)),
+                                    const Text('•', style: TextStyle(fontSize: 12, color: AppTheme.textMuted)),
+                                    Text(
+                                      'Farm Area: $farmAreaOrig $farmAreaUnitOrig (${farmAreaHa.toStringAsFixed(2)} ha)',
+                                      style: const TextStyle(fontSize: 12, color: AppTheme.textDark),
+                                    ),
+                                    const Text('•', style: TextStyle(fontSize: 12, color: AppTheme.textMuted)),
+                                    Text('District: ${widget.flowData['district'] ?? 'Thanjavur'}', style: const TextStyle(fontSize: 12, color: AppTheme.textDark)),
+                                    if (widget.flowData['target_yield'] != null && priorityTier == 1) ...[
+                                      const Text('•', style: TextStyle(fontSize: 12, color: AppTheme.textMuted)),
+                                      Text('Target Yield: ${widget.flowData['target_yield']} t/ha', style: const TextStyle(fontSize: 12, color: AppTheme.textDark)),
+                                    ],
+                                  ],
+                                ),
                               ],
                             ),
                           ),
                         ),
                         const SizedBox(height: 16),
 
-                        // Missing Inputs Warning or Nutrient Requirement Cards
-                        if (p5['status'] == 'MISSING_INPUTS' || p5['status'] == 'VALIDATION_ERROR') ...[
+                        // Informative Error / Unavailable Rule Card (Safety First)
+                        if (!isSuccess) ...[
                           Card(
                             color: const Color(0xFFFFF3E0),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
+                              borderRadius: BorderRadius.circular(12),
                               side: BorderSide(color: Colors.orange.shade800, width: 1.5),
                             ),
                             child: Padding(
@@ -956,63 +892,74 @@ class _NpkRequirementScreenState extends State<NpkRequirementScreen> {
                                     children: [
                                       Icon(Icons.error_outline_rounded, color: Colors.orange.shade900, size: 24),
                                       const SizedBox(width: 10),
-                                      const Expanded(
+                                      Expanded(
                                         child: Text(
-                                          'Recommendation Cannot Yet Be Calculated Reliably',
-                                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFFBF360C)),
+                                          status == 'INCOMPATIBLE_SOIL_TEST_METHOD'
+                                              ? 'Incompatible Soil Test Method (Bray-1 P)'
+                                              : (status == 'UNSUPPORTED_SOIL_SERIES'
+                                                  ? 'Unsupported Soil Series'
+                                                  : (status == 'NO_VERIFIED_RULE' || status == 'NO_VALIDATED_RECOMMENDATION'
+                                                      ? 'No Validated Agricultural Rule Available'
+                                                      : (status == 'MISSING_INPUTS'
+                                                          ? 'Essential Soil Test Values Missing'
+                                                          : 'Recommendation Status: $status'))),
+                                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFFBF360C)),
                                         ),
                                       ),
                                     ],
                                   ),
-                                  const SizedBox(height: 8),
+                                  const SizedBox(height: 10),
                                   Text(
-                                    p5['message']?.toString() ?? 'Required soil data or an applicable validated rule is unavailable.',
+                                    _recommendationResponse?['actionable_message']?.toString() ??
+                                        p5['actionable_message']?.toString() ??
+                                        p5['message']?.toString() ??
+                                        'No verified agricultural recommendation rule could be matched for the provided parameters. AgroWise AI strictly adheres to agricultural standards: fertilizer doses are never fabricated or estimated when validated rules or soil test values are absent.',
                                     style: const TextStyle(fontSize: 13, color: AppTheme.textDark, height: 1.4),
                                   ),
                                   if (p5['missing_inputs'] is List && (p5['missing_inputs'] as List).isNotEmpty) ...[
-                                    const SizedBox(height: 6),
+                                    const SizedBox(height: 8),
                                     Text(
                                       'Missing parameters: ${(p5['missing_inputs'] as List).join(', ')}',
-                                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFFD84315)),
+                                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFFD84315)),
                                     ),
                                   ],
-                                  const SizedBox(height: 8),
-                                  const Text(
-                                    'AgroWise AI adheres strictly to agronomic standards: fertilizer doses are never fabricated or estimated when essential soil test values are absent.',
-                                    style: TextStyle(fontSize: 11, color: AppTheme.textMuted, fontStyle: FontStyle.italic),
+                                  const SizedBox(height: 12),
+                                  Container(
+                                    padding: const EdgeInsets.all(10),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(color: Colors.orange.shade200),
+                                    ),
+                                    child: const Text(
+                                      'Safety Notice: Applying an arbitrary or uncalibrated fertilizer dose may cause nutrient toxicity, salinity, groundwater contamination, or crop lodging. Please check your soil test report or consult your local Agricultural Extension Center (AEC).',
+                                      style: TextStyle(fontSize: 11, color: Color(0xFFBF360C), fontStyle: FontStyle.italic, height: 1.3),
+                                    ),
                                   ),
-                                  if (_recommendationMode == 'SOIL_HEALTH_CARD') ...[
-                                    const SizedBox(height: 12),
-                                    Container(
-                                      padding: const EdgeInsets.all(12),
-                                      decoration: BoxDecoration(
-                                        color: Colors.blue.shade50,
-                                        borderRadius: BorderRadius.circular(8),
-                                        border: Border.all(color: Colors.blue.shade300),
+                                  const SizedBox(height: 16),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: OutlinedButton.icon(
+                                          onPressed: () => Navigator.pop(context),
+                                          icon: const Icon(Icons.arrow_back_rounded),
+                                          label: const Text('Back / Edit Inputs'),
+                                        ),
                                       ),
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            'Why is this empty?',
-                                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blue.shade900),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: FilledButton.icon(
+                                          onPressed: () => Navigator.of(context).pushAndRemoveUntil(
+                                            MaterialPageRoute(builder: (_) => const MainNavigationShell(initialIndex: 0)),
+                                            (route) => false,
                                           ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            'The soil testing laboratory left the recommendation columns ("உரக் கலவை-1 / உரக் கலவை-2") blank on this physical card. Tap below to view the official TNAU recommended schedule calculated from your soil test values.',
-                                            style: TextStyle(fontSize: 12, color: Colors.blue.shade900, height: 1.3),
-                                          ),
-                                          const SizedBox(height: 10),
-                                          FilledButton.icon(
-                                            onPressed: () => _switchMode('GENERAL_BLANKET'),
-                                            icon: const Icon(Icons.verified_rounded, size: 18),
-                                            label: const Text('View TNAU Verified Recommendation'),
-                                            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF0277BD)),
-                                          ),
-                                        ],
+                                          style: FilledButton.styleFrom(backgroundColor: AppTheme.darkGreen),
+                                          icon: const Icon(Icons.home_rounded),
+                                          label: const Text('Home'),
+                                        ),
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ],
                               ),
                             ),
@@ -1184,43 +1131,11 @@ class _NpkRequirementScreenState extends State<NpkRequirementScreen> {
                         ),
                         const SizedBox(height: 12),
 
-                        // Derivation Explanation Card
-                        if (p5['derivation_explanation'] != null) ...[
-                          Card(
-                            elevation: 1.0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              side: BorderSide(color: Colors.green.shade200),
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.all(14.0),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Row(
-                                    children: [
-                                      Icon(Icons.psychology_alt_outlined, color: AppTheme.primaryGreen, size: 20),
-                                      SizedBox(width: 8),
-                                      Text('How This Recommendation Was Derived', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    p5['derivation_explanation'].toString(),
-                                    style: const TextStyle(fontSize: 12, color: AppTheme.textDark, height: 1.4),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                        ],
-
                         // Authoritative Reference Card
-                        if (p5['authoritative_reference'] is Map) ...[
+                        if (p5['authoritative_reference'] is Map || unifiedRec?['authoritative_reference'] is Map) ...[
                           Builder(
                             builder: (_) {
-                              final auth = p5['authoritative_reference'] as Map;
+                              final auth = (unifiedRec?['authoritative_reference'] ?? p5['authoritative_reference']) as Map;
                               return Card(
                                 elevation: 1.0,
                                 color: const Color(0xFFF9FBF9),
@@ -1275,47 +1190,7 @@ class _NpkRequirementScreenState extends State<NpkRequirementScreen> {
                         ),
                         const SizedBox(height: 24),
 
-                        if (p5['status'] != 'MISSING_INPUTS' && p5['status'] != 'VALIDATION_ERROR') ...[
-                          if (!isVerified) ...[
-                            FilledButton.icon(
-                              onPressed: () => _switchMode('GENERAL_BLANKET'),
-                              style: FilledButton.styleFrom(
-                                backgroundColor: const Color(0xFF0277BD),
-                                padding: const EdgeInsets.symmetric(vertical: 14),
-                              ),
-                              icon: const Icon(Icons.verified_rounded),
-                              label: const Text('Switch to Verified General Recommendation'),
-                            ),
-                            const SizedBox(height: 10),
-                            if (widget.soilProfile?['printed_recommendation'] != null || widget.flowData['printed_recommendation'] != null) ...[
-                              OutlinedButton.icon(
-                                onPressed: () => _switchMode('SOIL_HEALTH_CARD'),
-                                style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
-                                icon: const Icon(Icons.description_rounded),
-                                label: const Text('Use Soil Health Card Printed Recommendation'),
-                              ),
-                              const SizedBox(height: 10),
-                            ],
-                          OutlinedButton.icon(
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => FinalRecommendationScreen(
-                                    recommendationData: _recommendationResponse!,
-                                  ),
-                                ),
-                              );
-                            },
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: Colors.brown.shade800,
-                              side: BorderSide(color: Colors.amber.shade700),
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                            ),
-                            icon: const Icon(Icons.info_outline_rounded, color: Colors.amber),
-                            label: const Text('View Provisional Plan (Unverified Only)'),
-                          ),
-                        ] else ...[
+                        if (isSuccess) ...[
                           FilledButton.icon(
                             onPressed: () {
                               Navigator.push(
@@ -1327,12 +1202,18 @@ class _NpkRequirementScreenState extends State<NpkRequirementScreen> {
                                 ),
                               );
                             },
-                            style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: AppTheme.darkGreen,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
                             icon: const Icon(Icons.calculate_rounded),
-                            label: Text(l10n.text('optimal_plan_title')),
+                            label: Text(
+                              l10n.text('optimal_plan_title'),
+                              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                            ),
                           ),
                         ],
-                      ],
                     ],
                   ),
                 ),

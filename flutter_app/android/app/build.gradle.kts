@@ -20,10 +20,8 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.soil_report_phase3"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
+        // Configured unique application ID for AgroWise AI / NutriCrop (SIH1639)
+        applicationId = "gov.tn.agrowise.fertilizer_optimizer"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
@@ -32,8 +30,8 @@ android {
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
+            // Production release signing can be bound to key.properties or CI secrets.
+            // Uses debug signing fallback for local evaluation and testing.
             signingConfig = signingConfigs.getByName("debug")
         }
     }

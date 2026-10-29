@@ -17,10 +17,24 @@ class _VerifyScreenState extends State<VerifyScreen> {
   final _api = SoilApi();
   late final List<FieldDraft> _drafts;
   final _district = TextEditingController(), _village = TextEditingController(), _sample = TextEditingController(), _date = TextEditingController();
+  final _name = TextEditingController(), _survey = TextEditingController(), _cropCtrl = TextEditingController(), _farmArea = TextEditingController();
   bool _busy = false, _ack = false;
   String? _error;
 
   bool get _manual => widget.ocr == null;
+
+  @override
+  void dispose() {
+    _district.dispose();
+    _village.dispose();
+    _sample.dispose();
+    _date.dispose();
+    _name.dispose();
+    _survey.dispose();
+    _cropCtrl.dispose();
+    _farmArea.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -28,6 +42,8 @@ class _VerifyScreenState extends State<VerifyScreen> {
     try {
       if (_manual) {
         _drafts = fieldSpecs.map(FieldDraft.empty).toList();
+        _cropCtrl.text = 'Groundnut';
+        _farmArea.text = '1.0';
       } else {
         final rawFields = widget.ocr?['fields'];
         final Map<String, FieldDraft> byKey = {};
@@ -54,10 +70,18 @@ class _VerifyScreenState extends State<VerifyScreen> {
         final m = (widget.ocr?['metadata'] is Map)
             ? Map<String, dynamic>.from(widget.ocr!['metadata'] as Map)
             : <String, dynamic>{};
+        final r = (widget.ocr?['review_only'] is Map)
+            ? Map<String, dynamic>.from(widget.ocr!['review_only'] as Map)
+            : <String, dynamic>{};
+
+        _name.text = r['farmer_name']?.toString() ?? m['farmer_name']?.toString() ?? '';
+        _survey.text = r['survey_number']?.toString() ?? m['survey_number']?.toString() ?? '';
         _district.text = m['district']?.toString() ?? '';
         _village.text = m['village']?.toString() ?? '';
         _sample.text = m['sample_id']?.toString() ?? '';
         _date.text = m['test_date']?.toString() ?? '';
+        _cropCtrl.text = m['crop']?.toString() ?? m['recommended_crop']?.toString() ?? 'Groundnut';
+        _farmArea.text = (m['farm_area']?.toString() ?? '1.0');
       }
     } catch (_) {
       _drafts = fieldSpecs.map(FieldDraft.empty).toList();
@@ -92,7 +116,11 @@ class _VerifyScreenState extends State<VerifyScreen> {
             if (d.key == 'phosphorus')
               DropdownButtonFormField<String?>(
                 value: (method == 'Olsen' || method == 'Bray') ? method : null,
-                decoration: const InputDecoration(labelText: 'Test method'),
+                decoration: const InputDecoration(
+                  labelText: 'Test method',
+                  helperText: 'Confirm method from Soil Health Card (Olsen for neutral/alkaline, Bray for acidic). Do not guess.',
+                  helperMaxLines: 2,
+                ),
                 items: const [
                   DropdownMenuItem(value: null, child: Text('Not known')),
                   DropdownMenuItem(value: 'Olsen', child: Text('Olsen')),
@@ -154,7 +182,17 @@ class _VerifyScreenState extends State<VerifyScreen> {
         'allow_duplicate': true,
       });
       if (!mounted) return;
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => ResultScreen(profile: (res['soil_profile'] as Map).cast<String, dynamic>(), onValidatedProfile: widget.onValidatedProfile)));
+      final profile = (res['soil_profile'] as Map).cast<String, dynamic>();
+      profile['farmer_name'] = _name.text.trim();
+      profile['survey_number'] = _survey.text.trim();
+      if (_cropCtrl.text.trim().isNotEmpty) {
+        profile['crop'] = _cropCtrl.text.trim();
+        profile['recommended_crop'] = _cropCtrl.text.trim();
+      }
+      if (_farmArea.text.trim().isNotEmpty) {
+        profile['farm_area'] = double.tryParse(_farmArea.text.trim()) ?? (profile['farm_area'] ?? 1.0);
+      }
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => ResultScreen(profile: profile, onValidatedProfile: widget.onValidatedProfile)));
     } on ApiError catch (e) {
       if (e.code == 'DUPLICATE_SUBMISSION') {
         final pid = e.details['soil_profile_id']?.toString();
@@ -162,11 +200,21 @@ class _VerifyScreenState extends State<VerifyScreen> {
           try {
             final profileRes = await _api.getProfile(pid);
             if (!mounted) return;
+            final prof = (profileRes['soil_profile'] is Map ? profileRes['soil_profile'] : profileRes).cast<String, dynamic>();
+            prof['farmer_name'] = _name.text.trim();
+            prof['survey_number'] = _survey.text.trim();
+            if (_cropCtrl.text.trim().isNotEmpty) {
+              prof['crop'] = _cropCtrl.text.trim();
+              prof['recommended_crop'] = _cropCtrl.text.trim();
+            }
+            if (_farmArea.text.trim().isNotEmpty) {
+              prof['farm_area'] = double.tryParse(_farmArea.text.trim()) ?? (prof['farm_area'] ?? 1.0);
+            }
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(
                 builder: (_) => ResultScreen(
-                  profile: (profileRes['soil_profile'] is Map ? profileRes['soil_profile'] : profileRes).cast<String, dynamic>(),
+                  profile: prof,
                   onValidatedProfile: widget.onValidatedProfile,
                 ),
               ),
@@ -269,7 +317,7 @@ class _VerifyScreenState extends State<VerifyScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(color: Colors.red.shade100, borderRadius: BorderRadius.circular(4)),
                       child: Text(
-                        'Low OCR Confidence (${conf != null ? (conf <= 1.0 ? (conf * 100).round() : conf.round()) : 0}%) - Please tap Edit to check',
+                        'Low OCR Confidence (${conf <= 1.0 ? (conf * 100).round() : conf.round()}%) - Please tap Edit to check',
                         style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.red.shade900),
                       ),
                     ),
@@ -350,12 +398,131 @@ class _VerifyScreenState extends State<VerifyScreen> {
         ),
         for (final w in warnings) Padding(padding: const EdgeInsets.only(bottom: 6), child: Text('\u26A0 $w', style: const TextStyle(color: Colors.orange))),
         ..._drafts.map(_card),
+        const SizedBox(height: 12),
+        Card(
+          elevation: 1.5,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+            side: BorderSide(color: Colors.green.shade200),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.assignment_ind_outlined, color: Colors.green.shade800, size: 22),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text('Farmer & Card Details (விவரங்கள்)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                const Text('Check or edit the extracted details before confirming:', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                const Divider(height: 20),
+                TextField(
+                  controller: _name,
+                  decoration: const InputDecoration(
+                    labelText: 'Farmer Name (விவசாயி பெயர்)',
+                    prefixIcon: Icon(Icons.person_outline),
+                    isDense: true,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: _survey,
+                  decoration: const InputDecoration(
+                    labelText: 'Survey / Patta No. (புல / பட்டா எண்)',
+                    prefixIcon: Icon(Icons.pin_drop_outlined),
+                    isDense: true,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _cropCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Crop (பயிர்)',
+                          prefixIcon: Icon(Icons.grass_outlined),
+                          isDense: true,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextField(
+                        controller: _farmArea,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: const InputDecoration(
+                          labelText: 'Area (Acres / ஏக்கர்)',
+                          prefixIcon: Icon(Icons.landscape_outlined),
+                          isDense: true,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _district,
+                        decoration: const InputDecoration(
+                          labelText: 'District (மாவட்டம்)',
+                          prefixIcon: Icon(Icons.location_city_outlined),
+                          isDense: true,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextField(
+                        controller: _village,
+                        decoration: const InputDecoration(
+                          labelText: 'Village (கிராமம்)',
+                          prefixIcon: Icon(Icons.home_outlined),
+                          isDense: true,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _sample,
+                        decoration: const InputDecoration(
+                          labelText: 'Sample ID (மாதிரி எண்)',
+                          prefixIcon: Icon(Icons.tag),
+                          isDense: true,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextField(
+                        controller: _date,
+                        decoration: const InputDecoration(
+                          labelText: 'Test Date (YYYY-MM-DD)',
+                          prefixIcon: Icon(Icons.calendar_today_outlined),
+                          isDense: true,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
         const SizedBox(height: 8),
-        const Text('Report details', style: TextStyle(fontWeight: FontWeight.w600)),
-        TextField(controller: _district, decoration: const InputDecoration(labelText: 'District')),
-        TextField(controller: _village, decoration: const InputDecoration(labelText: 'Village')),
-        TextField(controller: _sample, decoration: const InputDecoration(labelText: 'Sample ID')),
-        TextField(controller: _date, decoration: const InputDecoration(labelText: 'Test date (YYYY-MM-DD)')),
         if (!_manual) CheckboxListTile(value: _ack, onChanged: (v) => setState(() => _ack = v ?? false), controlAffinity: ListTileControlAffinity.leading,
             title: const Text('I have checked these values against my soil report')),
         if (invalidFields.isNotEmpty)
@@ -433,14 +600,17 @@ class _VerifyScreenState extends State<VerifyScreen> {
       }
     }
     final m = (widget.ocr?['metadata'] as Map?)?.cast<String, dynamic>() ?? {};
+    final review = (widget.ocr?['review_only'] as Map?)?.cast<String, dynamic>() ?? {};
     return {
+      'farmer_name': _name.text.trim().isNotEmpty ? _name.text.trim() : (review['farmer_name'] ?? m['farmer_name'] ?? 'Farmer'),
+      'survey_number': _survey.text.trim().isNotEmpty ? _survey.text.trim() : (review['survey_number'] ?? m['survey_number'] ?? ''),
       'district': _district.text.trim().isNotEmpty ? _district.text.trim() : m['district'],
       'village': _village.text.trim().isNotEmpty ? _village.text.trim() : m['village'],
       'sample_id': _sample.text.trim().isNotEmpty ? _sample.text.trim() : m['sample_id'],
       'test_date': _date.text.trim().isNotEmpty ? _date.text.trim() : m['test_date'],
-      'crop': m['crop'] ?? m['recommended_crop'] ?? 'Groundnut',
-      'recommended_crop': m['recommended_crop'] ?? m['crop'] ?? 'Groundnut',
-      'farm_area': m['farm_area'] ?? 1.0,
+      'crop': _cropCtrl.text.trim().isNotEmpty ? _cropCtrl.text.trim() : (m['crop'] ?? m['recommended_crop'] ?? 'Groundnut'),
+      'recommended_crop': _cropCtrl.text.trim().isNotEmpty ? _cropCtrl.text.trim() : (m['recommended_crop'] ?? m['crop'] ?? 'Groundnut'),
+      'farm_area': double.tryParse(_farmArea.text.trim()) ?? (m['farm_area'] ?? 1.0),
       'farm_area_unit': m['farm_area_unit'] ?? 'acre',
       'printed_recommendation': m['printed_recommendation'],
       'phase4_readiness': {'ready': true},

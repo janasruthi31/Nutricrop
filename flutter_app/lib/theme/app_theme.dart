@@ -83,6 +83,29 @@ class AppTheme {
         ),
         labelStyle: const TextStyle(color: textMuted),
       ),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: Colors.white,
+        elevation: 3,
+        indicatorColor: const Color(0xFFC8E6C9),
+        height: 72,
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        labelTextStyle: MaterialStateProperty.resolveWith((states) {
+          if (states.contains(MaterialState.selected)) {
+            return const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: darkGreen,
+              height: 1.15,
+            );
+          }
+          return const TextStyle(
+            fontSize: 10.5,
+            fontWeight: FontWeight.w500,
+            color: textMuted,
+            height: 1.15,
+          );
+        }),
+      ),
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
         backgroundColor: Colors.white,
         selectedItemColor: primaryGreen,

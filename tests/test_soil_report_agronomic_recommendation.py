@@ -67,8 +67,8 @@ class TestAuthoritativeAgronomicRecommendations:
         assert res.status_code == 200, res.text
         data = res.json()
         assert data["status"] == "SUCCESS"
-        assert data["is_verified"] is False
-        assert data["is_provisional"] is True
+        assert data["is_verified"] is True
+        assert data["is_provisional"] is False
 
         p5 = data["nutrient_requirements"]
         # Formulations in TNAU STCR rules:
@@ -133,19 +133,18 @@ class TestAuthoritativeAgronomicRecommendations:
         assert pytest.approx(p5["total_p2o5_req_kg"], abs=1.0) == 66.32 * 2
         assert pytest.approx(p5["total_k2o_req_kg"], abs=1.0) == 121.9 * 2
 
-    def test_ref_03_tnau_rating_adjusted_blanket_blackgram(self):
+    def test_ref_03_tnau_blanket_blackgram_fixed_without_unsupported_multipliers(self):
         """
-        Reference Case 3: Official TNAU Rating-Adjusted Blanket Schedule for Pulses (Blackgram).
-        Literature Source: TNAU Crop Production Guide (Agriculture) 2020.
+        Reference Case 3: Official TNAU Blanket Schedule for Pulses (Blackgram).
+        Literature Source: TNAU Crop Production Guide (Agriculture) 2020, p. 64.
         Blanket RDF: 20 : 40 : 20 kg/ha (Rainfed Pulses).
-        Soil Test:
-          N = 180 kg/ha (< 280 kg/ha -> Low rating -> Factor 1.25)
-          P = 15 kg/ha (11-22 kg/ha -> Medium rating -> Factor 1.00)
-          K = 350 kg/ha (> 280 kg/ha -> High rating -> Factor 0.75)
-        Expected Adjusted Rates:
-          N    = 20 * 1.25 = 25.0 kg/ha
-          P2O5 = 40 * 1.00 = 40.0 kg/ha
-          K2O  = 20 * 0.75 = 15.0 kg/ha
+        Audit Decision: Unsupported universal Low (+25%), Medium (0%), High (-25%) multipliers
+        are removed from production calculations. Soil ratings (Low/Medium/High) provide
+        diagnostic interpretation only and do not modify the official blanket dose.
+        Expected Rates:
+          N    = 20.0 kg/ha
+          P2O5 = 40.0 kg/ha
+          K2O  = 20.0 kg/ha
         """
         payload = {
             "crop": "Blackgram",
@@ -156,6 +155,7 @@ class TestAuthoritativeAgronomicRecommendations:
             "soil_nitrogen_unit": "kg/ha",
             "soil_phosphorus": 15.0,
             "soil_phosphorus_unit": "kg/ha",
+            "soil_phosphorus_method": "Olsen",
             "soil_potassium": 350.0,
             "soil_potassium_unit": "kg/ha",
             "farm_area": 1.0,
@@ -165,10 +165,45 @@ class TestAuthoritativeAgronomicRecommendations:
         assert res.status_code == 200
         data = res.json()
         p5 = data["nutrient_requirements"]
-        assert pytest.approx(p5["n_req_kg_per_ha"], abs=0.1) == 22.78
-        assert pytest.approx(p5["p2o5_req_kg_per_ha"], abs=0.1) == 40.56
-        assert pytest.approx(p5["k2o_req_kg_per_ha"], abs=0.1) == 17.76
-        assert data["recommendation_type"] in ("GENERAL_BLANKET", "PROVISIONAL")
+        assert pytest.approx(p5["n_req_kg_per_ha"], abs=0.1) == 20.0
+        assert pytest.approx(p5["p2o5_req_kg_per_ha"], abs=0.1) == 40.0
+        assert pytest.approx(p5["k2o_req_kg_per_ha"], abs=0.1) == 20.0
+        assert data["recommendation_type"] in ("STANDARD_RDF", "GENERAL_BLANKET", "PROVISIONAL")
+
+    def test_ref_03b_tnau_authorized_rating_adjustment_rice(self):
+        """
+        Reference Case 3b: Official TNAU Rating-Adjusted Schedule for Irrigated Rice.
+        Literature Source: TNAU Soil Testing Services portal Rice Recommendation Table.
+        Rule: TNAU_STD_RICE_001. Base RDF: 150 : 50 : 50 kg/ha.
+        Soil Test:
+          N = 180 kg/ha (Low -> factor > 1.0)
+          P = 15 kg/ha (Medium -> factor ~ 1.0)
+          K = 350 kg/ha (High -> factor < 1.0)
+        Explicitly authorized by TNAU Soil Testing Services for Rice.
+        """
+        payload = {
+            "crop": "Rice",
+            "district": "Coimbatore",
+            "irrigation_method": "Irrigated",
+            "soil_nitrogen": 180.0,
+            "soil_nitrogen_unit": "kg/ha",
+            "soil_phosphorus": 15.0,
+            "soil_phosphorus_unit": "kg/ha",
+            "soil_phosphorus_method": "Olsen",
+            "soil_potassium": 350.0,
+            "soil_potassium_unit": "kg/ha",
+            "farm_area": 1.0,
+            "farm_area_unit": "ha"
+        }
+        res = client.post("/api/full-recommendation", json=payload)
+        assert res.status_code == 200
+        data = res.json()
+        assert data["rule_selection"]["selected_rule_id"] == "TNAU_STD_RICE_001"
+        p5 = data["nutrient_requirements"]
+        # Low N triggers authorized rating increase > 150.0 (approx 170.85 kg/ha)
+        assert p5["n_req_kg_per_ha"] > 150.0
+        # High K triggers authorized rating decrease < 50.0 (approx 44.5 kg/ha)
+        assert p5["k2o_req_kg_per_ha"] < 50.0
 
     def test_ref_04_high_k_clamping_no_fabricated_potash(self):
         """
@@ -181,6 +216,7 @@ class TestAuthoritativeAgronomicRecommendations:
             "target_yield": 5.0,
             "soil_nitrogen": 200.0,
             "soil_phosphorus": 15.0,
+            "soil_phosphorus_method": "Olsen",
             "soil_potassium": 650.0,  # Very high K (e.g. from farmer's report 259 kg/acre)
             "soil_potassium_unit": "kg/ha",
             "farm_area": 1.0,
@@ -320,6 +356,7 @@ class TestAuthoritativeAgronomicRecommendations:
             "target_yield": 6.0,
             "soil_nitrogen": 220.0,
             "soil_phosphorus": 16.0,
+            "soil_phosphorus_method": "Olsen",
             "soil_potassium": 190.0,
             "fym_applied_t_per_ha": 0.0,
             "farm_area": 1.0,
@@ -352,6 +389,7 @@ class TestAuthoritativeAgronomicRecommendations:
             "target_yield": 6.0,
             "soil_nitrogen": 220.0,
             "soil_phosphorus": 16.0,
+            "soil_phosphorus_method": "Olsen",
             "soil_potassium": 190.0,
             "farm_area": 2.5,
             "farm_area_unit": "acre"
@@ -381,6 +419,7 @@ class TestAuthoritativeAgronomicRecommendations:
             "soil_series": "Palavidhi",
             "target_yield": 6.0,
             "soil_phosphorus": 16.0,
+            "soil_phosphorus_method": "Olsen",
             "soil_potassium": 190.0,
             "fym_applied_t_per_ha": 12.5,
             "farm_area": 1.0,
@@ -408,6 +447,7 @@ class TestAuthoritativeAgronomicRecommendations:
             "target_yield": 6.0,
             "soil_nitrogen": 220.0,
             "soil_phosphorus": 16.0,
+            "soil_phosphorus_method": "Olsen",
             "soil_potassium": 190.0,
             "farm_area": 1.0,
             "farm_area_unit": "ha"
@@ -481,6 +521,7 @@ class TestAuthoritativeAgronomicRecommendations:
             "target_yield": 6.0,
             "soil_nitrogen": 220.0,
             "soil_phosphorus": 16.0,
+            "soil_phosphorus_method": "Olsen",
             "soil_potassium": 190.0,
             "farm_area": 1.0,
             "district": "Thanjavur"
@@ -505,6 +546,7 @@ class TestAuthoritativeAgronomicRecommendations:
             "target_yield": 6.0,
             "soil_nitrogen": 220.0,
             "soil_phosphorus": 16.0,
+            "soil_phosphorus_method": "Olsen",
             "soil_potassium": 190.0,
             "farm_area": 1.0,
             "farm_area_unit": "ha"

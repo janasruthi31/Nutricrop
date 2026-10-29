@@ -54,31 +54,40 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
         index: _currentIndex,
         children: pages,
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: _onTabSelected,
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: AppTheme.primaryGreen,
-        unselectedItemColor: const Color(0xFF7D8F7F),
-        items: [
-          BottomNavigationBarItem(
-            icon: const Icon(Icons.home_rounded),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _currentIndex,
+        onDestinationSelected: _onTabSelected,
+        backgroundColor: Colors.white,
+        elevation: 3,
+        shadowColor: Colors.black26,
+        surfaceTintColor: Colors.transparent,
+        indicatorColor: const Color(0xFFC8E6C9),
+        height: 72,
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        destinations: [
+          NavigationDestination(
+            icon: const Icon(Icons.home_outlined),
+            selectedIcon: const Icon(Icons.home_rounded, color: AppTheme.darkGreen),
             label: l10n.text('home'),
           ),
-          BottomNavigationBarItem(
-            icon: const Icon(Icons.document_scanner_rounded),
+          NavigationDestination(
+            icon: const Icon(Icons.document_scanner_outlined),
+            selectedIcon: const Icon(Icons.document_scanner_rounded, color: AppTheme.darkGreen),
             label: l10n.text('soil_reports'),
           ),
-          BottomNavigationBarItem(
-            icon: const Icon(Icons.calculate_rounded),
+          NavigationDestination(
+            icon: const Icon(Icons.calculate_outlined),
+            selectedIcon: const Icon(Icons.calculate_rounded, color: AppTheme.darkGreen),
             label: l10n.text('fertilizer'),
           ),
-          BottomNavigationBarItem(
-            icon: const Icon(Icons.online_prediction_rounded),
+          NavigationDestination(
+            icon: const Icon(Icons.online_prediction_outlined),
+            selectedIcon: const Icon(Icons.online_prediction_rounded, color: AppTheme.darkGreen),
             label: l10n.text('yield_and_weather'),
           ),
-          BottomNavigationBarItem(
-            icon: const Icon(Icons.person_rounded),
+          NavigationDestination(
+            icon: const Icon(Icons.person_outline_rounded),
+            selectedIcon: const Icon(Icons.person_rounded, color: AppTheme.darkGreen),
             label: l10n.text('profile'),
           ),
         ],

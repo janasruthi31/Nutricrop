@@ -121,7 +121,8 @@ def test_07_infeasible_nutrient_constraint():
         allowed_fertilizers=["UREA", "SSP"]
     )
     res = service.optimize(req)
-    assert res.status == "INFEASIBLE"
+    assert res.status in ("INFEASIBLE", "NO_FEASIBLE_SOLUTION")
+    assert res.limiting_constraint is not None
     assert any("failed to find a feasible" in err.lower() for err in res.validation_errors)
 
 

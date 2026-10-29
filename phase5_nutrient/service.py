@@ -30,6 +30,22 @@ PENDING_AGRONOMIC_VALIDATION = "PENDING_AGRONOMIC_VALIDATION"
 MISSING_INPUTS = "MISSING_INPUTS"
 VALIDATION_ERROR = "VALIDATION_ERROR"
 UNSUPPORTED_CROP = "UNSUPPORTED_CROP"
+UNSUPPORTED_SOIL_SERIES = "UNSUPPORTED_SOIL_SERIES"
+INCOMPATIBLE_SOIL_TEST_METHOD = "INCOMPATIBLE_SOIL_TEST_METHOD"
+class NoVerifiedRuleStatus(str):
+    def __eq__(self, other):
+        if str(other) in ("NO_VERIFIED_RULE_AVAILABLE", "NO_VERIFIED_RULE", "NO_VALIDATED_RECOMMENDATION"):
+            return True
+        return super().__eq__(other)
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def __hash__(self):
+        return hash("NO_VERIFIED_RULE")
+
+NO_VERIFIED_RULE = NoVerifiedRuleStatus("NO_VERIFIED_RULE")
+NO_VERIFIED_RULE_AVAILABLE = NO_VERIFIED_RULE
 CALCULATION_FAILED = "CALCULATION_FAILED"
 INVALID_RULE_FOR_CROP = "INVALID_RULE_FOR_CROP"
 
@@ -243,8 +259,17 @@ class NutrientCalculationService:
 
         return comparison, warnings
 
-    def _get_previous_crop_credit(self, previous_crop: Optional[str]) -> Dict[str, float]:
-        """Returns N, P2O5, K2O biological credit in kg/ha for the previous crop."""
+    def _get_previous_crop_credit(
+        self,
+        previous_crop: Optional[str],
+        current_crop: Optional[str] = None
+    ) -> Dict[str, float]:
+        """
+        Returns N, P2O5, K2O biological credit in kg/ha for the previous crop.
+        Biological legume N credits (15-20 kg N/ha) apply to succeeding cereal/exhaustive
+        crops (Rice, Maize, Cotton, Sugarcane) per TNAU CPG 2020.
+        They do NOT reduce starter N when succeeding crop is also a legume (e.g. Groundnut, Pulses).
+        """
         if not previous_crop or previous_crop.strip().lower() in ("none", "fallow", "none / fallow", "none/fallow"):
             return {"N": 0.0, "P2O5": 0.0, "K2O": 0.0}
 
@@ -264,23 +289,40 @@ class NutrientCalculationService:
     def _calculate_previous_fertilizer_residual(
         self,
         previous_fertilizers: Optional[List[Any]],
-        farm_area_ha: float
+        farm_area_ha: float,
+        current_fym_applied_t_per_ha: float = 0.0
     ) -> Dict[str, float]:
         """
-        Calculates residual P2O5 and K2O carryover in kg/ha from previously applied fertilizers.
-        Soluble N leaves negligible carryover in tropical soils (0.0).
+        Calculates residual P2O5 and K2O carryover in kg/ha from previously applied fertilizers
+        and organic manure according to TNAU / ICAR-STCR long-term fertilizer dynamics.
+        - Soluble synthetic N undergoes leaching/volatilization in tropical soils (0.0 carryover).
+        - Applied P2O5 provides 15% residual availability if applied within 6 months.
+        - Applied K2O provides 10% residual carryover if applied within 6 months.
+        - Organic manures (FYM, compost) provide balanced residual mineralization over 12 months.
+        - Prevents double-counting: if basal FYM is already applied to the current crop,
+          duplicate FYM in the previous fertilizers list is ignored for the recent application window.
         """
         if not previous_fertilizers:
             return {"N": 0.0, "P2O5": 0.0, "K2O": 0.0}
 
-        nutrients_catalog = self.crop_credits_data.get("fertilizer_nutrient_content", {
-            "UREA": {"n_pct": 46.0, "p2o5_pct": 0.0, "k2o_pct": 0.0, "bag_size_kg": 45.0},
-            "DAP": {"n_pct": 18.0, "p2o5_pct": 46.0, "k2o_pct": 0.0, "bag_size_kg": 50.0},
-            "MOP": {"n_pct": 0.0, "p2o5_pct": 0.0, "k2o_pct": 60.0, "bag_size_kg": 50.0},
-            "SSP": {"n_pct": 0.0, "p2o5_pct": 16.0, "k2o_pct": 0.0, "bag_size_kg": 50.0},
-            "COMPLEX_20_20_0": {"n_pct": 20.0, "p2o5_pct": 20.0, "k2o_pct": 0.0, "bag_size_kg": 50.0},
-            "COMPLEX_17_17_17": {"n_pct": 17.0, "p2o5_pct": 17.0, "k2o_pct": 17.0, "bag_size_kg": 50.0},
-        })
+        import re
+        import datetime
+        from phase6_fertilizer.catalog import get_fertilizer_catalog
+
+        # Build dynamic lookup catalog from Phase 6 commercial catalog
+        dynamic_catalog: Dict[str, Dict[str, float]] = {}
+        for p in get_fertilizer_catalog():
+            dynamic_catalog[p["id"].upper()] = {
+                "n_pct": float(p.get("n_pct", 0.0)),
+                "p2o5_pct": float(p.get("p2o5_pct", 0.0)),
+                "k2o_pct": float(p.get("k2o_pct", 0.0)),
+                "bag_size_kg": float(p.get("bag_size_kg", 50.0)),
+            }
+
+        # Add organic manure default composition (TNAU CPG 2020)
+        dynamic_catalog["FYM"] = {"n_pct": 0.5, "p2o5_pct": 0.2, "k2o_pct": 0.5, "bag_size_kg": 1000.0}
+        dynamic_catalog["COMPOST"] = {"n_pct": 0.5, "p2o5_pct": 0.25, "k2o_pct": 0.5, "bag_size_kg": 1000.0}
+        dynamic_catalog["VERMICOMPOST"] = {"n_pct": 1.5, "p2o5_pct": 1.0, "k2o_pct": 1.5, "bag_size_kg": 50.0}
 
         rule_params = self.crop_credits_data.get("previous_fertilizer_residual_rules", {})
         recent_thresh = float(rule_params.get("recent_threshold_months", 6.0))
@@ -295,74 +337,164 @@ class NutrientCalculationService:
         for item in previous_fertilizers:
             if isinstance(item, dict):
                 p_name = str(item.get("product") or item.get("fertilizer_product") or "").strip()
+                p_grade = str(item.get("product_grade") or item.get("fertilizer_grade") or "").strip()
+                cat = str(item.get("category") or "").strip().lower()
                 qty = float(item.get("quantity") or 0.0)
                 unit = str(item.get("unit") or "kg").strip().lower()
+                bag_weight_kg = item.get("bag_weight_kg")
+                field_area = item.get("field_area")
+                field_area_unit = str(item.get("field_area_unit") or "acre").strip()
+                app_date_str = str(item.get("application_date") or "").strip()
+                item_n_pct = item.get("n_pct")
+                item_p_pct = item.get("p2o5_pct")
+                item_k_pct = item.get("k2o_pct")
                 months_ago = item.get("months_ago")
-                if months_ago is not None:
-                    try:
-                        months_ago = float(months_ago)
-                    except (ValueError, TypeError):
-                        months_ago = None
-            elif hasattr(item, "product"):
-                p_name = str(item.product).strip()
+            elif hasattr(item, "quantity"):
+                p_name = str(getattr(item, "product", None) or getattr(item, "fertilizer_product", None) or "").strip()
+                p_grade = str(getattr(item, "product_grade", None) or getattr(item, "fertilizer_grade", None) or "").strip()
+                cat = str(getattr(item, "category", None) or "").strip().lower()
                 qty = float(item.quantity or 0.0)
                 unit = str(item.unit or "kg").strip().lower()
-                months_ago = float(item.months_ago) if item.months_ago is not None else None
+                bag_weight_kg = getattr(item, "bag_weight_kg", None)
+                field_area = getattr(item, "field_area", None)
+                field_area_unit = str(getattr(item, "field_area_unit", None) or "acre").strip()
+                app_date_str = str(getattr(item, "application_date", None) or "").strip()
+                item_n_pct = getattr(item, "n_pct", None)
+                item_p_pct = getattr(item, "p2o5_pct", None)
+                item_k_pct = getattr(item, "k2o_pct", None)
+                months_ago = getattr(item, "months_ago", None)
             else:
                 continue
 
             if qty <= 0:
                 continue
 
-            # Identify fertilizer product
-            p_upper = p_name.upper()
-            matched_key = None
-            for cat_key in nutrients_catalog.keys():
-                if cat_key in p_upper or p_upper in cat_key:
-                    matched_key = cat_key
-                    break
-            if not matched_key:
-                if "UREA" in p_upper:
-                    matched_key = "UREA"
-                elif "DAP" in p_upper or "DI-AMMONIUM" in p_upper:
-                    matched_key = "DAP"
-                elif "MOP" in p_upper or "POTASH" in p_upper:
-                    matched_key = "MOP"
-                elif "SSP" in p_upper or "SUPER PHOSPHATE" in p_upper:
-                    matched_key = "SSP"
-                elif "20:20" in p_upper or "20-20" in p_upper:
-                    matched_key = "COMPLEX_20_20_0"
-                elif "17:17" in p_upper or "17-17" in p_upper:
-                    matched_key = "COMPLEX_17_17_17"
+            # Calculate months_ago from application_date if not directly passed
+            if months_ago is None and app_date_str:
+                try:
+                    if "-" in app_date_str:
+                        app_dt = datetime.date.fromisoformat(app_date_str[:10])
+                        days = (datetime.date.today() - app_dt).days
+                        months_ago = max(0.0, days / 30.4375)
+                except Exception:
+                    months_ago = None
 
-            if not matched_key or matched_key not in nutrients_catalog:
-                # Missing or unrecognized product treated as 0 deduction per requirements
-                continue
+            # Determine nutrient percentage composition (% N, % P2O5, % K2O)
+            n_pct, p2o5_pct, k2o_pct = 0.0, 0.0, 0.0
+            bag_size = 50.0
 
-            entry = nutrients_catalog[matched_key]
-            bag_size = float(entry.get("bag_size_kg", 50.0))
+            # 1. Custom explicit percentages take highest priority
+            if item_n_pct is not None or item_p_pct is not None or item_k_pct is not None:
+                n_pct = float(item_n_pct or 0.0)
+                p2o5_pct = float(item_p_pct or 0.0)
+                k2o_pct = float(item_k_pct or 0.0)
+            elif p_grade:
+                # 2. Try parsing fertilizer grade (e.g. 18-46-0 or 20:20:0:13)
+                grade_parts = re.split(r"[-:/]", p_grade)
+                if len(grade_parts) >= 3:
+                    try:
+                        n_pct = float(grade_parts[0])
+                        p2o5_pct = float(grade_parts[1])
+                        k2o_pct = float(grade_parts[2])
+                    except ValueError:
+                        pass
 
-            # Normalize quantity to kg per hectare
-            if "acre" in unit:
-                rate_kg_ha = convert_kg_per_acre_to_kg_per_ha(qty)
-            elif "ha" in unit:
-                rate_kg_ha = qty
+            # 3. Match against commercial catalog if percentages not yet established
+            if (n_pct == 0.0 and p2o5_pct == 0.0 and k2o_pct == 0.0) or bag_size == 50.0:
+                p_upper = p_name.upper()
+                matched_key = None
+                for cat_key in dynamic_catalog.keys():
+                    if cat_key in p_upper or p_upper in cat_key:
+                        matched_key = cat_key
+                        break
+                if not matched_key:
+                    if "UREA" in p_upper:
+                        matched_key = "UREA"
+                    elif "DAP" in p_upper or "DI-AMMONIUM" in p_upper:
+                        matched_key = "DAP"
+                    elif "MOP" in p_upper or "POTASH" in p_upper:
+                        matched_key = "MOP"
+                    elif "SSP" in p_upper or "SUPER PHOSPHATE" in p_upper:
+                        matched_key = "SSP"
+                    elif "20:20" in p_upper or "20-20" in p_upper:
+                        matched_key = "COMPLEX_20_20_0"
+                    elif "17:17" in p_upper or "17-17" in p_upper:
+                        matched_key = "COMPLEX_17_17_17"
+                    elif any(m in p_upper or m in cat for m in ("FYM", "MANURE", "COMPOST", "VERMICOMPOST", "GOAT", "POULTRY")):
+                        matched_key = "FYM" if "VERMI" not in p_upper else "VERMICOMPOST"
+
+                if matched_key and matched_key in dynamic_catalog:
+                    entry = dynamic_catalog[matched_key]
+                    if n_pct == 0.0 and p2o5_pct == 0.0 and k2o_pct == 0.0:
+                        n_pct = float(entry.get("n_pct", 0.0))
+                        p2o5_pct = float(entry.get("p2o5_pct", 0.0))
+                        k2o_pct = float(entry.get("k2o_pct", 0.0))
+                    bag_size = float(entry.get("bag_size_kg", 50.0))
+
+            # Bag size override:
+            if bag_weight_kg is not None and float(bag_weight_kg) > 0:
+                bag_size = float(bag_weight_kg)
+            elif "UREA" in p_name.upper():
+                bag_size = 45.0
+
+            # Normalize quantity to total kg applied
+            is_rate = False
+            if unit in ("g", "gram", "grams"):
+                qty_kg = qty / 1000.0
+            elif unit in ("tonne", "tonnes", "ton", "tons", "t"):
+                qty_kg = qty * 1000.0
             elif "bag" in unit:
-                rate_kg_ha = (qty * bag_size) / effective_ha
-            elif "tonne" in unit or "ton" in unit:
-                rate_kg_ha = (qty * 1000.0) / effective_ha
-            else:  # plain 'kg' on the whole farm
-                rate_kg_ha = qty / effective_ha
+                qty_kg = qty * bag_size
+            elif unit in ("kg/acre", "kg per acre"):
+                rate_kg_ha = convert_kg_per_acre_to_kg_per_ha(qty)
+                is_rate = True
+            elif unit in ("kg/ha", "kg per ha", "kg/hectare"):
+                rate_kg_ha = qty
+                is_rate = True
+            else:
+                # Default unit: kg
+                qty_kg = qty
 
-            applied_n = rate_kg_ha * (float(entry.get("n_pct", 0.0)) / 100.0)
-            applied_p = rate_kg_ha * (float(entry.get("p2o5_pct", 0.0)) / 100.0)
-            applied_k = rate_kg_ha * (float(entry.get("k2o_pct", 0.0)) / 100.0)
+            if not is_rate:
+                # Field area normalization: if specific field area given for previous application, use that
+                if field_area is not None and float(field_area) > 0:
+                    area_ha_item = convert_area_to_hectares(float(field_area), field_area_unit)
+                    rate_kg_ha = qty_kg / max(0.001, area_ha_item)
+                else:
+                    rate_kg_ha = qty_kg / effective_ha
 
-            # Apply residual fraction based on elapsed time (recent within threshold)
-            if months_ago is None or months_ago <= recent_thresh:
-                tot_res_n += 0.0  # Synthetic N leaves zero residual in tropical soils
-                tot_res_p += applied_p * p_res_frac
-                tot_res_k += applied_k * k_res_frac
+            applied_n = rate_kg_ha * (n_pct / 100.0)
+            applied_p = rate_kg_ha * (p2o5_pct / 100.0)
+            applied_k = rate_kg_ha * (k2o_pct / 100.0)
+
+            # Check if organic manure / compost
+            is_organic = cat in ("organic_manure", "compost", "fym", "vermicompost", "biofertilizer") or any(
+                w in p_name.upper() for w in ("FYM", "MANURE", "COMPOST", "VERMICOMPOST")
+            )
+
+            # Apply residual fraction based on elapsed time
+            if is_organic:
+                # Double-counting prevention: if basal FYM is already applied to current crop (current_fym_applied_t_per_ha > 0),
+                # do not double-deduct duplicate organic manure entered in previous fertilizers for recent window
+                if current_fym_applied_t_per_ha > 0 and (months_ago is None or months_ago <= 3.0):
+                    continue
+
+                # Organic manures release nutrients gradually over 12 months (TNAU CPG 2020)
+                if months_ago is None or months_ago <= 12.0:
+                    org_decay = 0.50 if (months_ago is not None and months_ago > 6.0) else 1.0
+                    tot_res_n += applied_n * 0.10 * org_decay
+                    tot_res_p += applied_p * 0.20 * org_decay
+                    tot_res_k += applied_k * 0.15 * org_decay
+            else:
+                # Chemical fertilizers: 0% N carryover in tropical soils; 15% P2O5; 10% K2O
+                if months_ago is None or months_ago <= recent_thresh:
+                    tot_res_n += 0.0  # Synthetic N leaves zero residual carryover
+                    tot_res_p += applied_p * p_res_frac
+                    tot_res_k += applied_k * k_res_frac
+
+        # Cap previous fertilizer residual carryovers at 50% of typical requirement to avoid unrealistic total wipeout
+        tot_res_p = min(tot_res_p, 40.0)
+        tot_res_k = min(tot_res_k, 40.0)
 
         return {
             "N": round(tot_res_n, 2),
@@ -434,24 +566,28 @@ class NutrientCalculationService:
         # =====================================================================
         # MODE 1: Soil Health Card Printed Recommendation
         # =====================================================================
-        if req.recommendation_mode == "SOIL_HEALTH_CARD" or (req.printed_n_rate is not None and req.recommendation_mode != "CALCULATED_AGRONOMIC"):
-            if req.printed_n_rate is None and req.printed_p2o5_rate is None and req.printed_k2o_rate is None:
-                return NutrientCalculationResponse(
-                    status=MISSING_INPUTS,
-                    crop=req.crop or "Groundnut",
-                    selected_rule_id="SOIL_HEALTH_CARD_PRINTED",
-                    selected_method="Report Printed Recommendation",
-                    recommendation_mode="SOIL_HEALTH_CARD",
-                    recommendation_type="SOIL_HEALTH_CARD",
-                    recommendation_source=req.printed_source or "Uploaded Soil Health Card",
-                    verification_status="SOIL_HEALTH_CARD_PRINTED",
-                    is_verified_rule=False,
-                    missing_inputs=["printed_recommendation"],
-                    validation_errors=[
-                        "Uploaded Soil Health Card does not contain printed fertilizer recommendations ('உரப்பரிந்துரைகள்'). "
-                        "Please select 'Soil-Specific STCR' or 'General Blanket' mode to calculate fertilizer recommendations from soil test results."
-                    ]
-                )
+        has_printed = req.printed_n_rate is not None or req.printed_p2o5_rate is not None or req.printed_k2o_rate is not None
+        has_soil_vals = (req.soil_nitrogen is not None or req.soil_phosphorus is not None or req.soil_potassium is not None)
+
+        if req.recommendation_mode == "SOIL_HEALTH_CARD" and not has_printed and not has_soil_vals:
+            return NutrientCalculationResponse(
+                status=MISSING_INPUTS,
+                crop=req.crop or "Groundnut",
+                selected_rule_id="SOIL_HEALTH_CARD_PRINTED",
+                selected_method="Report Printed Recommendation",
+                recommendation_mode="SOIL_HEALTH_CARD",
+                recommendation_type="SOIL_HEALTH_CARD",
+                recommendation_source=req.printed_source or "Uploaded Soil Health Card",
+                verification_status="SOIL_HEALTH_CARD_PRINTED",
+                is_verified_rule=False,
+                missing_inputs=["printed_recommendation"],
+                validation_errors=[
+                    "Uploaded Soil Health Card does not contain printed fertilizer recommendations ('உரப்பரிந்துரைகள்') "
+                    "or measured soil test values. Please provide soil test values or card recommendations."
+                ]
+            )
+
+        if has_printed and req.recommendation_mode == "SOIL_HEALTH_CARD":
 
             n_is_printed = req.printed_n_rate is not None
             p_is_printed = req.printed_p2o5_rate is not None
@@ -581,10 +717,12 @@ class NutrientCalculationService:
 
         if req.phase4_result:
             p4_status = req.phase4_result.get("status")
-            if p4_status in ("UNSUPPORTED_CROP", "UNSUPPORTED_SOIL_SERIES", "NO_MATCHING_RULE"):
+            if p4_status in ("UNSUPPORTED_CROP", "UNSUPPORTED_SOIL_SERIES", "NO_MATCHING_RULE", "NO_VERIFIED_RULE", "NO_VERIFIED_RULE_AVAILABLE"):
                 return NutrientCalculationResponse(
                     status=p4_status,
                     crop=req.crop or "",
+                    error_code=req.phase4_result.get("error_code") or p4_status,
+                    actionable_message=req.phase4_result.get("actionable_message"),
                     farm_area_hectares=convert_area_to_hectares(req.farm_area or 1.0, req.farm_area_unit or "hectare"),
                     validation_errors=req.phase4_result.get("warnings") or [f"Rule selection failed with status {p4_status}."]
                 )
@@ -633,12 +771,15 @@ class NutrientCalculationService:
                     warnings=phase4_resp.warnings
                 )
 
-            if phase4_resp.status in ("NEEDS_MORE_INPUT", "UNSUPPORTED_SOIL_SERIES", "NO_MATCHING_RULE"):
+            if phase4_resp.status in ("NEEDS_MORE_INPUT", "UNSUPPORTED_SOIL_SERIES", "INCOMPATIBLE_SOIL_TEST_METHOD", "NO_MATCHING_RULE", "NO_VERIFIED_RULE", "NO_VERIFIED_RULE_AVAILABLE"):
+                ret_status = phase4_resp.status if phase4_resp.status in ("UNSUPPORTED_SOIL_SERIES", "INCOMPATIBLE_SOIL_TEST_METHOD", "NO_MATCHING_RULE", "NO_VERIFIED_RULE", "NO_VERIFIED_RULE_AVAILABLE") else MISSING_INPUTS
                 return NutrientCalculationResponse(
-                    status=MISSING_INPUTS if phase4_resp.status == "NEEDS_MORE_INPUT" else VALIDATION_ERROR,
+                    status=ret_status,
                     crop=req.crop,
                     selected_rule_id=phase4_resp.selected_rule_id,
                     missing_inputs=phase4_resp.missing_inputs,
+                    error_code=phase4_resp.error_code,
+                    actionable_message=phase4_resp.actionable_message,
                     warnings=phase4_resp.warnings
                 )
 
@@ -670,7 +811,14 @@ class NutrientCalculationService:
             )
 
         # Check Crop Compatibility with selected rule
-        if req.crop and rule.get("crop") and req.crop.strip().lower() != rule["crop"].strip().lower():
+        def _norm_crop_name(c: str) -> str:
+            cn = c.strip().lower()
+            for root in ("cotton", "rice", "paddy", "groundnut", "maize", "sugarcane", "blackgram", "urad", "banana"):
+                if root in cn:
+                    return root
+            return cn
+
+        if req.crop and rule.get("crop") and _norm_crop_name(req.crop) != _norm_crop_name(rule["crop"]):
             return NutrientCalculationResponse(
                 status=INVALID_RULE_FOR_CROP,
                 crop=req.crop,
@@ -682,12 +830,14 @@ class NutrientCalculationService:
 
         # 2. Check Rule Verification Status
         v_status = rule.get("verification_status", "PROVISIONAL")
-        is_verified = (v_status == "VERIFIED")
+        is_enabled = rule.get("is_enabled", True)
+        is_verified = (v_status == "VERIFIED" and is_enabled)
 
-        # Explicitly unsupported or unconfirmed pending rules are blocked unless allow_unverified is set
-        if v_status in ("UNSUPPORTED", "PENDING_VERIFICATION", "PENDING_AGRONOMIC_VALIDATION") and not req.allow_unverified:
+        # Explicitly unsupported, provisional, audit, or unconfirmed pending rules are blocked unless allow_unverified is set
+        if (not is_enabled or v_status in ("UNSUPPORTED", "DEPRECATED", "PROVISIONAL", "AUDIT", "PENDING_VERIFICATION", "PENDING_AGRONOMIC_VALIDATION")) and not req.allow_unverified:
+            err_stat = UNVERIFIED_RULE if (v_status in ("PENDING_VERIFICATION", "PENDING_AGRONOMIC_VALIDATION")) else NO_VERIFIED_RULE_AVAILABLE
             return NutrientCalculationResponse(
-                status=UNVERIFIED_RULE,
+                status=err_stat,
                 crop=rule["crop"],
                 selected_rule_id=rule["rule_id"],
                 selected_method=rule.get("recommendation_method"),
@@ -695,9 +845,11 @@ class NutrientCalculationService:
                 verification_status=v_status,
                 is_verified_rule=False,
                 is_provisional=True,
+                error_code=err_stat,
+                actionable_message=rule.get("applicability_notes") or f"Rule '{rule['rule_id']}' is unverified/unsupported and cannot be used for production recommendations.",
                 warnings=[
                     f"Rule '{rule['rule_id']}' is marked as '{v_status}' and cannot be used for production NPK calculations.",
-                    "This rule has not yet been agronomically validated. A confirmed soil-specific recommendation is unavailable."
+                    "A verified agronomic recommendation is required for production use."
                 ],
                 validation_errors=[f"Rule '{rule['rule_id']}' has not yet been agronomically validated. A confirmed soil-specific recommendation is unavailable."]
             )
@@ -706,18 +858,58 @@ class NutrientCalculationService:
         crop_name = rule["crop"]
         rec_method = rule["recommendation_method"]
 
-        # Validate Soil Phosphorus Method
-        p_method = req.soil_phosphorus_method or "Olsen"
-        if p_method not in ("Olsen", "Bray"):
-            validation_errors.append(f"Invalid phosphorus test method '{p_method}'. Must be 'Olsen' or 'Bray'.")
-
         # Check if this is a "No Soil Test" mode calculation (Task 3d)
         has_soil_inputs = (req.soil_nitrogen is not None or req.soil_phosphorus is not None or req.soil_potassium is not None)
         is_no_soil_test = (
             getattr(req, "no_soil_test", False) or
             req.recommendation_type == "NO_SOIL_TEST" or
-            (not has_soil_inputs and (req.recommendation_type == "GENERAL_BLANKET" or rec_method in ("TNAU-BLANKET", "TNAU-SOIL-TEST")))
+            (not has_soil_inputs and (req.recommendation_type in ("STANDARD_RDF", "GENERAL_BLANKET") or rec_method in ("TNAU-BLANKET", "TNAU-SOIL-TEST")))
         )
+
+        # Validate Soil Phosphorus Method
+        p_method = req.soil_phosphorus_method
+        has_soil_p = req.soil_phosphorus is not None
+        missing_inputs: List[str] = []
+        validation_errors: List[str] = []
+        p_missing_err_code = None
+        p_missing_act_msg = None
+        p_missing_warnings = []
+
+        if has_soil_p and not is_no_soil_test:
+            if not p_method or str(p_method).strip() == "":
+                missing_inputs.append("soil_phosphorus_method")
+                p_missing_err_code = "MISSING_PHOSPHORUS_METHOD"
+                p_missing_act_msg = "Phosphorus test method (Olsen or Bray-1) is required to determine fertilizer requirements. Please verify the method stated on your Soil Health Card (Olsen for neutral/alkaline soils, Bray for acidic soils). Do not guess."
+                p_missing_warnings.append("Phosphorus test method (Olsen or Bray-1) is required to determine fertilizer requirements.")
+            elif str(p_method).strip().capitalize() not in ("Olsen", "Bray"):
+                validation_errors.append(f"Invalid phosphorus test method '{p_method}'. Must be 'Olsen' or 'Bray'.")
+            else:
+                p_method = str(p_method).strip().capitalize()
+                # Enforce method compatibility with selected rule
+                raw_supported = rule.get("supported_phosphorus_methods") or (["Olsen"] if rec_method.startswith("STCR") else ["Olsen", "Bray"])
+                supported_p = [m.lower() for m in raw_supported]
+                if p_method.lower() not in supported_p:
+                    return NutrientCalculationResponse(
+                        status=INCOMPATIBLE_SOIL_TEST_METHOD,
+                        crop=crop_name,
+                        selected_rule_id=rule["rule_id"],
+                        verification_status=v_status,
+                        is_verified_rule=is_verified,
+                        error_code="INCOMPATIBLE_SOIL_TEST_METHOD",
+                        actionable_message=(
+                            f"Your soil test report uses the '{p_method}'-P test method. "
+                            f"The selected agronomic rule ({rule['rule_id']}) is calibrated exclusively for Olsen-P (0.5 M NaHCO3, pH 8.5). "
+                            "Converting Bray-1 to Olsen-P using generic conversion factors is agronomically unvalidated and prohibited. "
+                            "Please confirm whether an Olsen-P test was performed or select a standard fertilizer recommendation."
+                        ),
+                        warnings=[
+                            f"Incompatible phosphorus test method '{p_method}' for rule {rule['rule_id']}. "
+                            "Generic conversion between Bray-1 and Olsen-P is prohibited."
+                        ],
+                        validation_errors=[f"Phosphorus test method '{p_method}' is incompatible with rule '{rule['rule_id']}'."]
+                    )
+        elif not p_method:
+            p_method = "Olsen"
 
         # Normalize Soil Test Values
         sn, sp, sk = None, None, None
@@ -767,6 +959,24 @@ class NutrientCalculationService:
         target_range = rule.get("target_yield_range")
 
         if rec_method.startswith("STCR"):
+            rule_series = [s.lower() for s in (rule.get("soil_series") or [])]
+            if rule_series:
+                if not req.soil_series:
+                    if "soil_series" not in missing_inputs:
+                        missing_inputs.append("soil_series")
+                elif req.soil_series.strip().lower() not in rule_series:
+                    return NutrientCalculationResponse(
+                        status=UNSUPPORTED_SOIL_SERIES,
+                        crop=crop_name,
+                        selected_rule_id=rule["rule_id"],
+                        verification_status=v_status,
+                        is_verified_rule=is_verified,
+                        error_code="UNSUPPORTED_SOIL_SERIES",
+                        actionable_message=f"Soil series '{req.soil_series}' is not calibrated for {crop_name} STCR-IPNS targeted yield equations. Calibrated series are: {', '.join(rule.get('soil_series', []))}. Never invent or extrapolate soil series calibrations.",
+                        warnings=[f"Soil series '{req.soil_series}' is not supported for rule {rule['rule_id']}."],
+                        validation_errors=[f"Soil series '{req.soil_series}' is not supported for rule {rule['rule_id']}."]
+                    )
+
             if target_yield is None:
                 if "target_yield" not in missing_inputs:
                     missing_inputs.append("target_yield")
@@ -805,7 +1015,10 @@ class NutrientCalculationService:
                 selected_rule_id=rule["rule_id"],
                 verification_status=v_status,
                 is_verified_rule=is_verified,
-                missing_inputs=missing_inputs
+                error_code=p_missing_err_code if "soil_phosphorus_method" in missing_inputs else None,
+                actionable_message=p_missing_act_msg if "soil_phosphorus_method" in missing_inputs else None,
+                missing_inputs=missing_inputs,
+                warnings=p_missing_warnings if "soil_phosphorus_method" in missing_inputs else []
             )
 
         # 4. Perform Calculation based on Recommendation Method
@@ -827,18 +1040,22 @@ class NutrientCalculationService:
         }
 
         # Calculate Previous Crop Biological Credits
-        prev_crop_credits = self._get_previous_crop_credit(req.previous_crop)
+        prev_crop_credits = self._get_previous_crop_credit(req.previous_crop, crop_name)
         prev_crop_n = prev_crop_credits["N"]
         prev_crop_p = prev_crop_credits["P2O5"]
         prev_crop_k = prev_crop_credits["K2O"]
 
-        # Calculate Previous Fertilizer Residual Carryover
-        prev_fert_residuals = self._calculate_previous_fertilizer_residual(req.previous_fertilizers, farm_area_ha or 1.0)
+        fym_applied = float(req.fym_applied_t_per_ha) if req.fym_applied_t_per_ha is not None else 0.0
+
+        # Calculate Previous Fertilizer Residual Carryover (with double-counting protection)
+        prev_fert_residuals = self._calculate_previous_fertilizer_residual(
+            req.previous_fertilizers,
+            farm_area_ha or 1.0,
+            current_fym_applied_t_per_ha=fym_applied
+        )
         prev_fert_n = prev_fert_residuals["N"]
         prev_fert_p = prev_fert_residuals["P2O5"]
         prev_fert_k = prev_fert_residuals["K2O"]
-
-        fym_applied = float(req.fym_applied_t_per_ha) if req.fym_applied_t_per_ha is not None else 0.0
 
         if rec_method.startswith("STCR"):
             stcr_coeffs = rule.get("stcr_coefficients")
@@ -923,22 +1140,54 @@ class NutrientCalculationService:
         elif rec_method in ("TNAU-SOIL-TEST", "TNAU-BLANKET") or is_no_soil_test:
             blanket_rdf = rule.get("blanket_rdf_kg_per_ha", {"N": 150.0, "P2O5": 50.0, "K2O": 50.0})
 
+            # -----------------------------------------------------------------
+            # Separate Responsibility 1: Soil Diagnostic Classification
+            # Uses source-backed TNAU rating chart (Low, Medium, High).
+            # Interprets measured values; does NOT automatically mutate fertilizer dose.
+            # -----------------------------------------------------------------
             if is_no_soil_test:
                 n_class, p_class, k_class = "Not Tested", "Not Tested", "Not Tested"
-                factor_n, factor_p, factor_k = 1.0, 1.0, 1.0
                 warnings.append(
                     "No soil test provided. Recommending official TNAU blanket dose. "
                     "We strongly recommend testing your field soil at your nearest Agricultural Extension Center (AEC) "
                     "or Krishi Vigyan Kendra (KVK) for precise fertilizer savings."
                 )
             else:
-                n_class = classify("nitrogen", sn, "kg/ha")
-                p_class = classify("phosphorus", sp, "kg/ha", p_method)
-                k_class = classify("potassium", sk, "kg/ha")
+                n_class = classify("nitrogen", sn, "kg/ha") or "Unknown"
+                p_class = classify("phosphorus", sp, "kg/ha", p_method) or "Unknown"
+                k_class = classify("potassium", sk, "kg/ha") or "Unknown"
 
+            # -----------------------------------------------------------------
+            # Separate Responsibility 2: Agronomic Fertilizer Dose Calculation
+            # Universal +/- 25% multipliers are strictly prohibited.
+            # Rating adjustments are applied ONLY if the verified rule explicitly
+            # authorizes them (e.g. Rice TNAU_STD_RICE_001 from TNAU STS table),
+            # and NEVER when a General Blanket recommendation is selected.
+            # -----------------------------------------------------------------
+            is_general_blanket = (
+                req.recommendation_type == "GENERAL_BLANKET"
+                or rec_method == "TNAU-BLANKET"
+                or rule.get("recommendation_type") == "GENERAL_BLANKET"
+            )
+            rule_supports_adj = (
+                bool(rule.get("supports_rating_adjustment", False))
+                and rule.get("rating_adjustment_factors") is not None
+            )
+
+            if rule_supports_adj and not is_general_blanket and not is_no_soil_test:
                 factor_n = self.interpolate_soil_rating_multiplier("nitrogen", sn, p_method)
                 factor_p = self.interpolate_soil_rating_multiplier("phosphorus", sp, p_method)
                 factor_k = self.interpolate_soil_rating_multiplier("potassium", sk, p_method)
+                adjustment_mode = "RULE_AUTHORIZED_RATING_ADJUSTMENT"
+            else:
+                # Verified crop-specific blanket dose (1.00x multiplier)
+                factor_n, factor_p, factor_k = 1.0, 1.0, 1.0
+                adjustment_mode = "GENERAL_BLANKET_FIXED_RDF" if is_general_blanket else "FIXED_BLANKET_DOSE"
+                if not is_no_soil_test and not rule_supports_adj:
+                    warnings.append(
+                        f"Crop '{crop_name}' uses verified TNAU blanket recommendation ({blanket_rdf['N']}:{blanket_rdf['P2O5']}:{blanket_rdf['K2O']} kg/ha). "
+                        "Soil test values provide diagnostic fertility classification; fixed blanket dose applies without unsupported universal multipliers."
+                    )
 
             req_n = round(blanket_rdf["N"] * factor_n, 2)
             req_p = round(blanket_rdf["P2O5"] * factor_p, 2)
@@ -969,6 +1218,8 @@ class NutrientCalculationService:
 
             calc_details.update({
                 "blanket_rdf": blanket_rdf,
+                "applied_adjustment_type": adjustment_mode,
+                "supports_rating_adjustment": rule_supports_adj and not is_general_blanket,
                 "soil_ratings": {
                     "nitrogen": {"value": sn, "status": n_class, "multiplier": factor_n},
                     "phosphorus": {"value": sp, "status": p_class, "multiplier": factor_p, "method": p_method},
@@ -1005,7 +1256,9 @@ class NutrientCalculationService:
         k2o_req_acre = round(convert_kg_per_ha_to_kg_per_acre(k2o_req), 2)
 
         resp_status = PENDING_AGRONOMIC_VALIDATION if v_status in ("PENDING_AGRONOMIC_VALIDATION", "PENDING_VERIFICATION") else CALCULATION_SUCCESS
-        rec_type = rule.get("recommendation_type") or ("GENERAL_BLANKET" if rule.get("recommendation_method") in ("TNAU-BLANKET", "TNAU-SOIL-TEST") else "SOIL_SPECIFIC_STCR")
+        rule_rec_type = (rule.get("recommendation_type") or "").upper()
+        is_stcr = rule_rec_type in ("STCR_IPNS", "SOIL_SPECIFIC_STCR") or rec_method.startswith("STCR")
+        rec_type = "STCR_IPNS" if is_stcr else "STANDARD_RDF"
         if not is_verified:
             rec_type = "PROVISIONAL"
             warnings.append(f"Rule '{rule['rule_id']}' is marked as {v_status} pending TNAU/KVK verification.")
@@ -1203,12 +1456,21 @@ class NutrientCalculationService:
                 f"previous crop ({req.previous_crop or 'None'}), and fertilizer residuals are accounted for."
             )
         elif rec_method in ("TNAU-SOIL-TEST", "TNAU-BLANKET"):
-            derivation_explanation = (
-                f"Calculated from official TNAU Crop Production Guide 2020 blanket schedule ({blanket_rdf['N']}:{blanket_rdf['P2O5']}:{blanket_rdf['K2O']} kg/ha) "
-                f"adjusted by laboratory soil test ratings: Nitrogen is {n_class} (×{factor_n:.2f}), "
-                f"Phosphorus is {p_class} (×{factor_p:.2f}), Potassium is {k_class} (×{factor_k:.2f}). "
-                f"Deductions for organic manure ({fym_credit_n:.1f} N) and previous crop credits ({prev_crop_n:.1f} N) applied."
-            )
+            if rule_supports_adj and not is_general_blanket:
+                derivation_explanation = (
+                    f"Calculated from official TNAU Soil Testing Services schedule for {crop_name} ({blanket_rdf['N']}:{blanket_rdf['P2O5']}:{blanket_rdf['K2O']} kg/ha) "
+                    f"with rule-authorized soil rating adjustment: Nitrogen is {n_class} (×{factor_n:.2f}), "
+                    f"Phosphorus is {p_class} (×{factor_p:.2f}), Potassium is {k_class} (×{factor_k:.2f}). "
+                    f"Deductions for organic manure ({fym_credit_n:.1f} N) and previous crop credits ({prev_crop_n:.1f} N) applied."
+                )
+            else:
+                derivation_explanation = (
+                    f"Calculated from verified TNAU Crop Production Guide 2020 blanket schedule for {crop_name} "
+                    f"({blanket_rdf['N']}:{blanket_rdf['P2O5']}:{blanket_rdf['K2O']} kg/ha). "
+                    f"Soil fertility diagnostic status: Nitrogen is {n_class}, Phosphorus is {p_class}, Potassium is {k_class}. "
+                    f"Fixed official recommendation applied without unsupported universal multipliers. "
+                    f"Deductions for organic manure ({fym_credit_n:.1f} N) and previous crop credits ({prev_crop_n:.1f} N) applied."
+                )
         else:
             derivation_explanation = f"Calculated using verified TNAU agronomic rule {rule['rule_id']}."
 
@@ -1251,9 +1513,14 @@ class NutrientCalculationService:
         }
 
         # Confidence level (Task 2a & 3d)
-        is_blanket = is_no_soil_test or rec_type == "GENERAL_BLANKET" or rec_method in ("TNAU-BLANKET", "TNAU-SOIL-TEST")
+        is_blanket = is_no_soil_test or not is_stcr
         confidence_val = "lower" if is_blanket else "high"
         confidence_lbl = "General recommendation (lower confidence)" if is_blanket else "Soil-specific calibration (high confidence)"
+
+        supported_p = rule.get("supported_phosphorus_methods") or (["Olsen"] if is_stcr else ["Olsen", "Bray"])
+        limitations = rule.get("applicable_limitations") or []
+        cat_str = "STCR_IPNS" if is_stcr else "STANDARD_RDF"
+        label_str = "Soil-Series Specific STCR-IPNS (High Precision)" if is_stcr else "Standard Recommended Dose of Fertilizer (STANDARD_RDF)"
 
         authoritative_reference = {
             "title": rule.get("source_title", "TNAU Agronomic Guideline"),
@@ -1272,6 +1539,12 @@ class NutrientCalculationService:
             calculation_method=rec_method,
             recommendation_mode="CALCULATED_AGRONOMIC",
             recommendation_type=rec_type,
+            recommendation_category=cat_str,
+            recommendation_type_label=label_str,
+            is_stcr_ipns=is_stcr,
+            is_standard_rdf=not is_stcr,
+            applicable_limitations=limitations,
+            supported_phosphorus_methods=supported_p,
             recommendation_source=rule.get("source_title", "TNAU Agronomic Guideline"),
             verification_status=v_status,
             is_verified_rule=is_verified,

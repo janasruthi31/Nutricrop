@@ -66,7 +66,12 @@ class UploadScreen extends StatelessWidget {
                   children: [
                     Icon(Icons.shield_outlined, color: AppTheme.darkGreen, size: 20),
                     SizedBox(width: 8),
-                    Text('Farmer Privacy Consent (தனியுரிமை ஒப்புதல்)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.darkGreen)),
+                    Expanded(
+                      child: Text(
+                        'Farmer Privacy Consent (தனியுரிமை ஒப்புதல்)',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.darkGreen),
+                      ),
+                    ),
                   ],
                 ),
                 SizedBox(height: 6),
@@ -112,7 +117,7 @@ class UploadScreen extends StatelessWidget {
             foregroundColor: const Color(0xFF00796B),
             side: const BorderSide(color: Color(0xFF00796B)),
           ),
-          label: const Text('No Soil Test Card? (General Blanket Dose)'),
+          label: const Text('No Soil Test Card? (General Blanket Dose)', textAlign: TextAlign.center),
         ),
       ]),
     );

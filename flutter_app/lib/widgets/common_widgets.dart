@@ -170,6 +170,8 @@ class FertilizerProductCard extends StatelessWidget {
   final String? priceSource;
   final String? priceEffectiveDate;
   final String? description;
+  final String? whyRecommended;
+  final String? whyRecommendedTa;
 
   const FertilizerProductCard({
     super.key,
@@ -185,6 +187,8 @@ class FertilizerProductCard extends StatelessWidget {
     this.priceSource,
     this.priceEffectiveDate,
     this.description,
+    this.whyRecommended,
+    this.whyRecommendedTa,
   });
 
   @override
@@ -214,8 +218,12 @@ class FertilizerProductCard extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  '₹${totalCostInr.toStringAsFixed(0)}',
-                  style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: AppTheme.primaryGreen),
+                  totalCostInr > 0 ? '₹${totalCostInr.toStringAsFixed(0)}' : 'Price Unavailable',
+                  style: TextStyle(
+                    fontSize: totalCostInr > 0 ? 17 : 12,
+                    fontWeight: FontWeight.bold,
+                    color: totalCostInr > 0 ? AppTheme.primaryGreen : AppTheme.textMuted,
+                  ),
                 ),
               ],
             ),
@@ -228,8 +236,10 @@ class FertilizerProductCard extends StatelessWidget {
               ),
               child: Column(
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  Wrap(
+                    alignment: WrapAlignment.spaceBetween,
+                    spacing: 8,
+                    runSpacing: 4,
                     children: [
                       Text(
                         'Total for Farm: ${farmQty.toStringAsFixed(1)} kg',
@@ -245,8 +255,10 @@ class FertilizerProductCard extends StatelessWidget {
                   ),
                   if (quantityPerHaKg != null) ...[
                     const SizedBox(height: 4),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    Wrap(
+                      alignment: WrapAlignment.spaceBetween,
+                      spacing: 8,
+                      runSpacing: 4,
                       children: [
                         Text(
                           'Rate per Hectare: ${quantityPerHaKg!.toStringAsFixed(1)} kg/ha',
@@ -300,10 +312,45 @@ class FertilizerProductCard extends StatelessWidget {
                 ],
               ),
             ],
-            if (description != null && description!.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Text(description!, style: const TextStyle(fontSize: 12, color: AppTheme.textMuted)),
-            ]
+            if ((whyRecommended != null && whyRecommended!.isNotEmpty) || (description != null && description!.isNotEmpty)) ...[
+              const SizedBox(height: 10),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F8E9),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFFA5D6A7), width: 1),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(Icons.help_outline_rounded, size: 15, color: Color(0xFF2E7D32)),
+                        SizedBox(width: 6),
+                        Text(
+                          'Why this was recommended (ஏன் இந்த உரம்?):',
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF1B5E20)),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      whyRecommended ?? description!,
+                      style: const TextStyle(fontSize: 12, color: AppTheme.textDark, height: 1.35),
+                    ),
+                    if (whyRecommendedTa != null && whyRecommendedTa!.isNotEmpty && whyRecommendedTa != whyRecommended) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        whyRecommendedTa!,
+                        style: const TextStyle(fontSize: 11, color: Color(0xFF2E7D32), fontStyle: FontStyle.italic, height: 1.3),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
           ],
         ),
       ),

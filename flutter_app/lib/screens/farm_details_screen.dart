@@ -258,9 +258,11 @@ class _FarmDetailsScreenState extends State<FarmDetailsScreen> {
                         children: [
                           const Icon(Icons.my_location_rounded, color: AppTheme.primaryGreen),
                           const SizedBox(width: 10),
-                          const Text(
-                            'Farm Location (GPS Detection)',
-                            style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppTheme.textDark),
+                          const Expanded(
+                            child: Text(
+                              'Farm Location (GPS Detection)',
+                              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppTheme.textDark),
+                            ),
                           ),
                         ],
                       ),

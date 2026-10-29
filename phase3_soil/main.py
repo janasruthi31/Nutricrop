@@ -17,11 +17,13 @@ from fastapi import Header, HTTPException
 
 app = FastAPI(title="Sustainable Fertilizer Usage Optimizer Master API (Phases 1-8)")
 
-# Security: Enable CORS with standard compliant configuration
-# (allow_credentials must be False when allow_origins is wildcard)
+# Security: Enable CORS with configurable origins from environment
+allowed_origins_env = os.environ.get("ALLOWED_ORIGINS", "*")
+allowed_origins = [o.strip() for o in allowed_origins_env.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins if allowed_origins else ["*"],
     allow_credentials=False,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
@@ -36,7 +38,11 @@ app.include_router(fertilizer_opt_router)
 app.include_router(integration_router)
 app.include_router(extra_router)
 
-ADMIN_API_KEY = os.environ.get("ADMIN_API_KEY", "tnau_agri_admin_secret_key_2026")
+ADMIN_API_KEY = os.environ.get("ADMIN_API_KEY")
+if not ADMIN_API_KEY:
+    if os.environ.get("ENVIRONMENT", "").lower() == "production":
+        raise RuntimeError("FATAL: ADMIN_API_KEY environment variable must be set in production mode!")
+    ADMIN_API_KEY = "tnau_agri_admin_secret_key_2026"
 ENABLE_ADMIN_DIAGNOSTICS = os.environ.get("ENABLE_ADMIN_DIAGNOSTICS", "false").lower() in ("true", "1")
 ALLOWED_DIAGNOSTIC_TABLES = {
     "soil_profiles", "soil_profile_fields", "farmer_farms", 
@@ -75,6 +81,11 @@ def health():
 @app.get("/download-apk")
 def download_apk():
     apk_path = "flutter_app/build/app/outputs/flutter-apk/app-release.apk"
+    if not os.path.exists(apk_path):
+        raise HTTPException(
+            status_code=404,
+            detail="Release APK is not yet compiled. Run 'flutter build apk --release' in flutter_app/ to generate it."
+        )
     return FileResponse(apk_path, media_type="application/vnd.android.package-archive", filename="app-release.apk")
 
 

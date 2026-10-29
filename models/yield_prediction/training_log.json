@@ -163,7 +163,7 @@
           "max_depth": 5,
           "learning_rate": 0.1
         },
-        "cv_MAE_train_only": 1487.7167630325337
+        "cv_MAE_train_only": 1484.9232142397193
       },
       {
         "params": {
@@ -171,7 +171,7 @@
           "max_depth": 3,
           "learning_rate": 0.1
         },
-        "cv_MAE_train_only": 1963.3774517791096
+        "cv_MAE_train_only": 1960.501872370299
       },
       {
         "params": {
@@ -179,7 +179,7 @@
           "max_depth": 5,
           "learning_rate": 0.05
         },
-        "cv_MAE_train_only": 2116.1293177035436
+        "cv_MAE_train_only": 2114.633680206498
       },
       {
         "params": {
@@ -187,7 +187,7 @@
           "max_depth": 3,
           "learning_rate": 0.05
         },
-        "cv_MAE_train_only": 2879.4138415732386
+        "cv_MAE_train_only": 2878.6965644267084
       }
     ]
   }

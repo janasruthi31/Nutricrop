@@ -123,6 +123,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     const SizedBox(height: 14),
                     DropdownButtonFormField<String>(
+                      isExpanded: true,
                       value: tnDistricts.contains(_district) ? _district : 'Thanjavur',
                       decoration: InputDecoration(labelText: l10n.text('district'), prefixIcon: const Icon(Icons.location_on_outlined)),
                       items: tnDistricts.toSet().map((d) => DropdownMenuItem(value: d, child: Text(d))).toList(),

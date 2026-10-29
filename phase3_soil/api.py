@@ -28,17 +28,13 @@ def _guard(x_farmer_id: Optional[str], x_api_key: Optional[str], authorization: 
             if not payload or not payload.get("sub"):
                 raise SoilError("UNAUTHORIZED", "Invalid or expired authentication token. Please log in again.", 401)
             return service.check_farmer(payload["sub"])
-        elif token == "demo_token" or token.startswith("demo_") or token == "farmer_001":
-            return service.check_farmer("farmer_001")
-        elif os.environ.get("AGRI_ALLOW_TEST_BYPASS", "false").lower() in ("true", "1"):
+        elif os.environ.get("AGRI_ALLOW_TEST_BYPASS", "false").lower() in ("true", "1") and (token.startswith("test_") or token.startswith("farmer_") or token.startswith("demo_")):
             return service.check_farmer(token)
         else:
             raise SoilError("UNAUTHORIZED", "Invalid authentication token format. A valid signed JWT is required.", 401)
 
     if x_farmer_id:
-        if x_farmer_id == "farmer_001" or x_farmer_id.startswith("demo_") or x_farmer_id.startswith("farmer_"):
-            return service.check_farmer(x_farmer_id)
-        if os.environ.get("AGRI_ALLOW_TEST_BYPASS", "false").lower() in ("true", "1") and (x_farmer_id.startswith("test_farmer_") or x_farmer_id.startswith("farmer_")):
+        if os.environ.get("AGRI_ALLOW_TEST_BYPASS", "false").lower() in ("true", "1") and (x_farmer_id.startswith("test_farmer_") or x_farmer_id == "farmer_001" or x_farmer_id.startswith("demo_") or x_farmer_id.startswith("farmer_")):
             return service.check_farmer(x_farmer_id)
         raise SoilError("UNAUTHORIZED", "Authentication required. X-Farmer-Id header is not accepted as proof of authentication.", 401)
 
@@ -77,8 +73,10 @@ def ocr_report(
         farmer = _guard(x_farmer_id, x_api_key, authorization)
         return service.run_ocr(farmer, str(body.get("document_id", "")))
     except SoilError as e:
+        print(f"[OCR DEBUG] farmer={farmer}, doc_id={body.get('document_id')}, error: {e.code} - {e.message} (status {e.http_status}), details: {e.details}")
         return _err(e)
-    except Exception:
+    except Exception as ex:
+        print(f"[OCR DEBUG] unexpected error: {ex}")
         return _err(SoilError("SERVER_ERROR", "Something went wrong on the server. Please try again.", 500))
 
 

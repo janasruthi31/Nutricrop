@@ -18,6 +18,7 @@ service = NutrientCalculationService()
 def test_01_valid_stcr_calculation():
     req = NutrientCalculationRequest(
         crop="Rice",
+        soil_series="Palavidhi",
         selected_rule_id="TNAU_STCR_IPNS_RICE_001",
         target_yield=6.0,
         soil_nitrogen=220.0,
@@ -43,9 +44,8 @@ def test_01_valid_stcr_calculation():
 # 2. Valid soil-test-based calculation with continuous rating interpolation
 def test_02_valid_soil_test_based_calculation():
     # Blackgram Rainfed: Blanket RDF = 20 N : 40 P2O5 : 20 K2O
-    # Soil N = 200 (Low continuous interpolation: 1.30 - (200/280)*0.25 = 1.121 -> 22.42 kg N)
-    # Soil P = 18 (Medium continuous interpolation: 1.05 - (7/11)*0.10 = 0.986 -> 39.44 kg P2O5)
-    # Soil K = 200 (Medium continuous interpolation: 1.05 - (82/162)*0.10 = 0.999 -> 19.98 kg K2O)
+    # Soil ratings (Low N, Med P, Med K) provide diagnostic classification only;
+    # Unsupported blanket multipliers (+25%, 0%, -25%) are removed from production path.
     req = NutrientCalculationRequest(
         crop="Blackgram",
         selected_rule_id="TNAU_STD_BLACKGRAM_RF_001",
@@ -58,9 +58,9 @@ def test_02_valid_soil_test_based_calculation():
     assert res.status == "CALCULATION_SUCCESS"
     assert res.selected_rule_id == "TNAU_STD_BLACKGRAM_RF_001"
     assert res.selected_method == "TNAU-SOIL-TEST"
-    assert res.n_req_kg_per_ha == 22.42
-    assert res.p2o5_req_kg_per_ha == 39.44
-    assert res.k2o_req_kg_per_ha == 19.98
+    assert res.n_req_kg_per_ha == 20.0
+    assert res.p2o5_req_kg_per_ha == 40.0
+    assert res.k2o_req_kg_per_ha == 20.0
 
 
 # 3. Missing target yield
@@ -176,11 +176,13 @@ def test_10_acre_to_hectare_conversion():
 
     req = NutrientCalculationRequest(
         crop="Rice",
+        soil_series="Palavidhi",
         selected_rule_id="TNAU_STCR_IPNS_RICE_001",
         target_yield=6.0,
         soil_nitrogen=220.0,
         soil_phosphorus=16.0,
         soil_potassium=190.0,
+        soil_phosphorus_method="Olsen",
         farm_area=5.0,
         farm_area_unit="acre",
         fym_applied_t_per_ha=12.5
@@ -201,20 +203,21 @@ def test_11_per_hectare_vs_total_farm():
         soil_nitrogen=200.0,
         soil_phosphorus=18.0,
         soil_potassium=200.0,
+        soil_phosphorus_method="Olsen",
         farm_area=2.5,
         farm_area_unit="hectare"
     )
     res = service.calculate(req)
     assert res.status == "CALCULATION_SUCCESS"
-    # Primary per-ha outputs preserved
-    assert res.n_req_kg_per_ha == 22.42
-    assert res.p2o5_req_kg_per_ha == 39.44
-    assert res.k2o_req_kg_per_ha == 19.98
+    # Primary per-ha outputs preserved (fixed 20:40:20 kg/ha without unsupported multipliers)
+    assert res.n_req_kg_per_ha == 20.0
+    assert res.p2o5_req_kg_per_ha == 40.0
+    assert res.k2o_req_kg_per_ha == 20.0
 
     # Total farm outputs = per_ha * 2.5 (no double multiplication)
-    assert res.total_n_req_kg == 56.05
-    assert res.total_p2o5_req_kg == 98.6
-    assert res.total_k2o_req_kg == 49.95
+    assert res.total_n_req_kg == 50.0
+    assert res.total_p2o5_req_kg == 100.0
+    assert res.total_k2o_req_kg == 50.0
 
 
 # 12. Invalid numeric values
@@ -250,11 +253,13 @@ def test_13_target_yield_outside_documented_range():
 def test_14_api_validation_endpoint():
     payload = {
         "crop": "Cotton (lint)",
+        "soil_series": "Irugur",
         "selected_rule_id": "TNAU_STCR_IPNS_COTTON_001",
         "target_yield": 2.5,
         "soil_nitrogen": 200.0,
         "soil_phosphorus": 14.0,
         "soil_potassium": 180.0,
+        "soil_phosphorus_method": "Olsen",
         "farm_area": 100.0,
         "farm_area_unit": "cent"  # 100 cents = 1 acre = 0.404686 ha
     }
@@ -277,6 +282,7 @@ def test_15_target_yield_unit_conversions():
     # 60.0 q/ha = 6.0 t/ha
     req = NutrientCalculationRequest(
         crop="Rice",
+        soil_series="Palavidhi",
         selected_rule_id="TNAU_STCR_IPNS_RICE_001",
         target_yield=60.0,
         target_yield_unit="q/ha",
@@ -298,6 +304,7 @@ def test_16_elemental_and_oxide_nutrient_units():
     # If soil P is supplied as 36.66 kg P2O5/ha, elemental P = 36.66 * 0.43642 = 16.0 kg P/ha
     req = NutrientCalculationRequest(
         crop="Rice",
+        soil_series="Palavidhi",
         selected_rule_id="TNAU_STCR_IPNS_RICE_001",
         target_yield=6.0,
         soil_nitrogen=220.0,
@@ -318,11 +325,13 @@ def test_17_farm_area_acre_and_sqm_conversions():
     # 2.5 acres = 2.5 * 0.404686 = 1.0117 ha
     req = NutrientCalculationRequest(
         crop="Rice",
+        soil_series="Palavidhi",
         selected_rule_id="TNAU_STCR_IPNS_RICE_001",
         target_yield=6.0,
         soil_nitrogen=220.0,
         soil_phosphorus=16.0,
         soil_potassium=190.0,
+        soil_phosphorus_method="Olsen",
         farm_area=2.5,
         farm_area_unit="acre",
         fym_applied_t_per_ha=12.5
@@ -339,6 +348,7 @@ def test_18_zero_fym_default_no_unearned_credit():
     # N = 22.4 * 6.0 - 0.44 * 220 - 0.0 = 134.4 - 96.8 = 37.6 kg/ha (NOT 17.6)
     req = NutrientCalculationRequest(
         crop="Rice",
+        soil_series="Palavidhi",
         selected_rule_id="TNAU_STCR_IPNS_RICE_001",
         target_yield=6.0,
         soil_nitrogen=220.0,
@@ -389,6 +399,7 @@ def test_19_different_soil_values_give_different_doses():
 def test_20_recommended_range_returned():
     req = NutrientCalculationRequest(
         crop="Rice",
+        soil_series="Palavidhi",
         selected_rule_id="TNAU_STCR_IPNS_RICE_001",
         target_yield=6.0,
         soil_nitrogen=220.0,
@@ -417,6 +428,7 @@ def test_21_micronutrient_advisory_deficient_and_sufficient():
         soil_nitrogen=200.0,
         soil_phosphorus=15.0,
         soil_potassium=200.0,
+        soil_phosphorus_method="Olsen",
         zinc=0.8,
         sulphur=6.5,
         boron=0.9
@@ -448,7 +460,8 @@ def test_22_blanket_comparison_and_spatial_sampling_note():
         selected_rule_id="TNAU_BLANKET_GROUNDNUT_001",
         soil_nitrogen=150.0,
         soil_phosphorus=8.0,
-        soil_potassium=80.0
+        soil_potassium=80.0,
+        soil_phosphorus_method="Olsen"
     )
     res = service.calculate(req)
     assert res.status == "CALCULATION_SUCCESS"
@@ -488,6 +501,7 @@ def test_24_test_date_age_warning():
         "target_yield": 5.0,
         "soil_nitrogen": 210.0,
         "soil_phosphorus": 16.0,
+        "soil_phosphorus_method": "Olsen",
         "soil_potassium": 200.0,
         "test_date": "2023-01-15",  # Over 1 year ago
         "farm_area": 1.0,

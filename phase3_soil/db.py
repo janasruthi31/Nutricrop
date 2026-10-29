@@ -250,6 +250,27 @@ def init_db(path=None):
             except Exception:
                 pass
 
+        # Migrations for farmer_fertilizer_history: ensure backward-compatible support for all prompt attributes
+        cursor_fh = con.execute("PRAGMA table_info(farmer_fertilizer_history)")
+        fh_cols = {row["name"] for row in (cursor_fh.fetchall() or [])}
+        for col_name, col_type in [
+            ("farm_id", "TEXT"),
+            ("fertilizer_grade", "TEXT"),
+            ("category", "TEXT"),
+            ("bag_weight_kg", "REAL"),
+            ("field_area", "REAL"),
+            ("field_area_unit", "TEXT"),
+            ("application_method", "TEXT"),
+            ("n_pct", "REAL"),
+            ("p2o5_pct", "REAL"),
+            ("k2o_pct", "REAL"),
+        ]:
+            if col_name not in fh_cols:
+                try:
+                    con.execute(f"ALTER TABLE farmer_fertilizer_history ADD COLUMN {col_name} {col_type}")
+                except Exception:
+                    pass
+
         # Seed fertilizer_prices from catalog if table is empty
         row = con.execute("SELECT COUNT(*) as cnt FROM fertilizer_prices").fetchone()
         if row and row["cnt"] == 0:

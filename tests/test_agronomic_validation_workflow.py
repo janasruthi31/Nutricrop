@@ -53,10 +53,10 @@ def test_01_verified_applicable_rule_rice():
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "SUCCESS"
-    assert data["is_verified"] is False
-    assert data["is_provisional"] is True
+    assert data["is_verified"] is True
+    assert data["is_provisional"] is False
     assert data["rule_selection"]["selected_rule_id"] == "TNAU_STCR_IPNS_RICE_001"
-    assert data["recommendation_type"] in ("SOIL_SPECIFIC_STCR", "PROVISIONAL")
+    assert data["recommendation_type"] in ("STCR_IPNS", "SOIL_SPECIFIC_STCR", "VERIFIED")
     assert len(data["fertilizer_plan"]["recommended_products"]) > 0
     assert data["fertilizer_plan"]["total_cost_inr"] > 0.0
 
@@ -81,10 +81,10 @@ def test_02_verified_general_blanket_recommendation_groundnut():
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "SUCCESS"
-    assert data["is_verified"] is False
-    assert data["is_provisional"] is True
+    assert data["is_verified"] is True
+    assert data["is_provisional"] is False
     assert data["rule_selection"]["selected_rule_id"] == "TNAU_BLANKET_GROUNDNUT_001"
-    assert data["recommendation_type"] in ("GENERAL_BLANKET", "PROVISIONAL")
+    assert data["recommendation_type"] in ("STANDARD_RDF", "GENERAL_BLANKET", "VERIFIED")
     assert "TNAU Crop Production Guide" in data["rule_selection"]["source_title"]
     assert len(data["fertilizer_plan"]["recommended_products"]) > 0
     assert data["fertilizer_plan"]["total_cost_inr"] > 0.0
@@ -201,6 +201,7 @@ def test_07_incorrect_or_unknown_units_handling():
         soil_nitrogen=250.0,
         soil_nitrogen_unit="bushels/acre", # Invalid unit
         soil_phosphorus=15.0,
+        soil_phosphorus_method="Olsen",
         soil_potassium=150.0,
         target_yield=6.0
     )

@@ -293,6 +293,7 @@ def test_h_rule_validation():
         selected_rule_id="TNAU_STD_GROUNDNUT_001",
         soil_nitrogen=39.0,
         soil_phosphorus=4.0,
+        soil_phosphorus_method="Olsen",
         soil_potassium=259.0,
         recommendation_mode="CALCULATED_AGRONOMIC",
         allow_unverified=True,

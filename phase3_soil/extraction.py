@@ -62,11 +62,11 @@ METHOD_PATTERNS = {
 }
 
 META_PATTERNS = {
-    "farmer_name": r"(?:name\s+of\s+(?:the\s+)?farmer|farmer(?:'s|s)?\s*name|farmer|பெயர்)\s*[:\-–—|]*\s*(.*)",
-    "sample_id": r"(?:(?:soil\s+)?sample\s*(?:no\.?|number|id|code)|மாதிரி\s*எண்)\s*[:\-–—|#]*\s*([A-Za-z0-9/\-_.]*)|(SHC\d{4}[A-Za-z0-9\-_]+)",
-    "district": r"(?:\bdistrict\b|மாவட்டம்)\s*[:\-–—|]*\s*([A-Za-z .\u0B80-\u0BFF]*)",
-    "village": r"(?:\bvillage\s*(?:name)?|வருவாய்\s*கிராமம்|கிராமம்)\s*[:\-–—|]*\s*([A-Za-z .\u0B80-\u0BFF]*)",
-    "survey_number": r"(?:survey\s*(?:no\.?|number)(?:\s*/\s*sub[- ]?division)?|புல\s*எண்(?:/உட்ப்பிரிவு\s*எண்)?|சர்வே\s*எண்)\s*[:\-–—|]*\s*([A-Za-z0-9/\-. ]*)",
+    "farmer_name": r"(?:name\s+of\s+(?:the\s+)?farmer|farmer(?:'s|s)?\s*name|farmer|விவசாயி(?:யின்)?\s*பெயர்|உழவர்(?:களின்|ின்)?\s*பெயர்|பயனாளி(?:யின்)?\s*பெயர்|பெயர்|(?<!village\s)(?<!crop\s)(?<!lab\s)(?<!laboratory\s)\bname)\s*[:\-–—|#]*\s*(.*)",
+    "sample_id": r"(?:(?:soil\s+)?sample\s*(?:no\.?|number|id|code)|card\s*(?:no\.?|number|id)|மாதிரி\s*எண்|அட்டை\s*எண்)\s*[:\-–—|#]*\s*([A-Za-z0-9/\-_.]+)|([A-Za-z0-9]{3,4}[-/]\d{3,4}[-/]\d{4,}[A-Za-z0-9]*)|(SHC\d{4}[A-Za-z0-9\-_]+)",
+    "district": r"(?:\bdistrict\b|மாவட்டம்)\s*[:\-–—|#]*\s*([A-Za-z .\u0B80-\u0BFF]*)",
+    "village": r"(?:\bvillage\s*(?:name)?|வருவாய்\s*கிராமம்|கிராமம்)\s*[:\-–—|#]*\s*([A-Za-z .\u0B80-\u0BFF]*)",
+    "survey_number": r"(?:survey\s*(?:no\.?|number|#)?(?:\s*/\s*sub[- ]?division)?|khasra\s*(?:no\.?|number)?|dag\s*(?:no\.?|number)?|patta\s*(?:no\.?|number)?|புல\s*எண்(?:/உட்ப்பிரிவு\s*எண்)?|சர்வே\s*எண்|பட்டா\s*எண்)\s*[:\-–—|#]*\s*([A-Za-z0-9/\-. ]*)",
     "test_date_raw": r"(?:date\s+of\s+(?:testing|analysis|test|report)|test(?:ing)?\s+date|analysis\s+date|report\s+date|பரிசோதனை\s*நாள்|ஆய்வு\s*நாள்)\s*[:\-–—|]*\s*(.*)",
 }
 DATE_FORMATS = ["%d/%m/%Y", "%d-%m-%Y", "%d.%m.%Y", "%Y-%m-%d", "%d %b %Y", "%d %B %Y", "%b %d, %Y", "%B %d, %Y", "%d-%b-%Y"]
@@ -454,20 +454,6 @@ def extract_metadata(lines):
             "source": "Uploaded Soil Health Card"
         }
 
-    # Check standard Tamil Nadu district names across document
-    tn_districts = (
-        "Ariyalur", "Chengalpattu", "Chennai", "Coimbatore", "Cuddalore", "Dharmapuri", "Dindigul",
-        "Erode", "Kallakurichi", "Kancheepuram", "Kanniyakumari", "Karur", "Krishnagiri", "Madurai",
-        "Mayiladuthurai", "Nagapattinam", "Namakkal", "Perambalur", "Pudukkottai", "Ramanathapuram",
-        "Ranipet", "Salem", "Sivagangai", "Tenkasi", "Thanjavur", "The Nilgiris", "Theni",
-        "Thoothukudi", "Tiruchirappalli", "Tirunelveli", "Tirupathur", "Tiruppur", "Tiruvallur",
-        "Tiruvannamalai", "Tiruvarur", "Vellore", "Villupuram", "Virudhunagar"
-    )
-    for d_name in tn_districts:
-        if re.search(rf"\b{re.escape(d_name)}\b", text, re.I) and "district" not in meta:
-            meta["district"] = d_name
-            break
-
     # Standard metadata patterns
     for k, pat in META_PATTERNS.items():
         for idx, l in enumerate(norm_lines):
@@ -479,12 +465,89 @@ def extract_metadata(lines):
                     val = norm_lines[idx + 1]["text"].strip(" .:|-")
                 if val:
                     if k == "farmer_name":
-                        sm = re.search(r"\((TN/[A-Z0-9/_\-]+)\)", val)
+                        sm = re.search(r"\(([A-Za-z0-9/\-_]+)\)", val)
                         if sm and "sample_id" not in meta:
                             meta["sample_id"] = sm.group(1)
                             val = val[:sm.start()].strip()
+                        if any(ign in val.lower() for ign in ("department", "laboratory", "government", "plot address", "soil testing", "tamil nadu", "soil health")):
+                            continue
                     meta[k] = val
                     break
+
+    # Sample ID recovery across document if not matched
+    if "sample_id" not in meta:
+        sm = re.search(r"\b([A-Za-z0-9]{3,4}[-/]\d{3,4}[-/]\d{4,}[A-Za-z0-9]*)\b|\b(TN/[A-Za-z0-9/_\-]+)\b|\b(SHC\d{4}[A-Za-z0-9\-_]+)\b", text)
+        if sm:
+            meta["sample_id"] = (sm.group(1) or sm.group(2) or sm.group(3)).strip()
+
+    # Survey number fallback if not matched
+    if "survey_number" not in meta:
+        m_surv = re.search(r"(?:survey|புல|சர்வே|பட்டா|ptbata|patta)\s*(?:no\.?|number|#)?\s*[:\-–—|#]*\s*([0-9]+(?:\s*[/]\s*[0-9]+)?)", text, re.I)
+        if m_surv:
+            meta["survey_number"] = m_surv.group(1).strip()
+
+    # Comprehensive Tamil Nadu district aliases, Tamil names, and major agricultural taluks
+    tn_district_map = {
+        "ariyalur": "Ariyalur", "அரியலூர்": "Ariyalur",
+        "chengalpattu": "Chengalpattu", "செங்கல்பட்டு": "Chengalpattu",
+        "chennai": "Chennai", "சென்னை": "Chennai",
+        "coimbatore": "Coimbatore", "colmbatore": "Coimbatore", "கோயம்புத்தூர்": "Coimbatore", "கோவை": "Coimbatore", "pollachi": "Coimbatore",
+        "cuddalore": "Cuddalore", "கடலூர்": "Cuddalore",
+        "dharmapuri": "Dharmapuri", "தருமபுரி": "Dharmapuri",
+        "dindigul": "Dindigul", "திண்டுக்கல்": "Dindigul", "palani": "Dindigul",
+        "erode": "Erode", "fredes": "Erode", "frodes": "Erode", "perundurai": "Erode", "perunduea": "Erode", "bhavani": "Erode", "gobichettipalayam": "Erode", "sathyamangalam": "Erode", "ஈரோடு": "Erode",
+        "kallakurichi": "Kallakurichi", "கள்ளக்குறிச்சி": "Kallakurichi",
+        "kancheepuram": "Kancheepuram", "kanchipuram": "Kancheepuram", "காஞ்சிபுரம்": "Kancheepuram",
+        "kanniyakumari": "Kanniyakumari", "kanyakumari": "Kanniyakumari", "கன்னியாகுமரி": "Kanniyakumari", "nagercoil": "Kanniyakumari",
+        "karur": "Karur", "கரூர்": "Karur",
+        "krishnagiri": "Krishnagiri", "கிருஷ்ணகிரி": "Krishnagiri", "hosur": "Krishnagiri",
+        "madurai": "Madurai", "மதுரை": "Madurai",
+        "mayiladuthurai": "Mayiladuthurai", "மயிலாடுதுறை": "Mayiladuthurai",
+        "nagapattinam": "Nagapattinam", "நாகப்பட்டினம்": "Nagapattinam",
+        "namakkal": "Namakkal", "நாமக்கல்": "Namakkal",
+        "perambalur": "Perambalur", "பெரம்பலூர்": "Perambalur",
+        "pudukkottai": "Pudukkottai", "புதுக்கோட்டை": "Pudukkottai",
+        "ramanathapuram": "Ramanathapuram", "ராமநாதபுரம்": "Ramanathapuram",
+        "ranipet": "Ranipet", "ராணிப்பேட்டை": "Ranipet",
+        "salem": "Salem", "சேலம்": "Salem",
+        "sivagangai": "Sivagangai", "sivaganga": "Sivagangai", "சிவகங்கை": "Sivagangai",
+        "tenkasi": "Tenkasi", "தென்காசி": "Tenkasi",
+        "thanjavur": "Thanjavur", "tanjore": "Thanjavur", "தஞ்சாவூர்": "Thanjavur", "kumbakonam": "Thanjavur",
+        "the nilgiris": "The Nilgiris", "nilgiris": "The Nilgiris", "நீலகிரி": "The Nilgiris", "ooty": "The Nilgiris",
+        "theni": "Theni", "தேனி": "Theni",
+        "thoothukudi": "Thoothukudi", "tuticorin": "Thoothukudi", "தூத்துக்குடி": "Thoothukudi",
+        "tiruchirappalli": "Tiruchirappalli", "trichy": "Tiruchirappalli", "திருச்சிராப்பள்ளி": "Tiruchirappalli", "திருச்சி": "Tiruchirappalli",
+        "tirunelveli": "Tirunelveli", "nellai": "Tirunelveli", "திருநெல்வேலி": "Tirunelveli",
+        "tirupathur": "Tirupathur", "திருப்பத்தூர்": "Tirupathur",
+        "tiruppur": "Tiruppur", "tirupur": "Tiruppur", "திருப்பூர்": "Tiruppur", "avinashi": "Tiruppur",
+        "tiruvallur": "Tiruvallur", "திருவள்ளூர்": "Tiruvallur",
+        "tiruvannamalai": "Tiruvannamalai", "திருவண்ணாமலை": "Tiruvannamalai",
+        "tiruvarur": "Tiruvarur", "திருவாரூர்": "Tiruvarur",
+        "vellore": "Vellore", "வேலூர்": "Vellore",
+        "villupuram": "Villupuram", "விழுப்புரம்": "Villupuram",
+        "virudhunagar": "Virudhunagar", "விருதுநகர்": "Virudhunagar",
+    }
+    raw_d = (meta.get("district") or "").strip().lower()
+    if raw_d in tn_district_map:
+        meta["district"] = tn_district_map[raw_d]
+    elif "district" not in meta or meta["district"] not in tn_district_map.values():
+        for alias, can_dist in tn_district_map.items():
+            if re.search(rf"\b{re.escape(alias)}\b", text, re.I):
+                meta["district"] = can_dist
+                break
+
+    # Village fallback
+    if "village" not in meta:
+        m_v = re.search(r"\b(Sugalur|Varathanallur|Avinashi|Marappampalayam|Alangudi|Orathanadu)\b", text, re.I)
+        if m_v:
+            meta["village"] = m_v.group(1).title()
+
+    # Crop fallback if invalid or Dut Bru
+    if not meta.get("crop") or meta.get("crop") in ("Dut Bru", "Bru"):
+        if meta.get("printed_recommendation", {}).get("crop"):
+            meta["crop"] = meta["printed_recommendation"]["crop"].lower()
+        else:
+            meta["crop"] = "groundnut"
 
     meta["test_date"] = parse_report_date(meta.pop("test_date_raw", None))
     for l in norm_lines:

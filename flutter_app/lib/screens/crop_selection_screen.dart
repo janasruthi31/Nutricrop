@@ -448,19 +448,24 @@ class _CropSelectionScreenState extends State<CropSelectionScreen> {
                         ),
                       ),
                       const SizedBox(height: 14),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Expanded(
-                            child: Text(
-                              l10n.text('previous_fertilizer'),
-                              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-                            ),
+                          Text(
+                            l10n.text('previous_fertilizer'),
+                            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: AppTheme.textDark),
                           ),
-                          TextButton.icon(
+                          const SizedBox(height: 8),
+                          OutlinedButton.icon(
                             onPressed: _showAddFertilizerDialog,
                             icon: const Icon(Icons.add_circle_outline, size: 18),
                             label: Text(l10n.text('add_fertilizer_record')),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppTheme.primaryGreen,
+                              minimumSize: const Size.fromHeight(44),
+                              side: BorderSide(color: AppTheme.primaryGreen.withOpacity(0.5)),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
                           ),
                         ],
                       ),

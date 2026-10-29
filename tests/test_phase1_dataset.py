@@ -17,7 +17,7 @@ def test_01_tnau_stcr_rules_file_exists_and_valid():
         assert "rule_id" in r
         assert "crop" in r
         assert "verification_status" in r
-        assert r["verification_status"] in ("VERIFIED", "PROVISIONAL", "PENDING_VERIFICATION", "PENDING_AGRONOMIC_VALIDATION", "SOURCE_NOT_VERIFIED", "UNSUPPORTED")
+        assert r["verification_status"] in ("VERIFIED", "PROVISIONAL", "PENDING_VERIFICATION", "PENDING_AGRONOMIC_VALIDATION", "SOURCE_NOT_VERIFIED", "UNSUPPORTED", "DEPRECATED")
 
 
 def test_02_source_registry_csv_valid():

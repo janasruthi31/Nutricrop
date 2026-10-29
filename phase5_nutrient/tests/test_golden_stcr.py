@@ -26,11 +26,9 @@ class TestGoldenSTCRReferenceCases:
         """
         Cited Source: TNAU Crop Production Guide (Agriculture) 2020, Pulses chapter p. 64 /
         TNAU Rainfed Pulses Production Guide.
-        Blanket: 20 N : 40 P2O5 : 20 K2O kg/ha.
-        Soil Test:
-          N = 190 kg/ha (< 280 -> Low -> 1.25x = 25.0 kg N)
-          P = 15 kg/ha (11-22 -> Medium -> 1.00x = 40.0 kg P2O5)
-          K = 320 kg/ha (> 280 -> High -> 0.75x = 15.0 kg K2O)
+        Blanket RDF: 20 N : 40 P2O5 : 20 K2O kg/ha (plus 20 kg S as gypsum).
+        Soil ratings classify soil test values (Low < 280 N, Med 11-22 P, High > 280 K)
+        without applying unsupported universal multipliers (+/- 25%).
         """
         req = NutrientCalculationRequest(
             crop="Blackgram",
@@ -47,9 +45,9 @@ class TestGoldenSTCRReferenceCases:
         )
         res = service.calculate(req)
         assert res.status == "CALCULATION_SUCCESS"
-        assert res.n_req_kg_per_ha == 22.6
-        assert res.p2o5_req_kg_per_ha == 40.56
-        assert res.k2o_req_kg_per_ha == 18.28
+        assert res.n_req_kg_per_ha == 20.0
+        assert res.p2o5_req_kg_per_ha == 40.0
+        assert res.k2o_req_kg_per_ha == 20.0
         assert res.source_title == "TNAU Blackgram Rainfed"
         assert res.source_url is not None
         assert res.source_page_or_section is not None
@@ -58,8 +56,8 @@ class TestGoldenSTCRReferenceCases:
         """
         Cited Source: TNAU Crop Production Guide 2020 p. 64 (Pulses biological N fixation).
         Succeeding cereal crop receives 20.0 kg N/ha credit from previous Blackgram crop.
-        Baseline: Blackgram with no previous crop -> 22.6 kg N/ha.
-        With previous crop Blackgram -> Net N = 22.6 - 20.0 = 2.6 kg N/ha.
+        Baseline: Blackgram with no previous crop -> 20.0 kg N/ha.
+        With previous crop Blackgram -> Net N = max(0.0, 20.0 - 20.0) = 0.0 kg N/ha.
         """
         req_with_legume = NutrientCalculationRequest(
             crop="Blackgram",
@@ -67,6 +65,7 @@ class TestGoldenSTCRReferenceCases:
             soil_nitrogen=190.0,
             soil_phosphorus=15.0,
             soil_potassium=320.0,
+            soil_phosphorus_method="Olsen",
             previous_crop="Blackgram",
             farm_area=1.0,
             farm_area_unit="hectare"
@@ -75,9 +74,9 @@ class TestGoldenSTCRReferenceCases:
         assert res.status == "CALCULATION_SUCCESS"
         assert res.previous_crop == "Blackgram"
         assert res.previous_crop_credit_kg_per_ha["n"] == 20.0
-        assert res.n_req_kg_per_ha == 2.6
+        assert res.n_req_kg_per_ha == 0.0
         assert res.nutrient_breakdown["nitrogen"]["previous_crop_credit_kg_per_ha"] == 20.0
-        assert res.nutrient_breakdown["nitrogen"]["final_net_dose_kg_per_ha"] == 2.6
+        assert res.nutrient_breakdown["nitrogen"]["final_net_dose_kg_per_ha"] == 0.0
 
     def test_golden_03_previous_fertilizer_residual_p2o5_carryover(self):
         """
@@ -85,7 +84,7 @@ class TestGoldenSTCRReferenceCases:
         DAP (18-46-0) applied 2 months ago:
         1 bag (50 kg) on 1 ha contains 23.0 kg P2O5.
         Residual factor is 15% -> 23.0 * 0.15 = 3.45 kg P2O5/ha.
-        Baseline P2O5 = 40.56 kg/ha -> Net P2O5 = 40.56 - 3.45 = 37.11 kg/ha.
+        Baseline P2O5 = 40.0 kg/ha -> Net P2O5 = 40.0 - 3.45 = 36.55 kg/ha.
         Synthetic N has 0% residual (tropical leaching/volatilization).
         """
         req = NutrientCalculationRequest(
@@ -94,6 +93,7 @@ class TestGoldenSTCRReferenceCases:
             soil_nitrogen=190.0,
             soil_phosphorus=15.0,
             soil_potassium=320.0,
+            soil_phosphorus_method="Olsen",
             previous_fertilizers=[
                 PreviousFertilizerItem(
                     product="DAP",
@@ -109,7 +109,7 @@ class TestGoldenSTCRReferenceCases:
         assert res.status == "CALCULATION_SUCCESS"
         assert pytest.approx(res.previous_fertilizer_residual_kg_per_ha["p2o5"], abs=0.05) == 3.45
         assert res.previous_fertilizer_residual_kg_per_ha["n"] == 0.0
-        assert pytest.approx(res.p2o5_req_kg_per_ha, abs=0.05) == 37.11
+        assert pytest.approx(res.p2o5_req_kg_per_ha, abs=0.05) == 36.55
 
     def test_golden_04_no_previous_history_means_zero_deduction(self):
         """
@@ -121,6 +121,7 @@ class TestGoldenSTCRReferenceCases:
             soil_nitrogen=190.0,
             soil_phosphorus=15.0,
             soil_potassium=320.0,
+            soil_phosphorus_method="Olsen",
             previous_crop=None,
             previous_fertilizers=[],
             farm_area=1.0,
@@ -129,9 +130,9 @@ class TestGoldenSTCRReferenceCases:
         res = service.calculate(req)
         assert res.previous_crop_credit_kg_per_ha == {"n": 0.0, "p2o5": 0.0, "k2o": 0.0}
         assert res.previous_fertilizer_residual_kg_per_ha == {"n": 0.0, "p2o5": 0.0, "k2o": 0.0}
-        assert res.n_req_kg_per_ha == 22.6
-        assert res.p2o5_req_kg_per_ha == 40.56
-        assert res.k2o_req_kg_per_ha == 18.28
+        assert res.n_req_kg_per_ha == 20.0
+        assert res.p2o5_req_kg_per_ha == 40.0
+        assert res.k2o_req_kg_per_ha == 20.0
 
     def test_golden_05_high_soil_test_clamping_at_zero(self):
         """
@@ -139,11 +140,13 @@ class TestGoldenSTCRReferenceCases:
         """
         req = NutrientCalculationRequest(
             crop="Rice",
+            soil_series="Palavidhi",
             selected_rule_id="TNAU_STCR_IPNS_RICE_001",
             target_yield=4.0,
             soil_nitrogen=250.0,
             soil_phosphorus=15.0,
             soil_potassium=600.0,  # Very high soil K
+            soil_phosphorus_method="Olsen",
             farm_area=1.0,
             farm_area_unit="hectare"
         )
@@ -157,24 +160,28 @@ class TestGoldenSTCRReferenceCases:
         """
         req_t = NutrientCalculationRequest(
             crop="Rice",
+            soil_series="Palavidhi",
             selected_rule_id="TNAU_STCR_IPNS_RICE_001",
             target_yield=6.0,
             target_yield_unit="t/ha",
             soil_nitrogen=220.0,
             soil_phosphorus=16.0,
             soil_potassium=190.0,
+            soil_phosphorus_method="Olsen",
             fym_applied_t_per_ha=12.5
         )
         res_t = service.calculate(req_t)
 
         req_q = NutrientCalculationRequest(
             crop="Rice",
+            soil_series="Palavidhi",
             selected_rule_id="TNAU_STCR_IPNS_RICE_001",
             target_yield=60.0,
             target_yield_unit="q/ha",
             soil_nitrogen=220.0,
             soil_phosphorus=16.0,
             soil_potassium=190.0,
+            soil_phosphorus_method="Olsen",
             fym_applied_t_per_ha=12.5
         )
         res_q = service.calculate(req_q)
@@ -194,6 +201,7 @@ class TestGoldenSTCRReferenceCases:
             soil_nitrogen=190.0,
             soil_phosphorus=15.0,
             soil_potassium=320.0,
+            soil_phosphorus_method="Olsen",
             # Card prints N=50 kg/ha, but calculated need is 25 kg/ha (differs by 50%!)
             printed_n_rate=50.0,
             printed_rate_unit="kg/ha",
@@ -238,6 +246,7 @@ class TestGoldenSTCRReferenceCases:
             soil_nitrogen=190.0,
             soil_phosphorus=15.0,
             soil_potassium=320.0,
+            soil_phosphorus_method="Olsen",
             previous_crop="Blackgram",
             previous_fertilizers=[
                 PreviousFertilizerItem(product="DAP", quantity=50.0, unit="kg", months_ago=1.0)
@@ -251,7 +260,7 @@ class TestGoldenSTCRReferenceCases:
         assert "nitrogen" in b
         assert "phosphorus" in b
         assert "potassium" in b
-        assert b["nitrogen"]["crop_requirement_kg_per_ha"] == 22.6
+        assert b["nitrogen"]["crop_requirement_kg_per_ha"] == 20.0
         assert b["nitrogen"]["previous_crop_credit_kg_per_ha"] == 20.0
-        assert b["nitrogen"]["final_net_dose_kg_per_ha"] == 2.6
+        assert b["nitrogen"]["final_net_dose_kg_per_ha"] == 0.0
         assert b["nitrogen"]["total_farm_dose_kg"] is not None

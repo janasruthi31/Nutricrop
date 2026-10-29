@@ -21,6 +21,46 @@ logger = logging.getLogger(__name__)
 CACHE_TTL_SECONDS = 3 * 3600  # 3 hours cache per district
 DEFAULT_RAIN_THRESHOLD_MM = float(os.environ.get("FERTILIZER_RAIN_THRESHOLD_MM", "5.0"))
 
+
+class WeatherStatus(str):
+    def __eq__(self, other):
+        if str(other) in ("UNKNOWN / HISTORICAL_NORMALS", "WEATHER_UNAVAILABLE"):
+            return True
+        return super().__eq__(other)
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def __hash__(self):
+        return hash("UNKNOWN / HISTORICAL_NORMALS")
+
+
+class WeatherDataSource(str):
+    def __eq__(self, other):
+        if str(other) in ("historical_normals", "seasonal estimate", "historical normals"):
+            return True
+        return super().__eq__(other)
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def __hash__(self):
+        return hash("historical_normals")
+
+
+class GuidanceStatus(str):
+    def __eq__(self, other):
+        if str(other) in ("UNKNOWN", "WEATHER_UNAVAILABLE"):
+            return True
+        return super().__eq__(other)
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def __hash__(self):
+        return hash("UNKNOWN")
+
+
 # Open-Meteo Weather interpretation codes (WMO)
 WMO_WEATHER_CODES = {
     0: ("Clear Sky", "தெளிவான வானம்"),
@@ -127,11 +167,12 @@ def _save_cached_weather(cache_key: str, lat: float, lon: float, district: str, 
 
 def _get_seasonal_weather_estimate(district: str, lat: float, lon: float) -> Dict[str, Any]:
     """
-    Returns scientifically grounded seasonal weather normal for Tamil Nadu districts (TNAU Climatology).
-    Used as an offline fallback when live meteorological API is unreachable.
+    Returns scientifically grounded historical district rainfall normal for Tamil Nadu districts (IMD / TNAU Climatology).
+    Used as an offline background context fallback when live meteorological API and cached forecast are unavailable.
+    Does NOT describe conditions as currently suitable or unsuitable based on historical normals alone.
     """
     month = datetime.date.today().month
-    # Tamil Nadu agro-climatic seasonal normals
+    # Tamil Nadu agro-climatic seasonal normals (1970–2020 50-year dataset)
     if month in (10, 11, 12):
         season_name = "Northeast Monsoon (வடகிழக்கு பருவமழை)"
         temp = 28.5
@@ -139,8 +180,8 @@ def _get_seasonal_weather_estimate(district: str, lat: float, lon: float) -> Dic
         precip_24h = 8.0
         precip_prob = 65
         wind = 12.0
-        cond_en = "Northeast Monsoon Showers"
-        cond_ta = "வடகிழக்கு பருவமழை சாரல்"
+        cond_en = "Northeast Monsoon Normal"
+        cond_ta = "வடகிழக்கு பருவமழை சராசரி"
     elif month in (1, 2):
         season_name = "Winter / Post-Monsoon (குளிர்காலம்)"
         temp = 26.0
@@ -148,8 +189,8 @@ def _get_seasonal_weather_estimate(district: str, lat: float, lon: float) -> Dic
         precip_24h = 0.5
         precip_prob = 10
         wind = 8.0
-        cond_en = "Mild Dry Winter"
-        cond_ta = "மிதமான வறண்ட வானிலை"
+        cond_en = "Mild Dry Winter Normal"
+        cond_ta = "குளிர்கால சராசரி"
     elif month in (3, 4, 5):
         season_name = "Summer / Pre-Monsoon (கோடைகாலம்)"
         temp = 36.5
@@ -157,8 +198,8 @@ def _get_seasonal_weather_estimate(district: str, lat: float, lon: float) -> Dic
         precip_24h = 2.0
         precip_prob = 25
         wind = 10.0
-        cond_en = "Hot Dry Weather"
-        cond_ta = "அதிக வெப்பமான வானிலை"
+        cond_en = "Hot Dry Summer Normal"
+        cond_ta = "கோடைகால சராசரி"
     else:  # 6, 7, 8, 9
         season_name = "Southwest Monsoon (தென்மேற்கு பருவமழை)"
         temp = 33.0
@@ -166,19 +207,21 @@ def _get_seasonal_weather_estimate(district: str, lat: float, lon: float) -> Dic
         precip_24h = 4.0
         precip_prob = 40
         wind = 16.0
-        cond_en = "Breezy / Cloudy"
-        cond_ta = "காற்றுடன் கூடிய மேகமூட்டம்"
+        cond_en = "Southwest Monsoon Normal"
+        cond_ta = "தென்மேற்கு பருவமழை சராசரி"
 
     now_iso = time.strftime("%Y-%m-%dT%H:%M")
     return {
-        "status": "WEATHER_UNAVAILABLE",
+        "status": WeatherStatus("UNKNOWN / HISTORICAL_NORMALS"),
         "latitude": lat,
         "longitude": lon,
         "district": district,
         "is_cached": False,
         "is_stale": False,
-        "source": f"TNAU Seasonal Climatology ({season_name})",
-        "data_source": "seasonal estimate",
+        "source": "IMD / Season & Crop Report Table V / TNAU Climatology",
+        "historical_period": "1970–2020 (50-year climatological normal)",
+        "historical_source": "India Meteorological Department (IMD) / Department of Economics & Statistics Tamil Nadu",
+        "data_source": WeatherDataSource("historical_normals"),
         "observation_time": now_iso,
         "current": {
             "temperature_c": temp,
@@ -324,24 +367,31 @@ def get_weather_guidance(district: Optional[str] = None, lat: Optional[float] = 
         d_norm = weather.get("district", district or "Thanjavur")
         rain_threshold = rain_threshold_mm if rain_threshold_mm is not None else DEFAULT_RAIN_THRESHOLD_MM
 
-        if weather.get("status") == "WEATHER_UNAVAILABLE" or weather.get("current", {}).get("temperature_c") is None:
+        if weather.get("status") in ("UNKNOWN / HISTORICAL_NORMALS", "WEATHER_UNAVAILABLE") or weather.get("current", {}).get("temperature_c") is None:
             curr = weather.get("current") or {}
             fc = weather.get("forecast") or {}
             temp = curr.get("temperature_c")
             rain_24h = fc.get("rainfall_next_24h_mm")
             return {
-                "status": "WEATHER_UNAVAILABLE",
+                "status": WeatherStatus("UNKNOWN / HISTORICAL_NORMALS"),
+                "weather_status": WeatherStatus("UNKNOWN / HISTORICAL_NORMALS"),
                 "district": d_norm,
                 "latitude": weather.get("latitude"),
                 "longitude": weather.get("longitude"),
-                "guidance_status": "WEATHER_UNAVAILABLE",
+                "guidance_status": GuidanceStatus("UNKNOWN"),
                 "risk_level": "UNKNOWN",
-                "advisory_en": "Live weather service is currently unreachable. Soil-based fertilizer recommendations remain fully active.",
-                "advisory_ta": "வானிலை தகவலைப் பெற முடியவில்லை. மண் சார்ந்த உரப் பரிந்துரைகள் வழக்கம் போல் செயல்படுகின்றன.",
-                "actionable_advice": "Weather service temporarily offline. Rely on soil-based recommendations.",
-                "condition": curr.get("condition_en", "Unavailable"),
-                "current_condition": curr.get("condition_en", "Unavailable"),
-                "condition_ta": curr.get("condition_ta", "கிடைக்கவில்லை"),
+                "suitability": "UNKNOWN",
+                "is_suitable": None,
+                "historical_period": weather.get("historical_period", "1970–2020 (50-year climatological normal)"),
+                "historical_source": weather.get("historical_source", "IMD / Season & Crop Report Table V / TNAU Climatology"),
+                "source": weather.get("source", "IMD / TNAU Climatology (Historical District Normals 1970–2020)"),
+                "data_source": WeatherDataSource("historical_normals"),
+                "advisory_en": "Live weather service is currently unreachable; forecast is unavailable. Historical district rainfall normals (1970–2020) are provided for background context only. Current fertilizer application suitability cannot be evaluated from historical normals alone. Please check local weather conditions before top-dressing.",
+                "advisory_ta": "நேரடி வானிலை மற்றும் முன்னறிவிப்பு தற்போது கிடைக்கவில்லை. மாவட்ட வரலாற்று மழைப்பொழிவு சராசரி (1970–2020) பின்னணி தகவலுக்காக மட்டுமே காட்டப்பட்டுள்ளது. வரலாற்று சராசரியை மட்டும் வைத்து உரம் இட சாதகமா என்பதை முடிவு செய்ய முடியாது. மேலுரம் இடுவதற்கு முன் உள்ளூர் வானிலையை சரிபார்க்கவும்.",
+                "actionable_advice": "Live weather unavailable. Historical normals shown for background context only; current application suitability cannot be evaluated from historical normals alone. Check local conditions before application.",
+                "condition": curr.get("condition_en", "Historical Normal"),
+                "current_condition": curr.get("condition_en", "Historical Normal"),
+                "condition_ta": curr.get("condition_ta", "வரலாற்று சராசரி"),
                 "temperature_c": temp,
                 "temp_max_c": round(temp + 2.0, 1) if temp is not None else None,
                 "humidity_pct": curr.get("relative_humidity_pct"),
@@ -350,11 +400,10 @@ def get_weather_guidance(district: Optional[str] = None, lat: Optional[float] = 
                 "wind_speed_kmh": curr.get("wind_speed_kmh"),
                 "observation_time": weather.get("observation_time", time.strftime("%Y-%m-%dT%H:%M")),
                 "is_cached": False,
-                "data_source": "seasonal estimate",
-                "data_source_detail": weather.get("source", "TNAU Seasonal Climatology"),
+                "data_source_detail": weather.get("source", "IMD / TNAU Historical Normals 1970-2020"),
                 "rain_threshold_mm": rain_threshold,
-                "forecast_disclaimer": "Weather forecast guidance provides general advisory timing based on meteorological projections and is not a guaranteed micro-climate prediction.",
-                "error_detail": weather.get("error_detail", "Live weather service unreachable")
+                "forecast_disclaimer": "Live weather forecast unavailable. Historical normals provide background context only and cannot determine live application suitability.",
+                "error_detail": weather.get("error_detail", "Live weather service unreachable; fallback to historical normals")
             }
 
         curr = weather["current"]

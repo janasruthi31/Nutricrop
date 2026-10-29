@@ -42,6 +42,8 @@ class AgronomicRule(BaseModel):
     irrigation_method: str
     recommendation_method: str
     recommendation_type: Optional[str] = None
+    supported_phosphorus_methods: Optional[List[str]] = None
+    applicable_limitations: Optional[List[str]] = None
     target_yield_range: Optional[TargetYieldRange] = None
     required_soil_inputs: List[str]
     required_units: Dict[str, str]
@@ -54,15 +56,21 @@ class AgronomicRule(BaseModel):
 
 
 class RuleSelectionResponse(BaseModel):
-    status: str = Field(..., description="Status e.g. RULE_SELECTED, NEEDS_MORE_INPUT, UNSUPPORTED_CROP, UNSUPPORTED_SOIL_SERIES, NO_MATCHING_RULE, PENDING_VERIFICATION")
+    status: str = Field(..., description="Status e.g. RULE_SELECTED, NEEDS_MORE_INPUT, UNSUPPORTED_CROP, UNSUPPORTED_SOIL_SERIES, INCOMPATIBLE_SOIL_TEST_METHOD, NO_MATCHING_RULE, PENDING_VERIFICATION")
     selected_rule_id: Optional[str] = None
     crop: Optional[str] = None
     recommendation_method: Optional[str] = None
     recommendation_type: Optional[str] = None
+    recommendation_category: Optional[str] = Field(None, description="'STCR_IPNS' or 'STANDARD_RDF'")
+    recommendation_type_label: Optional[str] = Field(None, description="Human readable recommendation label")
+    is_stcr_ipns: bool = False
+    is_standard_rdf: bool = False
     applicable_soil_series: Optional[List[str]] = None
     applicable_season: Optional[Union[List[str], str]] = None
     irrigation_method: Optional[str] = None
     required_inputs: List[str] = Field(default_factory=list)
+    supported_phosphorus_methods: List[str] = Field(default_factory=list)
+    applicable_limitations: List[str] = Field(default_factory=list)
     source_title: Optional[str] = None
     source_url: Optional[str] = None
     source_page_or_section: Optional[str] = None
@@ -70,6 +78,15 @@ class RuleSelectionResponse(BaseModel):
     is_verified: bool = False
     confidence: Optional[str] = Field("high", description="'high' or 'lower'")
     confidence_label: Optional[str] = Field(None, description="'General recommendation (lower confidence)' or 'Soil-specific STCR (high confidence)'")
+    priority_tier: Optional[int] = Field(None, description="1 for STCR-IPNS, 2 for TNAU Soil-Test, 3 for TNAU Blanket")
+    rule_priority: Optional[str] = Field(None, description="'STCR_IPNS', 'TNAU_SOIL_TEST', or 'TNAU_BLANKET'")
+    selection_reason: Optional[str] = Field(None, description="Simple explanation of how the recommendation was selected")
+    fallback_applied: bool = Field(False, description="True if a verified alternative was selected because a provisional/audit rule was rejected")
+    fallback_reason: Optional[str] = Field(None, description="Detailed explanation of the fallback selection")
+    provisional_rule_rejected: Optional[str] = Field(None, description="Rule ID of the provisional rule that was rejected")
+    provisional_rules_encountered: List[str] = Field(default_factory=list, description="Rule IDs of provisional/audit rules encountered")
     applicability_notes: Optional[str] = None
     missing_inputs: List[str] = Field(default_factory=list)
+    error_code: Optional[str] = None
+    actionable_message: Optional[str] = None
     warnings: List[str] = Field(default_factory=list)

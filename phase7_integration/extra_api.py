@@ -23,8 +23,31 @@ import hmac
 
 extra_router = APIRouter(tags=["app-services"])
 
-JWT_SECRET = os.environ.get("JWT_SECRET", "production_super_secret_jwt_key_sih1639_tnau")
+JWT_SECRET = os.environ.get("JWT_SECRET")
+if not JWT_SECRET:
+    if os.environ.get("ENVIRONMENT", "").lower() == "production":
+        raise RuntimeError("FATAL: JWT_SECRET environment variable must be set in production mode!")
+    JWT_SECRET = "production_super_secret_jwt_key_sih1639_tnau"
+
 JWT_EXPIRE_SECONDS = int(os.environ.get("ACCESS_TOKEN_EXPIRE_MINUTES", "1440")) * 60
+
+# Rate Limiting for Authentication Endpoints (Sliding Window)
+_AUTH_RATE_LIMITS: Dict[str, List[float]] = {}
+_AUTH_RATE_LIMIT_WINDOW = 300  # 5 minutes
+_MAX_LOGIN_ATTEMPTS = 10
+_MAX_REGISTER_ATTEMPTS = 5
+
+def _check_auth_rate_limit(key: str, max_attempts: int, action: str = "login"):
+    now = time.time()
+    attempts = _AUTH_RATE_LIMITS.setdefault(key, [])
+    # Keep attempts within the active sliding window
+    _AUTH_RATE_LIMITS[key] = [t for t in attempts if now - t < _AUTH_RATE_LIMIT_WINDOW]
+    if len(_AUTH_RATE_LIMITS[key]) >= max_attempts:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Too many {action} attempts. Please wait 5 minutes before trying again."
+        )
+    _AUTH_RATE_LIMITS[key].append(now)
 
 
 # ---------------------------------------------------------
@@ -118,10 +141,8 @@ def _get_current_user_id(
 
     # Reject caller-controlled X-Farmer-Id header as proof of authentication
     if not token and x_farmer_id and x_farmer_id.strip():
-        if x_farmer_id == "farmer_001" or x_farmer_id.startswith("demo_") or x_farmer_id.startswith("farmer_"):
-            token = x_farmer_id.strip()
         # Only allowed in isolated test suite runs with explicit AGRI_ALLOW_TEST_BYPASS flag enabled
-        elif os.environ.get("AGRI_ALLOW_TEST_BYPASS", "false").lower() in ("true", "1") and x_farmer_id.startswith("test_farmer_"):
+        if os.environ.get("AGRI_ALLOW_TEST_BYPASS", "false").lower() in ("true", "1") and (x_farmer_id.startswith("test_farmer_") or x_farmer_id == "farmer_001" or x_farmer_id.startswith("demo_")):
             token = x_farmer_id.strip()
         else:
             raise HTTPException(
@@ -144,11 +165,9 @@ def _get_current_user_id(
                 detail="Invalid, tampered, or expired authentication token. Please log in again."
             )
         user_id = payload["sub"]
-    elif token == "demo_token" or token.startswith("demo_") or token == "farmer_001":
-        user_id = "farmer_001"
     else:
         # Isolated test bypass: ONLY active when explicitly permitted by environment variable in test harness
-        if os.environ.get("AGRI_ALLOW_TEST_BYPASS", "false").lower() in ("true", "1") and (token.startswith("test_") or token.startswith("audit_")):
+        if os.environ.get("AGRI_ALLOW_TEST_BYPASS", "false").lower() in ("true", "1") and (token.startswith("test_") or token.startswith("audit_") or token == "farmer_001" or token.startswith("demo_")):
             user_id = token
         else:
             raise HTTPException(
@@ -223,6 +242,17 @@ class FertilizerHistoryItem(BaseModel):
     unit: str = "kg"
     application_date: Optional[str] = None
     notes: Optional[str] = None
+    farm_id: Optional[str] = None
+    fertilizer_grade: Optional[str] = None
+    category: Optional[str] = None
+    bag_weight_kg: Optional[float] = None
+    field_area: Optional[float] = None
+    field_area_unit: Optional[str] = None
+    application_method: Optional[str] = None
+    n_pct: Optional[float] = None
+    p2o5_pct: Optional[float] = None
+    k2o_pct: Optional[float] = None
+
 
 
 class YieldPredictionRequest(BaseModel):
@@ -243,6 +273,7 @@ class YieldPredictionRequest(BaseModel):
 
 @extra_router.post("/api/auth/register")
 def register_user(req: RegisterRequest):
+    _check_auth_rate_limit(f"reg_{req.email.lower().strip()}", _MAX_REGISTER_ATTEMPTS, "registration")
     with db.connect() as con:
         # Check duplicate by email or phone
         email_clean = req.email.lower().strip()
@@ -284,8 +315,9 @@ def register_user(req: RegisterRequest):
 
 @extra_router.post("/api/auth/login")
 def login_user(req: LoginRequest):
+    input_term = req.email.strip()
+    _check_auth_rate_limit(f"login_{input_term.lower()}", _MAX_LOGIN_ATTEMPTS, "login")
     with db.connect() as con:
-        input_term = req.email.strip()
         # 1. Match by email
         row = con.execute("SELECT * FROM users WHERE email = ?", (input_term.lower(),)).fetchone()
         
@@ -300,12 +332,10 @@ def login_user(req: LoginRequest):
                 row = con.execute("SELECT * FROM users WHERE phone = ?", (input_term,)).fetchone()
                 if not row:
                     suffix = digits[-10:] if len(digits) >= 10 else digits
-                    rows = con.execute("SELECT * FROM users WHERE phone IS NOT NULL").fetchall()
-                    for r in rows:
-                        p_digits = "".join(c for c in (r["phone"] or "") if c.isdigit())
-                        if p_digits and (p_digits == digits or p_digits.endswith(suffix)):
-                            row = r
-                            break
+                    row = con.execute(
+                        "SELECT * FROM users WHERE phone LIKE ? OR phone LIKE ? LIMIT 1",
+                        (f"%{digits}", f"%{suffix}")
+                    ).fetchone()
 
         if not row or not _verify_password(req.password, row["password_hash"]):
             raise HTTPException(status_code=401, detail="Invalid email or password.")
@@ -528,9 +558,16 @@ def add_fertilizer_history(
     now = time.strftime("%Y-%m-%dT%H:%M:%SZ")
     with db.connect() as con:
         con.execute(
-            """INSERT INTO farmer_fertilizer_history (id, user_id, crop, season, year, fertilizer_product, quantity, unit, application_date, notes, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (entry_id, user_id, item.crop, item.season, item.year, item.fertilizer_product, item.quantity, item.unit, item.application_date, item.notes, now)
+            """INSERT INTO farmer_fertilizer_history 
+               (id, user_id, farm_id, crop, season, year, fertilizer_product, fertilizer_grade, category, quantity, unit, bag_weight_kg, field_area, field_area_unit, application_method, n_pct, p2o5_pct, k2o_pct, application_date, notes, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                entry_id, user_id, item.farm_id, item.crop, item.season, item.year,
+                item.fertilizer_product, item.fertilizer_grade, item.category,
+                item.quantity, item.unit, item.bag_weight_kg, item.field_area, item.field_area_unit,
+                item.application_method, item.n_pct, item.p2o5_pct, item.k2o_pct,
+                item.application_date, item.notes, now
+            )
         )
     return {"status": "SUCCESS", "id": entry_id, "message": "Previous fertilizer entry saved."}
 
@@ -736,19 +773,37 @@ def download_recommendation_pdf(
     # Section 1: NPK Nutrient Requirements
     elements.append(Paragraph("1. Deterministic NPK Nutrient Requirements (TNAU / STCR / IPNS Rules)", heading2_style))
     p5 = rec_data.get("nutrient_requirements", {})
-    n_ha = p5.get("n_req_kg_per_ha") if p5.get("n_req_kg_per_ha") is not None else p5.get("net_n_kg_per_ha", 0)
-    p_ha = p5.get("p2o5_req_kg_per_ha") if p5.get("p2o5_req_kg_per_ha") is not None else p5.get("net_p2o5_kg_per_ha", 0)
-    k_ha = p5.get("k2o_req_kg_per_ha") if p5.get("k2o_req_kg_per_ha") is not None else p5.get("net_k2o_kg_per_ha", 0)
-    tot_n = p5.get("total_n_req_kg") if p5.get("total_n_req_kg") is not None else p5.get("total_farm_n_kg", 0)
-    tot_p = p5.get("total_p2o5_req_kg") if p5.get("total_p2o5_req_kg") is not None else p5.get("total_farm_p2o5_kg", 0)
-    tot_k = p5.get("total_k2o_req_kg") if p5.get("total_k2o_req_kg") is not None else p5.get("total_farm_k2o_kg", 0)
-    calc_meth = sanitize_text_for_pdf(p5.get("calculation_method") or p5.get("selected_method", "TNAU STCR-IPNS"), font_regular)
-    rule_id = sanitize_text_for_pdf(p5.get("selected_rule_id", "Verified TNAU Rule"), font_regular)
+    u_rec = rec_data.get("unified_recommendation", {})
+    r_sel = rec_data.get("rule_selection", {})
+
+    fallback_applied = u_rec.get("fallback_applied") or r_sel.get("fallback_applied", False)
+    fallback_reason = u_rec.get("fallback_reason") or r_sel.get("fallback_reason")
+    def _safe_float(val: Any) -> float:
+        if val is None:
+            return 0.0
+        try:
+            return float(val)
+        except (ValueError, TypeError):
+            return 0.0
+
+    n_ha = _safe_float(p5.get("n_req_kg_per_ha")) or _safe_float(p5.get("net_n_kg_per_ha"))
+    p_ha = _safe_float(p5.get("p2o5_req_kg_per_ha")) or _safe_float(p5.get("net_p2o5_kg_per_ha"))
+    k_ha = _safe_float(p5.get("k2o_req_kg_per_ha")) or _safe_float(p5.get("net_k2o_kg_per_ha"))
+    tot_n = _safe_float(p5.get("total_n_req_kg")) or _safe_float(p5.get("total_farm_n_kg"))
+    tot_p = _safe_float(p5.get("total_p2o5_req_kg")) or _safe_float(p5.get("total_farm_p2o5_kg"))
+    tot_k = _safe_float(p5.get("total_k2o_req_kg")) or _safe_float(p5.get("total_farm_k2o_kg"))
+
+    if fallback_applied:
+        calc_meth = "TNAU Soil-Test Rating Adjusted [FALLBACK — Not STCR-IPNS]"
+        rule_attribution = sanitize_text_for_pdf(f"Fallback Rule: {u_rec.get('rule_id') or p5.get('selected_rule_id')}", font_regular)
+    else:
+        calc_meth = sanitize_text_for_pdf(p5.get("calculation_method") or p5.get("selected_method", "TNAU STCR-IPNS"), font_regular)
+        rule_attribution = sanitize_text_for_pdf(p5.get("selected_rule_id", "Verified TNAU Rule"), font_regular)
 
     npk_data = [
         ["Nutrient", "Per Hectare (kg/ha)", "Total Farm Quantity (kg)", "Rule Attribution"],
         ["Nitrogen (N)", f"{n_ha:.1f} kg/ha", f"{tot_n:.1f} kg", calc_meth],
-        ["Phosphorus (P2O5)", f"{p_ha:.1f} kg/ha", f"{tot_p:.1f} kg", rule_id],
+        ["Phosphorus (P2O5)", f"{p_ha:.1f} kg/ha", f"{tot_p:.1f} kg", rule_attribution],
         ["Potassium (K2O)", f"{k_ha:.1f} kg/ha", f"{tot_k:.1f} kg", "TNAU Soil Chemistry Rating"]
     ]
     t_npk = Table(npk_data, colWidths=[130, 130, 130, 150])
@@ -762,23 +817,50 @@ def download_recommendation_pdf(
         ('BOTTOMPADDING', (0,0), (-1,-1), 4),
     ]))
     elements.append(t_npk)
+    if fallback_applied:
+        fallback_notice = f"<b>Agronomic Safeguard Notice:</b> Provisional/unverified STCR rule was rejected. Verified fallback rule was applied ({fallback_reason or 'TNAU Blanket/Soil-Test Adjusted'}). Never treated as an exact STCR-IPNS prescription."
+        elements.append(Spacer(1, 4))
+        elements.append(Paragraph(fallback_notice, ParagraphStyle('WarnNotice', parent=styles['Normal'], fontSize=8, leading=10, textColor=colors.HexColor("#b71c1c"))))
+
+    # Soil Fertility Diagnostic & Low Nutrient Highlights
+    soil_highlights = rec_data.get("soil_fertility_highlights") or rec_data.get("low_nutrients_highlight") or {}
+    low_nutrients = soil_highlights.get("low_nutrients", [])
+    if low_nutrients:
+        low_txt = "<b>Soil Fertility Alert (Low NPK Detected):</b> " + "; ".join(f"<b>{item['nutrient']}</b> is LOW ({item['value']:.1f} {item['unit']})" for item in low_nutrients) + ". Fertilizer doses adjusted upwards (+10% to +25%) to compensate for soil deficiency."
+        elements.append(Spacer(1, 4))
+        elements.append(Paragraph(low_txt, ParagraphStyle('LowAlert', parent=styles['Normal'], fontSize=8, leading=10, textColor=colors.HexColor("#b71c1c"), backColor=colors.HexColor("#fff3e0"), borderPadding=4)))
+
     elements.append(Spacer(1, 14))
 
     # Section 2: Optimal Fertilizer Purchase Plan
     elements.append(Paragraph("2. Cost-Optimized Commercial Fertilizer Purchase Plan (LP Solver)", heading2_style))
     p6 = rec_data.get("fertilizer_plan", {})
     products = p6.get("recommended_products", [])
+    total_cost_status = p6.get("total_cost_status") or rec_data.get("total_cost_status", "AVAILABLE")
     fert_data = [["Fertilizer Product", "Quantity (kg)", "Commercial Bags", "Bag Size", "Est. Cost (INR)"]]
     for prod in products:
         p_name = sanitize_text_for_pdf(prod.get("product_name") or prod.get("name") or "Fertilizer", font_regular)
+        p_status = prod.get("price_status", "VERIFIED")
+        p_cost = prod.get("total_cost_inr")
+        if p_status in ("COST_UNAVAILABLE", "EXPIRED", "CONFLICTING") or p_cost is None:
+            cost_str = "COST UNAVAILABLE"
+        else:
+            cost_str = f"Rs {float(p_cost):,.2f}"
+
         fert_data.append([
             p_name,
             f"{prod.get('quantity_kg', 0):.1f} kg",
             f"{prod.get('bags', 0)} bags",
             f"{prod.get('bag_size_kg', 50)} kg",
-            f"Rs {prod.get('total_cost_inr', 0):,.2f}"
+            cost_str
         ])
-    fert_data.append(["TOTAL ESTIMATED COST", "", "", "", f"Rs {p6.get('total_cost_inr', 0):,.2f}"])
+
+    if total_cost_status == "COST_UNAVAILABLE" or p6.get("total_cost_inr") is None:
+        total_cost_str = "COST UNAVAILABLE"
+    else:
+        total_cost_str = f"Rs {p6.get('total_cost_inr', 0):,.2f}"
+
+    fert_data.append(["TOTAL ESTIMATED COST", "", "", "", total_cost_str])
 
     t_fert = Table(fert_data, colWidths=[170, 90, 90, 80, 110])
     t_fert.setStyle(TableStyle([
@@ -793,6 +875,30 @@ def download_recommendation_pdf(
         ('BOTTOMPADDING', (0,0), (-1,-1), 4),
     ]))
     elements.append(t_fert)
+
+    # Price traceability notes
+    price_trace_notes = []
+    for prod in products:
+        p_nm = prod.get("product_name") or prod.get("name")
+        p_basis = prod.get("price_basis") or "Subsidized MRP"
+        p_mech = prod.get("pricing_mechanism") or "SUBSIDY_RELATED_PRICE"
+        p_src = prod.get("price_source") or "Department of Fertilizers, GoI"
+        p_dt = prod.get("price_effective_date") or "2024-04-01"
+        price_trace_notes.append(f"• <b>{p_nm}:</b> {p_basis} ({p_mech}) | Source: {p_src} (Effective: {p_dt})")
+    if price_trace_notes:
+        elements.append(Spacer(1, 4))
+        elements.append(Paragraph("<b>Price Traceability:</b><br/>" + "<br/>".join(price_trace_notes), ParagraphStyle('PriceTrace', parent=styles['Normal'], fontSize=7.5, leading=10, textColor=colors.HexColor("#333333"))))
+
+    # Fertilizer Product Selection Rationale (Why this was recommended)
+    why_notes = []
+    for prod in products:
+        p_nm = sanitize_text_for_pdf(prod.get("product_name") or prod.get("name") or "Fertilizer", font_regular)
+        why_txt = sanitize_text_for_pdf(prod.get("why_recommended") or prod.get("selection_rationale") or prod.get("description") or "Supplies primary targeted nutrient requirement.", font_regular)
+        why_notes.append(f"• <b>{p_nm}:</b> {why_txt}")
+    if why_notes:
+        elements.append(Spacer(1, 4))
+        elements.append(Paragraph("<b>Why Recommended (Agronomic Rationale):</b><br/>" + "<br/>".join(why_notes), ParagraphStyle('WhyRecNotes', parent=styles['Normal'], fontSize=7.5, leading=10, textColor=colors.HexColor("#1b5e20"))))
+
     elements.append(Spacer(1, 14))
 
     # Section 3: Yield Benchmark & Weather Advisory
@@ -809,9 +915,22 @@ def download_recommendation_pdf(
         if micro_parts:
             micro_str = "<br/><b>Micronutrient Advisory:</b><br/>" + "<br/>".join(micro_parts)
 
+    is_hist_weather = wg.get("status") == "UNKNOWN / HISTORICAL_NORMALS" or wg.get("guidance_status") == "UNKNOWN"
+    if is_hist_weather:
+        weather_info = (
+            f"<b>Agro-Weather Timing:</b> Historical district rainfall normals ({wg.get('historical_period', '1970–2020')}, "
+            f"Source: {wg.get('historical_source', 'IMD / Season & Crop Report Table V')}) are provided for background context only.<br/>"
+            f"<b>Live Suitability:</b> UNKNOWN — Live weather forecast is unavailable. Current application suitability cannot be evaluated from historical normals alone. Check local conditions before top-dressing.<br/>"
+            f"<b>Safeguard Note:</b> Weather failure does not change calculated nutrient requirements or fertilizer quantities."
+        )
+    else:
+        weather_info = (
+            f"<b>Agro-Weather Timing:</b> {wg.get('actionable_advice', 'Apply fertilizers during clear weather.')}<br/>"
+            f"<b>Rainfall Risk:</b> {wg.get('risk_level', 'LOW')} | Current condition: {wg.get('current_condition', 'Fair')}"
+        )
+
     guidance_text = f"<b>District Benchmark:</b> {yp.get('estimated_yield_kg_per_ha', 'N/A')} kg/ha (district benchmark, not a prediction for your field)<br/>" \
-                    f"<b>Agro-Weather Timing:</b> {wg.get('actionable_advice', 'Apply fertilizers during clear weather.')}<br/>" \
-                    f"<b>Rainfall Risk:</b> {wg.get('risk_level', 'LOW')} | Current condition: {wg.get('current_condition', 'Fair')}" \
+                    f"{weather_info}" \
                     f"{micro_str}"
     elements.append(Paragraph(guidance_text, body_style))
     elements.append(Spacer(1, 14))

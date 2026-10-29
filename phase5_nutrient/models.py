@@ -7,10 +7,24 @@ from pydantic import BaseModel, Field
 
 
 class PreviousFertilizerItem(BaseModel):
-    product: str = Field(..., description="Commercial fertilizer product name or ID e.g. DAP, Urea, MOP, SSP")
+    product: Optional[str] = Field(None, description="Commercial fertilizer product name or ID e.g. DAP, Urea, MOP, SSP")
+    fertilizer_product: Optional[str] = Field(None, description="Commercial fertilizer product name alias")
+    product_grade: Optional[str] = Field(None, description="Grade e.g. 18-46-0, 46-0-0, 0-0-60, 20-20-0, 17-17-17")
+    category: Optional[str] = Field(None, description="Category: chemical, organic_manure, compost, biofertilizer")
     quantity: float = Field(..., description="Quantity applied")
-    unit: str = Field("kg", description="Unit of quantity: kg, bags, tonnes, kg/acre, kg/ha")
+    unit: str = Field("kg", description="Unit: kg, g, grams, bags, tonnes, ton, kg/acre, kg/ha")
+    bag_weight_kg: Optional[float] = Field(None, description="Bag weight in kg when quantities entered in bags")
+    application_date: Optional[str] = Field(None, description="Application date (YYYY-MM-DD)")
+    crop_season: Optional[str] = Field(None, description="Previous crop season when applied")
+    field_area: Optional[float] = Field(None, description="Field area to which fertilizer was applied")
+    field_area_unit: Optional[str] = Field(None, description="Unit of field area (acre, hectare, cent, etc.)")
+    application_method: Optional[str] = Field(None, description="Application method (basal, top-dressing, foliar, fertigation)")
+    n_pct: Optional[float] = Field(None, description="Custom or verified Nitrogen %")
+    p2o5_pct: Optional[float] = Field(None, description="Custom or verified Phosphorus P2O5 %")
+    k2o_pct: Optional[float] = Field(None, description="Custom or verified Potassium K2O %")
     months_ago: Optional[float] = Field(None, description="Months elapsed since application")
+    notes: Optional[str] = Field(None, description="Additional notes or organic manure details")
+
 
 
 class NutrientCalculationRequest(BaseModel):
@@ -26,7 +40,7 @@ class NutrientCalculationRequest(BaseModel):
     soil_nitrogen_unit: Optional[str] = Field("kg/ha", description="Unit for soil N")
     soil_phosphorus: Optional[Any] = Field(None, description="Soil available P (soil-test status)")
     soil_phosphorus_unit: Optional[str] = Field("kg/ha", description="Unit for soil P")
-    soil_phosphorus_method: Optional[str] = Field("Olsen", description="Olsen or Bray")
+    soil_phosphorus_method: Optional[str] = Field(None, description="Olsen or Bray")
     soil_potassium: Optional[Any] = Field(None, description="Soil available K (soil-test status)")
     soil_potassium_unit: Optional[str] = Field("kg/ha", description="Unit for soil K")
     organic_carbon: Optional[Any] = Field(None, description="Organic Carbon %")
@@ -52,22 +66,31 @@ class NutrientCalculationRequest(BaseModel):
     printed_rate_unit: Optional[str] = Field("kg/acre", description="Unit of printed recommendation (default kg/acre)")
     printed_source: Optional[str] = Field("Uploaded Soil Health Card", description="Label of source document")
     allow_unverified: Optional[bool] = Field(False, description="Allow calculation for unverified rule with unverified status flag")
-    recommendation_type: Optional[str] = Field(None, description="'SOIL_SPECIFIC_STCR', 'GENERAL_BLANKET', 'SOIL_HEALTH_CARD', 'PROVISIONAL_UNVERIFIED'")
+    recommendation_type: Optional[str] = Field(None, description="'STCR_IPNS', 'STANDARD_RDF', 'SOIL_SPECIFIC_STCR', 'GENERAL_BLANKET', 'SOIL_HEALTH_CARD', 'PROVISIONAL_UNVERIFIED'")
     no_soil_test: Optional[bool] = Field(False, description="Flag indicating farmer has no soil test card; use general blanket dose")
 
 
 
 class NutrientCalculationResponse(BaseModel):
-    status: str = Field(..., description="CALCULATION_SUCCESS, UNVERIFIED_RULE, PENDING_AGRONOMIC_VALIDATION, MISSING_INPUTS, VALIDATION_ERROR, UNSUPPORTED_CROP, CALCULATION_FAILED")
+    status: str = Field(..., description="CALCULATION_SUCCESS, UNVERIFIED_RULE, PENDING_AGRONOMIC_VALIDATION, MISSING_INPUTS, VALIDATION_ERROR, UNSUPPORTED_CROP, UNSUPPORTED_SOIL_SERIES, INCOMPATIBLE_SOIL_TEST_METHOD, CALCULATION_FAILED")
     crop: Optional[str] = None
     selected_rule_id: Optional[str] = None
     selected_method: Optional[str] = None
     recommendation_mode: str = Field("CALCULATED_AGRONOMIC", description="'SOIL_HEALTH_CARD' or 'CALCULATED_AGRONOMIC'")
-    recommendation_type: str = Field("SOIL_SPECIFIC_STCR", description="'SOIL_SPECIFIC_STCR', 'GENERAL_BLANKET', 'SOIL_HEALTH_CARD', 'PROVISIONAL_UNVERIFIED'")
+    recommendation_type: str = Field("STCR_IPNS", description="'STCR_IPNS', 'STANDARD_RDF', 'SOIL_SPECIFIC_STCR', 'GENERAL_BLANKET', 'SOIL_HEALTH_CARD', 'PROVISIONAL_UNVERIFIED'")
+    recommendation_category: Optional[str] = Field(None, description="'STCR_IPNS' or 'STANDARD_RDF'")
+    recommendation_type_label: Optional[str] = Field(None, description="Human readable recommendation label")
+    is_stcr_ipns: bool = False
+    is_standard_rdf: bool = False
     recommendation_source: Optional[str] = None
     verification_status: Optional[str] = None
     is_verified_rule: bool = False
     is_provisional: bool = False
+
+    applicable_limitations: List[str] = Field(default_factory=list)
+    supported_phosphorus_methods: List[str] = Field(default_factory=list)
+    error_code: Optional[str] = None
+    actionable_message: Optional[str] = None
 
     # Confidence and fallback labels (Task 2a)
     confidence: Optional[str] = Field("high", description="'high' for soil-specific STCR, 'lower' for general blanket fallback")
